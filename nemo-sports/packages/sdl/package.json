@@ -1,0 +1,13 @@
+{
+  "name": "@nemo/sdl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NEMO Sports — Sports Data Layer: the only component allowed to talk to sports data providers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/test/"
+  }
+}

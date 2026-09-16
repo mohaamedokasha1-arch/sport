@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* ── NEMO Sports · Brand tokens ─────────────────────────────── */
+  --font-sans: "IBM Plex Sans Arabic", "Segoe UI", "Noto Sans Arabic",
+    system-ui, -apple-system, sans-serif;
+  --font-display: "Barlow Condensed", "IBM Plex Sans Arabic",
+    "Arial Narrow", sans-serif;
+
+  --color-navy-950: #050b15;
+  --color-navy-900: #0a1424;
+  --color-navy-850: #0f1b2e;
+  --color-navy-800: #152438;
+  --color-navy-700: #1d3049;
+  --color-navy-600: #24344c;
+  --color-navy-500: #33455f;
+
+  --color-gold-600: #b8912c;
+  --color-gold-500: #d4af37;
+  --color-gold-400: #e3c766;
+  --color-gold-300: #f0dfa4;
+
+  --color-live: #e02d3c;
+  --color-live-soft: #fff1f2;
+  --color-win: #0f9d6a;
+  --color-warn: #d98324;
+
+  --color-ink: #0f1b2e;
+  --color-muted: #5d6b7f;
+  --color-line: #e2e8f0;
+  --color-surface: #ffffff;
+  --color-bg: #f4f6f9;
+
+  --radius-card: 6px;
+}
+
+/* ── Dark mode overrides (class strategy) ───────────────────── */
+.dark {
+  --color-ink: #e9eef6;
+  --color-muted: #94a3b8;
+  --color-line: #1d2c42;
+  --color-surface: #101d30;
+  --color-bg: #070e1a;
+  color-scheme: dark;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-gold-500);
+  color: #0a1424;
+}
+
+/* Thin, brand-consistent scrollbars for the score rails */
+.no-bar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Latin numerals always read LTR, even inside RTL flow */
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0.01em;
+  unicode-bidi: isolate;
+}
+
+.eyebrow {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 2px;
+}
+
+/* ── Live indicator ─────────────────────────────────────────── */
+@keyframes nemo-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(224, 45, 60, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(224, 45, 60, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(224, 45, 60, 0);
+  }
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-live);
+  animation: nemo-pulse 1.6s infinite;
+  flex: none;
+}
+
+@keyframes nemo-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  display: inline-flex;
+  animation: nemo-ticker 42s linear infinite;
+  will-change: transform;
+}
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes nemo-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.flash {
+  animation: nemo-fade-up 0.35s ease-out;
+}
+
+/* Diagonal navy texture used behind hero panels */
+.stripes {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.035) 0px,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 9px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track,
+  .live-dot,
+  .flash {
+    animation: none !important;
+  }
+}

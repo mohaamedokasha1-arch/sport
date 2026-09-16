@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NEMO Sports · دليل الهوية البصرية</title>
+<style>
+  :root{
+    --navy-950:#050B15; --navy-900:#0A1424; --navy-850:#0F1B2E; --navy-800:#152438;
+    --navy-700:#1D3049; --navy-600:#24344C;
+    --gold-600:#B8912C; --gold-500:#D4AF37; --gold-400:#E3C766; --gold-300:#F0DFA4;
+    --live:#E02D3C; --win:#0F9D6A; --warn:#D98324;
+    --ink:#0F1B2E; --muted:#5D6B7F; --line:#E2E8F0; --surface:#FFFFFF; --bg:#F4F6F9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Sans Arabic","Segoe UI","Noto Sans Arabic",system-ui,sans-serif;
+    font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  .disp{font-family:"Barlow Condensed","Arial Narrow",Impact,sans-serif;letter-spacing:.04em}
+  .num{font-variant-numeric:tabular-nums}
+
+  header.hero{background:var(--navy-850);color:#fff;border-bottom:2px solid var(--gold-500)}
+  .hero .wrap{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:36px 20px;flex-wrap:wrap}
+  .hero h1{margin:0;font-size:30px;letter-spacing:-.01em}
+  .hero p{margin:6px 0 0;color:rgba(255,255,255,.6);font-size:13px}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .hero .eyebrow{color:rgba(255,255,255,.45)}
+
+  section{padding:44px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:21px;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  h2::before{content:"";width:4px;height:20px;background:var(--gold-500);border-radius:2px}
+  h3{font-size:14px;margin:26px 0 10px}
+  .lead{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:70ch}
+
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px}
+  .dark-card{background:var(--navy-850);border:1px solid var(--navy-700);border-radius:6px;padding:16px;color:#fff}
+
+  /* swatches */
+  .sw{border-radius:6px;overflow:hidden;border:1px solid var(--line);background:#fff}
+  .sw .chip{height:64px}
+  .sw .meta{padding:8px 10px;font-size:11px}
+  .sw .meta b{display:block;font-size:12px}
+  .sw .meta span{color:var(--muted)}
+
+  /* type scale */
+  .row{display:flex;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px dashed var(--line)}
+  .row .tag{width:112px;flex:none;font-size:11px;color:var(--muted)}
+
+  /* components */
+  .btn{display:inline-block;border-radius:3px;padding:9px 16px;font-size:12.5px;font-weight:800;
+    border:1px solid transparent;cursor:pointer}
+  .btn-gold{background:var(--gold-500);color:var(--navy-900)}
+  .btn-navy{background:var(--navy-850);color:#fff}
+  .btn-ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+  .btn-live{background:var(--live);color:#fff}
+  .badge{display:inline-flex;align-items:center;gap:6px;border-radius:3px;padding:4px 8px;
+    font-size:11px;font-weight:800;border:1px solid transparent}
+  .b-live{background:rgba(224,45,60,.1);color:var(--live);border-color:rgba(224,45,60,.25)}
+  .b-idle{background:rgba(15,27,46,.05);color:var(--navy-850);border-color:rgba(15,27,46,.1)}
+  .b-done{background:rgba(15,27,46,.06);color:var(--muted);border-color:var(--line)}
+  .b-warn{background:rgba(217,131,36,.12);color:var(--warn);border-color:rgba(217,131,36,.25)}
+  .dot{width:7px;height:7px;border-radius:99px;background:var(--live);
+    box-shadow:0 0 0 0 rgba(224,45,60,.55);animation:pulse 1.6s infinite}
+  @keyframes pulse{70%{box-shadow:0 0 0 7px rgba(224,45,60,0)}100%{box-shadow:0 0 0 0 rgba(224,45,60,0)}}
+
+  /* match card sample */
+  .mc{background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden;max-width:330px}
+  .mc header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)}
+  .mc .body{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:16px 12px}
+  .mc .t{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:700;text-align:center}
+  .mc .sc{font-size:26px;font-weight:800}
+  .mc footer{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:11px}
+  .crest{width:38px;height:38px}
+
+  /* spacing */
+  .sp{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+  .sp div{background:var(--navy-850);border-radius:2px}
+  .sp span{font-size:10px;color:var(--muted);display:block;text-align:center;margin-top:4px}
+
+  ul.rules{margin:0;padding-inline-start:18px}
+  ul.rules li{margin:6px 0;font-size:13.5px}
+  .yes{color:var(--win);font-weight:800}
+  .no{color:var(--live);font-weight:800}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:start;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:11px}
+  footer.page{padding:26px 0 46px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div style="display:flex;align-items:center;gap:14px">
+      <svg width="52" height="52" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="5" y="7" width="10" height="34" fill="#FFFFFF"/>
+        <rect x="33" y="7" width="10" height="34" fill="#FFFFFF"/>
+        <polygon points="7,41 15,41 41,7 33,7" fill="#D4AF37"/>
+      </svg>
+      <div>
+        <p class="eyebrow" style="margin:0 0 4px">Brand &amp; Design System · v1.0</p>
+        <h1 class="disp">NEMO SPORTS</h1>
+      </div>
+    </div>
+    <div style="text-align:end">
+      <p class="eyebrow" style="margin:0">Live Sports, Every Moment</p>
+      <p style="margin:6px 0 0;color:rgba(255,255,255,.55);font-size:12px">
+        مصداقية شبكة إعلامية + سرعة منصة نتائج مباشرة
+      </p>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- LOGO -->
+<section>
+  <h2>اللوغو</h2>
+  <p class="lead">
+    Monogram «N» من عمودين وقطر يتجاوز الإطار. العمودان يمنحان ثبات المذيع وسلطته،
+    والقطر الذهبي هو لحظة الحركة: التمريرة، الاختراق، صافرة النهاية.
+  </p>
+
+  <div class="grid g3">
+    <div class="card" style="display:grid;place-items:center;min-height:130px">
+      <svg width="120" height="120" viewBox="0 0 48 48">
+        <rect x="5" y="7" width="10" height="34" fill="#0F1B2E"/>
+        <rect x="33" y="7" width="10" height="34" fill="#0F1B2E"/>
+        <polygon points="7,41 15,41 41,7 33,7" fill="#D4AF37"/>
+      </svg>
+      <p class="eyebrow" style="margin-top:8px">Mark — Favicon / App</p>
+    </div>
+
+    <div class="card" style="display:grid;place-items:center;min-height:130px">
+      <svg width="240" height="72" viewBox="0 0 320 96">
+        <rect x="16" y="18" width="12" height="44" fill="#0F1B2E"/>
+        <rect x="52" y="18" width="12" height="44" fill="#0F1B2E"/>
+        <polygon points="18,62 29,62 62,18 51,18" fill="#D4AF37"/>
+        <text x="86" y="48" font-family="Arial Narrow, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="6" fill="#0F1B2E">NEMO</text>
+        <text x="88" y="68" font-family="Arial Narrow, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="9" fill="#B8912C">SPORTS</text>
+      </svg>
+      <p class="eyebrow" style="margin-top:8px">Horizontal — Header</p>
+    </div>
+
+    <div class="dark-card" style="display:grid;place-items:center;min-height:130px">
+      <svg width="240" height="72" viewBox="0 0 320 96">
+        <rect x="16" y="18" width="12" height="44" fill="#FFFFFF"/>
+        <rect x="52" y="18" width="12" height="44" fill="#FFFFFF"/>
+        <polygon points="18,62 29,62 62,18 51,18" fill="#D4AF37"/>
+        <text x="86" y="48" font-family="Arial Narrow, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="6" fill="#FFFFFF">NEMO</text>
+        <text x="88" y="68" font-family="Arial Narrow, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="9" fill="#D4AF37">SPORTS</text>
+      </svg>
+      <p class="eyebrow" style="margin-top:8px;color:rgba(255,255,255,.45)">Reversed — Dark / Navy</p>
+    </div>
+  </div>
+
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card">
+      <h3 style="margin-top:0" class="yes">نفعل</h3>
+      <ul class="rules">
+        <li>مساحة أمان تساوي ارتفاع عمود واحد حول الشعار.</li>
+        <li>نسخة واحدة فقط في كل سياق (Navy / Gold / White).</li>
+        <li>التصغير حتى 16px دون تفاصيل إضافية.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0" class="no">لا نفعل</h3>
+      <ul class="rules">
+        <li>لا تدرجات لونية ولا ظلال على الشعار.</li>
+        <li>لا رموز رياضية مباشرة (كرة، شبكة، صافرة).</li>
+        <li>لا مدّ أو ضغط أو تدوير أو تغيير نسب.</li>
+        <li>لا إضافة حدود خارجية أو خلفية ملوّنة للشعار نفسه.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- COLOR -->
+<section>
+  <h2>لوحة الألوان</h2>
+  <p class="lead">
+    الكحلي هو الأساس، والذهبي يُستخدم بالتقطير: خط رفيع، رقم، أو زر واحد في الشاشة.
+    الأحمر محجوز حصريًا للحالة الحية والأخبار العاجلة حتى لا يفقد معناه.
+  </p>
+
+  <h3 style="margin-top:0">الأساسيات</h3>
+  <div class="grid g4">
+    <div class="sw"><div class="chip" style="background:#0F1B2E"></div><div class="meta"><b>Navy Dark</b><span class="num">#0F1B2E</span> · Primary</div></div>
+    <div class="sw"><div class="chip" style="background:#0A1424"></div><div class="meta"><b>Navy 900</b><span class="num">#0A1424</span> · Header/Depth</div></div>
+    <div class="sw"><div class="chip" style="background:#050B15"></div><div class="meta"><b>Navy Ink</b><span class="num">#050B15</span> · Dark BG</div></div>
+    <div class="sw"><div class="chip" style="background:#D4AF37"></div><div class="meta"><b>Gold</b><span class="num">#D4AF37</span> · Accent</div></div>
+    <div class="sw"><div class="chip" style="background:#B8912C"></div><div class="meta"><b>Gold 600</b><span class="num">#B8912C</span> · Hover/Text</div></div>
+    <div class="sw"><div class="chip" style="background:#E3C766"></div><div class="meta"><b>Gold 400</b><span class="num">#E3C766</span> · Dark UI</div></div>
+  </div>
+
+  <h3>الحالات</h3>
+  <div class="grid g4">
+    <div class="sw"><div class="chip" style="background:#E02D3C"></div><div class="meta"><b>Live Red</b><span class="num">#E02D3C</span> · LIVE / عاجل / هبوط</div></div>
+    <div class="sw"><div class="chip" style="background:#0F9D6A"></div><div class="meta"><b>Win Green</b><span class="num">#0F9D6A</span> · فوز / متصل</div></div>
+    <div class="sw"><div class="chip" style="background:#D98324"></div><div class="meta"><b>Warn Amber</b><span class="num">#D98324</span> · geo-block / إصابة</div></div>
+    <div class="sw"><div class="chip" style="background:#5D6B7F"></div><div class="meta"><b>Muted</b><span class="num">#5D6B7F</span> · نصوص ثانوية</div></div>
+  </div>
+
+  <h3>الأسطح والوضع الداكن</h3>
+  <div class="grid g3">
+    <div class="card">
+      <table>
+        <tr><th>الدور</th><th>فاتح</th></tr>
+        <tr><td>خلفية الصفحة</td><td class="num">#F4F6F9</td></tr>
+        <tr><td>البطاقة</td><td class="num">#FFFFFF</td></tr>
+        <tr><td>الحدود</td><td class="num">#E2E8F0</td></tr>
+        <tr><td>النص</td><td class="num">#0F1B2E</td></tr>
+      </table>
+    </div>
+    <div class="dark-card">
+      <table style="color:#fff">
+        <tr><th style="color:rgba(255,255,255,.5)">الدور</th><th style="color:rgba(255,255,255,.5)">داكن</th></tr>
+        <tr><td>خلفية الصفحة</td><td class="num">#070E1A</td></tr>
+        <tr><td>البطاقة</td><td class="num">#101D30</td></tr>
+        <tr><td>الحدود</td><td class="num">#1D2C42</td></tr>
+        <tr><td>النص</td><td class="num">#E9EEF6</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">قاعدة التباين</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0">
+        كل أزواج النص/الخلفية تحقق WCAG 2.1 AA. الذهب على الكحلي يُحجز للعناوين
+        والأرقام الكبيرة؛ أما النص الطويل على الكحلي فيكون أبيض بنسبة 60–85%.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- TYPOGRAPHY -->
+<section>
+  <h2>الخطوط</h2>
+  <p class="lead">
+    IBM Plex Sans Arabic للنص (يدعم العربية واللاتينية بنفس الوزن البصري)،
+    وBarlow Condensed للأرقام وعناوين اللاتينية — خط مكثّف يعطي طابع الشاشات الرياضية.
+  </p>
+  <div class="card">
+    <div class="row"><span class="tag disp">H1 · 32/800</span><span style="font-size:32px;font-weight:800">ديربي القاهرة · الجولة 18</span></div>
+    <div class="row"><span class="tag disp">H2 · 28/800</span><span style="font-size:28px;font-weight:800">مباريات اليوم</span></div>
+    <div class="row"><span class="tag disp">H3 · 24/700</span><span style="font-size:24px;font-weight:700">الترتيب والهدافون</span></div>
+    <div class="row"><span class="tag disp">H4 · 20/700</span><span style="font-size:20px;font-weight:700">أهم المباريات القادمة</span></div>
+    <div class="row"><span class="tag disp">Body · 16/400</span><span style="font-size:16px">يدخل الأهلي مواجهة الديربي وهو يبحث عن تثبيت أقدامه في الصدارة.</span></div>
+    <div class="row"><span class="tag disp">Small · 13/600</span><span style="font-size:13px;font-weight:600">الدوري المصري الممتاز · موسم 2026/2027</span></div>
+    <div class="row"><span class="tag disp">Eyebrow · 11/700</span><span class="eyebrow">Live now · مباراة اليوم</span></div>
+    <div class="row" style="border:0"><span class="tag disp">Score · 48/800</span><span class="disp num" style="font-size:48px;font-weight:800" dir="ltr">2 – 1</span></div>
+  </div>
+  <ul class="rules" style="margin-top:12px">
+    <li>ارتفاع السطر 1.5 للنص و1.2 للعناوين.</li>
+    <li>الأرقام دائمًا <span class="num">tabular-nums</span> و<span dir="ltr">LTR</span> داخل النص العربي (<span class="num">63'</span>, <span class="num">2 – 1</span>, <span class="num">21:00</span>).</li>
+    <li>عنوان H1 واحد فقط في كل صفحة.</li>
+  </ul>
+</section>
+
+<!-- COMPONENTS -->
+<section>
+  <h2>المكوّنات</h2>
+
+  <h3 style="margin-top:0">الأزرار</h3>
+  <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-gold">تسجيل الدخول</button>
+    <button class="btn btn-navy">التفاصيل</button>
+    <button class="btn btn-live">مشاهدة البث</button>
+    <button class="btn btn-ghost">مسح الفلاتر</button>
+    <span style="font-size:11px;color:var(--muted)">radius 3px · padding 9/16 · weight 800 · hover يغمّق 8%</span>
+  </div>
+
+  <h3>الحالات (Badges)</h3>
+  <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <span class="badge b-live"><span class="dot"></span>63'</span>
+    <span class="badge b-live"><span class="dot"></span>الاستراحة</span>
+    <span class="badge b-idle">21:00</span>
+    <span class="badge b-done">انتهت</span>
+    <span class="badge b-warn">مؤجلة</span>
+  </div>
+
+  <h3>بطاقة المباراة</h3>
+  <div class="grid g2">
+    <div class="mc">
+      <header><span>الدوري الإنجليزي الممتاز</span><span class="badge b-live"><span class="dot"></span>63'</span></header>
+      <div class="body">
+        <div class="t">
+          <svg class="crest" viewBox="0 0 48 48"><path d="M24 2 44 8v18c0 10.5-8.3 17.6-20 20C12.3 43.6 4 36.5 4 26V8z" fill="#6CABDD"/><path d="M4 30h40v16H4z" fill="#1C2C5B"/><text x="24" y="30" text-anchor="middle" font-family="Arial Narrow" font-size="15" font-weight="800" fill="#0F1B2E" stroke="#fff" stroke-width="2" style="paint-order:stroke">MCI</text></svg>
+          مانشستر سيتي
+        </div>
+        <div style="text-align:center">
+          <div class="sc num" dir="ltr">1 – 2</div>
+          <div style="font-size:10px;color:var(--muted)">النتيجة الآن</div>
+        </div>
+        <div class="t">
+          <svg class="crest" viewBox="0 0 48 48"><path d="M24 2 44 8v18c0 10.5-8.3 17.6-20 20C12.3 43.6 4 36.5 4 26V8z" fill="#C8102E"/><path d="M4 30h40v16H4z" fill="#00B2A9"/><text x="24" y="30" text-anchor="middle" font-family="Arial Narrow" font-size="15" font-weight="800" fill="#0F1B2E" stroke="#fff" stroke-width="2" style="paint-order:stroke">LIV</text></svg>
+          ليفربول
+        </div>
+      </div>
+      <footer><span style="color:var(--live);font-weight:700" class="num">1,284,902 مشاهد</span><span><span class="btn btn-navy" style="padding:5px 10px">التفاصيل</span></span></footer>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">قواعد البطاقة</h3>
+      <ul class="rules">
+        <li>radius 6px · حدود 1px · hover: رفع 2px + ظل خفيف + خط ذهبي علوي.</li>
+        <li>شعارا الفريقين بنفس الحجم دائمًا، والنتيجة في المنتصف بخط مكثّف.</li>
+        <li>مؤشر LIVE أحمر مع نقطة نابضة 1.6s (يتوقف مع <span class="num">prefers-reduced-motion</span>).</li>
+        <li>لا يتغيّر ارتفاع البطاقة عند تغيّر الحالة (تفادي CLS).</li>
+        <li>الأرقام <span class="num">tabular-nums</span> حتى لا تقفز أثناء التحديث.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>المسافات (Spacing)</h3>
+  <div class="card">
+    <div class="sp">
+      <div style="width:4px;height:4px"></div><div style="width:8px;height:8px"></div>
+      <div style="width:12px;height:12px"></div><div style="width:16px;height:16px"></div>
+      <div style="width:24px;height:24px"></div><div style="width:32px;height:32px"></div>
+      <div style="width:48px;height:48px"></div><div style="width:64px;height:64px"></div>
+    </div>
+    <div class="sp num" style="margin-top:2px">
+      <span>4</span><span>8</span><span>12</span><span>16</span><span>24</span><span>32</span><span>48</span><span>64</span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin:12px 0 0">
+      الشبكة: 12 عمودًا، أقصى عرض 1280px، هوامش جانبية 16px (موبايل) و20px (ديسكتوب).
+      نقاط التوقف: 360 · 768 · 1024 · 1440.
+    </p>
+  </div>
+</section>
+
+<!-- VOICE -->
+<section>
+  <h2>نبرة الصوت</h2>
+  <div class="grid g3">
+    <div class="card"><h3 style="margin-top:0">رسمي ودود</h3><p style="font-size:13px;color:var(--muted);margin:0">«انتهت المباراة بفوز الأهلي 2–1» — خبر مباشر بلا مبالغة ولا تعجّب.</p></div>
+    <div class="card"><h3 style="margin-top:0">واثق وحاسم</h3><p style="font-size:13px;color:var(--muted);margin:0">«البث غير متاح» بدل «قد لا يتوفر البث». الرقم أولًا ثم السياق.</p></div>
+    <div class="card"><h3 style="margin-top:0">شفاف</h3><p style="font-size:13px;color:var(--muted);margin:0">نذكر المصدر وتوقيت آخر تحديث، ونقول صراحة عندما تكون البيانات غير متاحة.</p></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <table>
+      <tr><th>الموقف</th><th>الصياغة</th></tr>
+      <tr><td>هدف</td><td>⚽ هدف — إمام عاشور (17') · الأهلي 1 – 0 الزمالك</td></tr>
+      <tr><td>بث محجوب جغرافيًا</td><td>🌍 متاح فقط في: الشرق الأوسط، شمال أفريقيا</td></tr>
+      <tr><td>لا بث</td><td>لا يوجد ناقل رسمي مسجّل لهذه المباراة</td></tr>
+      <tr><td>انقطاع المصدر</td><td>تعذّر التحديث الآن — هذه آخر نتيجة مؤكدة (21:14)</td></tr>
+      <tr><td>خبر من مصدر خارجي</td><td>ملخص تحريري · المصدر الأصلي: BBC Sport</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer class="page">
+  NEMO Sports · دليل الهوية البصرية v1.0 — يُطبَّق على الويب والموبايل ولوحة التحكم.
+  الملفات التنفيذية: <span class="num">app/globals.css</span> (التوكنز) ·
+  <span class="num">components/brand/Logo.tsx</span> · <span class="num">brand/*.svg</span>.
+</footer>
+
+</div>
+</body>
+</html>
