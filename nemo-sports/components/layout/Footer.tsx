@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
+import PoweredBy from "@/components/ui/PoweredBy";
 import { sports } from "@/lib/core-data";
 import { competitions } from "@/lib/core-data";
 
@@ -115,6 +116,8 @@ export default function Footer() {
           <span>
             شعارات الفرق المعروضة رسوم توضيحية من تصميمنا، ولا نُضمّن أي شعارات أو بثّات مملوكة للغير.
           </span>
+          {/* SportScore attribution (license requirement: visible dofollow link) */}
+          <PoweredBy />
         </div>
       </div>
     </footer>

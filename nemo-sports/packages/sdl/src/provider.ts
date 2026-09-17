@@ -90,6 +90,14 @@ export type NormalizedFixture = {
   venueName: string | null;
   attendance: number | null;
   minute: number | null;
+  /** Optional display metadata a provider may attach (never persisted). */
+  homeName?: string | null;
+  awayName?: string | null;
+  homeLogoUrl?: string | null;
+  awayLogoUrl?: string | null;
+  competitionName?: string | null;
+  /** provider-side permalink for the match (attribution / deep-link) */
+  sourceUrl?: string | null;
 };
 
 export type NormalizedEvent = {
@@ -249,18 +257,18 @@ export interface SportsDataProvider {
 
   getFixtures(input: { sport: string; competitionProviderId?: string; range?: DateRange; date?: string }): Promise<ProviderResult<NormalizedFixture[]>>;
   getLiveMatches(input: { sport: string }): Promise<ProviderResult<NormalizedFixture[]>>;
-  getMatchDetail(input: { providerMatchId: string }): Promise<ProviderResult<NormalizedFixture>>;
-  getMatchEvents(input: { providerMatchId: string }): Promise<ProviderResult<NormalizedEvent[]>>;
-  getMatchStats(input: { providerMatchId: string }): Promise<ProviderResult<NormalizedStat[]>>;
-  getMatchLineups(input: { providerMatchId: string }): Promise<ProviderResult<NormalizedLineup[]>>;
+  getMatchDetail(input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedFixture>>;
+  getMatchEvents(input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedEvent[]>>;
+  getMatchStats(input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedStat[]>>;
+  getMatchLineups(input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedLineup[]>>;
   getTeam(input: { providerTeamId: string }): Promise<ProviderResult<NormalizedTeam>>;
   getTeamSquad(input: { providerTeamId: string }): Promise<ProviderResult<NormalizedSquadMember[]>>;
   getPlayer(input: { providerPlayerId: string }): Promise<ProviderResult<NormalizedPlayer>>;
-  getPlayerStats(input: { providerPlayerId: string; season?: string }): Promise<ProviderResult<NormalizedPlayerStats>>;
+  getPlayerStats(input: { providerPlayerId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedPlayerStats>>;
   getCompetition(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedCompetition>>;
   getCompetitionSeasons(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedSeason[]>>;
-  getStandings(input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedStandingRow[]>>;
-  getTopScorers(input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedTopScorer[]>>;
+  getStandings(input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedStandingRow[]>>;
+  getTopScorers(input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedTopScorer[]>>;
   getVenue(input: { providerVenueId: string }): Promise<ProviderResult<NormalizedVenue>>;
   healthCheck(): Promise<ProviderResult<ProviderHealth>>;
 }

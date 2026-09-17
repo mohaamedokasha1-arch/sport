@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import Crest from "@/components/ui/Crest";
 import SectionHead from "@/components/ui/SectionHead";
@@ -27,6 +28,13 @@ export default function TeamsPage() {
           <span className="num font-bold">{teams.length}</span> فريق ومشارك في قاعدة البيانات
         </p>
       </header>
+
+      {teams.length === 0 ? (
+        <DataUnavailable
+          title="دليل الفرق غير متوفر حاليًا"
+          message="صفحات الفرق تُبنى من بيانات رسمية (الفرق، اللاعبون، المباريات). لن ننشئ صفحات لفرق ببيانات غير مؤكدة."
+        />
+      ) : null}
 
       <div className="space-y-9">
         {sports.map((s) =>

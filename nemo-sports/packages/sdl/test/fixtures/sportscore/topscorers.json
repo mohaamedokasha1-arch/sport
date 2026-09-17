@@ -1,0 +1,55 @@
+{
+ "sport": "football",
+ "competition": "UEFA Champions League",
+ "stat_type": "goals",
+ "scorers": [
+  {
+   "rank": 1,
+   "player": "Ermedin Demirović",
+   "player_slug": "ermedin-demirovic",
+   "team": "VfB Stuttgart",
+   "team_slug": "vfb-stuttgart",
+   "goals": 3,
+   "assists": 0,
+   "matches": 1,
+   "rating": 950,
+   "minutes": 62
+  },
+  {
+   "rank": 2,
+   "player": "Ferrán Torres",
+   "player_slug": "ferran-torres",
+   "team": "Paris Saint Germain",
+   "team_slug": "paris-saint-germain",
+   "goals": 3,
+   "assists": 0,
+   "matches": 1,
+   "rating": 970,
+   "minutes": 73
+  },
+  {
+   "rank": 3,
+   "player": "Sehrou Guirassy",
+   "player_slug": "sehrou-guirassy",
+   "team": "Borussia Dortmund",
+   "team_slug": "borussia-dortmund",
+   "goals": 2,
+   "assists": 0,
+   "matches": 1,
+   "rating": 739,
+   "minutes": 90
+  },
+  {
+   "rank": 4,
+   "player": "Erling Haaland",
+   "player_slug": "erling-haaland",
+   "team": "Manchester City",
+   "team_slug": "manchester-city",
+   "goals": 2,
+   "assists": 0,
+   "matches": 1,
+   "rating": 800,
+   "minutes": 90
+  }
+ ]
+}

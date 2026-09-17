@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "check": "npm run sdl:test && node scripts/smoke.mjs",
     "sdl:typecheck": "tsc -p packages/sdl/tsconfig.json --noEmit",
-    "sdl:test": "tsc -p packages/sdl/tsconfig.test.json && node --test packages/sdl/dist-test/test/",
+    "sdl:test": "tsc -p packages/sdl/tsconfig.test.json && node --test \"packages/sdl/dist-test/test/*.test.js\"",
     "test": "npm run sdl:test",
     "ingest": "tsx scripts/ingest.ts",
     "db:setup": "psql \"$DATABASE_URL\" -f db/schema.sql && psql \"$DATABASE_URL\" -f db/seed.sql"

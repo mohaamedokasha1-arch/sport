@@ -166,6 +166,8 @@ export class SportsDataLayer {
       sportmonks: { perSecond: null, perMinute: 3000, perHour: null, perDay: null, perMonth: 500000, concurrency: 4, throttleAt: 0.85 },
       api_football: { perSecond: 1, perMinute: 10, perHour: 50, perDay: 100, perMonth: 3000, concurrency: 1, throttleAt: 0.85 },
       thesportsdb: { perSecond: 1, perMinute: 30, perHour: 500, perDay: 5000, perMonth: null, concurrency: 1, throttleAt: 0.85 },
+      // documented: ~10,000 requests / 24 h / IP, burst friendly, 60 s edge cache
+      sportscore: { perSecond: 6, perMinute: 120, perHour: 2400, perDay: 9000, perMonth: null, concurrency: 4, throttleAt: 0.85 },
       demo: { perSecond: 100, perMinute: null, perHour: null, perDay: null, perMonth: null, concurrency: null, throttleAt: 0.85 },
     };
     for (const [name, cfg] of Object.entries(defaults)) {
@@ -308,13 +310,18 @@ export class SportsDataLayer {
         };
       }
 
-      const verdict = await this.rateLimiter.check(link.provider);
-      if (!verdict.allowed) {
-        attempts.push({ provider: link.provider, ok: false, error: `rate limit: ${verdict.reason}`, ms: 0 });
-        const cost = this.cost.get(link.provider);
-        if (cost) cost.avoided++;
-        this.logger.log({ at: nowIso(), level: "warn", area: "cost", message: `skipped ${link.provider} — ${verdict.reason}, retry in ${verdict.retryAfterSeconds}s`, provider: link.provider, dataType: input.dataType });
-        continue;
+      if (!(await this.rateLimiter.waitSlot(link.provider))) {
+        const verdict = await this.rateLimiter.check(link.provider);
+        if (!verdict.allowed) {
+          // No slot opened in time (quota genuinely spent or the wait timed
+          // out): skip this provider and continue the chain / fail over.
+          attempts.push({ provider: link.provider, ok: false, error: `rate limit: ${verdict.reason}`, ms: 0 });
+          const cost = this.cost.get(link.provider);
+          if (cost) cost.avoided++;
+          this.logger.log({ at: nowIso(), level: "warn", area: "cost", message: `skipped ${link.provider} — ${verdict.reason}, retry in ${verdict.retryAfterSeconds}s`, provider: link.provider, dataType: input.dataType });
+          continue;
+        }
+        // else: a slot opened between the failed wait and the re-check — proceed.
       }
 
       const started = this.now();
@@ -329,7 +336,13 @@ export class SportsDataLayer {
           this.logger.log({ at: nowIso(), level: "warn", area: "provider", message: result.error.message, provider: link.provider, dataType: input.dataType });
           continue;
         }
-        this.health.noteFailure(link.provider, result.error.message, result.error.code === "rate_limited");
+        // A typed not_found is a VALID provider answer (that entity does not
+        // exist) — it must not count toward the circuit breaker, otherwise a
+        // single competition with "No current season" would take the whole
+        // provider out of rotation.
+        if (result.error.code !== "not_found") {
+          this.health.noteFailure(link.provider, result.error.message, result.error.code === "rate_limited");
+        }
         if (result.error.code === "rate_limited") {
           this.setThrottled(link.provider, true);
           if (cost) cost.avoided++;
@@ -362,6 +375,14 @@ export class SportsDataLayer {
         ok: true,
         value: { data: stale.data, provider: stale.provider, role: "fallback", fromCache: true, stale: true, fetchedAt: stale.at, attempts, degraded: true, conflicts: raised },
       };
+    }
+
+    // Preserve the typed not_found when every attempt agreed the entity does
+    // not exist — callers rely on it for honest 404s (an outage must never
+    // masquerade as a missing entity, nor a missing entity as an outage).
+    const allNotFound = attempts.length > 0 && attempts.every((a) => a.ok === false && (a.error ?? "").includes("not found"));
+    if (allNotFound) {
+      return { ok: false, error: { kind: "not_found", message: attempts[0]?.error ?? "not found", dataType: input.dataType, attempts } };
     }
 
     return {

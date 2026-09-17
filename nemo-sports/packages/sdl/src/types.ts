@@ -11,7 +11,7 @@
 export type UUID = string;
 export type ISODate = string; // UTC
 
-export type ProviderName = "sportradar" | "sportmonks" | "api_football" | "thesportsdb" | "demo";
+export type ProviderName = "sportradar" | "sportmonks" | "api_football" | "thesportsdb" | "sportscore" | "demo";
 
 /** User-facing text is stored bilingually from day one (§1.3). */
 export type LocalizedText = { ar: string; en: string };

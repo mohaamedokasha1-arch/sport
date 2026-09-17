@@ -10,7 +10,7 @@
  * frontend can mark the page non-indexable (Instruction 6).
  */
 
-import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent } from "@/packages/sdl/src";
+import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats } from "@/packages/sdl/src";
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 
@@ -109,6 +109,99 @@ export async function matchEvents(providerMatchId: string): Promise<GatewayResul
       call: (p) => p.getMatchEvents({ providerMatchId }),
     }),
   );
+}
+
+/**
+ * Full detail for one match by provider slug (e.g. "cruz-azul-vs-inter-miami-cf").
+ * Score, status, live minute and display metadata.
+ */
+export async function matchDetail(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedFixture>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedFixture>({
+      sport,
+      dataType: "match_detail",
+      endpoint: "match_detail",
+      params: { sport, providerMatchId },
+      call: (p) => p.getMatchDetail({ providerMatchId, sport }),
+    }),
+  );
+}
+
+/** Timeline of one match, in canonical event vocabulary. */
+export async function matchStats(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedStat[]>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedStat[]>({
+      sport,
+      dataType: "match_stats",
+      endpoint: "match_stats",
+      params: { sport, providerMatchId },
+      call: (p) => p.getMatchStats({ providerMatchId, sport }),
+    }),
+  );
+}
+
+/** Starting XIs and benches for one match (when the provider has them). */
+export async function matchLineups(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedLineup[]>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedLineup[]>({
+      sport,
+      dataType: "match_lineups",
+      endpoint: "match_lineups",
+      params: { sport, providerMatchId },
+      call: (p) => p.getMatchLineups({ providerMatchId, sport }),
+    }),
+  );
+}
+
+/** League table rows for one competition (provider competition slug). */
+export async function standings(sport: string, competitionProviderId: string): Promise<GatewayResult<NormalizedStandingRow[]>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedStandingRow[]>({
+      sport,
+      dataType: "standings",
+      endpoint: "standings",
+      params: { sport, competitionProviderId },
+      call: (p) => p.getStandings({ providerCompetitionId: competitionProviderId, sport }),
+    }),
+  );
+}
+
+/** Top scorers for one competition (provider competition slug). */
+export async function topScorers(sport: string, competitionProviderId: string): Promise<GatewayResult<NormalizedTopScorer[]>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedTopScorer[]>({
+      sport,
+      dataType: "top_scorers",
+      endpoint: "topscorers",
+      params: { sport, competitionProviderId },
+      call: (p) => p.getTopScorers({ providerCompetitionId: competitionProviderId, sport }),
+    }),
+  );
+}
+
+/** Season statistics for one player (provider player slug). */
+export async function playerStats(sport: string, providerPlayerId: string): Promise<GatewayResult<NormalizedPlayerStats>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedPlayerStats>({
+      sport,
+      dataType: "player_stats",
+      endpoint: "player_stats",
+      params: { sport, providerPlayerId },
+      call: (p) => p.getPlayerStats({ providerPlayerId, sport }),
+    }),
+  );
+}
+
+/** Whether a real (non-demo) data provider is currently serving the platform. */
+export async function realDataSourceActive(): Promise<boolean> {
+  const { mode } = await sdlContext();
+  return mode === "live";
 }
 
 /** SDL diagnostics for the admin dashboard (§10, §13). */

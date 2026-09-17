@@ -128,6 +128,29 @@ export class RateLimiter {
     this.inflight.set(provider, Math.max(0, (this.inflight.get(provider) ?? 0) - 1));
   }
 
+  /**
+   * Wait for a request slot up to `timeoutMs`. Bursts (e.g. an ISR
+   * revalidation storm rendering many pages at once) queue here instead of
+   * failing — only transient pressure queues: concurrency saturation or a
+   * per-second window about to roll over. Longer-window exhaustion must
+   * fail fast so requests don't pile up behind a genuinely spent quota.
+   * Returns false when no slot opened in time (caller skips the provider).
+   */
+  async waitSlot(provider: ProviderName, timeoutMs = 8000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const verdict = await this.check(provider);
+      if (verdict.allowed) return true;
+      const minute = verdict.usage.find((u) => u.window === "minute");
+      const transient =
+        verdict.reason === "concurrency" ||
+        (verdict.reason === "exhausted" && (!minute || minute.used < minute.limit));
+      if (!transient || Date.now() >= deadline) return false;
+      const waitMs = Math.min(250, Math.max(50, verdict.retryAfterSeconds * 1000));
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
   usage(provider: ProviderName): Promise<WindowUsage[]> {
     return this.read(provider);
   }

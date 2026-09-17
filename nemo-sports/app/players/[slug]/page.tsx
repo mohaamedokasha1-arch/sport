@@ -7,9 +7,16 @@ import NewsCard from "@/components/news/NewsCard";
 import { articles, teamMatches } from "@/lib/data";
 import { competitionBySlug, playerBySlug, players, teamBySlug } from "@/lib/core-data";
 import { age } from "@/lib/format";
+import PoweredBy from "@/components/ui/PoweredBy";
+import { playerStats as sdlPlayerStats } from "@/lib/sdl-gateway";
+import { demoContentVisible } from "@/lib/site";
+
+export const revalidate = 1800;
 
 export function generateStaticParams() {
-  return players.map((p) => ({ slug: p.slug }));
+  // demo players are prerendered for dev/preview only; real provider players
+  // (e.g. /players/erling-haaland from SportScore slugs) render on demand.
+  return demoContentVisible() ? players.map((p) => ({ slug: p.slug })) : [];
 }
 
 export async function generateMetadata({
@@ -18,8 +25,21 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+
+  // real provider player first (SportScore slugs, e.g. "erling-haaland")
+  const real = await sdlPlayerStats("football", slug);
+  if (real.ok) {
+    const team = String(real.data.extra.team ?? "");
+    return {
+      title: `${slug.replaceAll("-", " ")}${team ? ` | ${team}` : ""} | إحصائيات`,
+      description: `إحصائيات ${slug.replaceAll("-", " ")} هذا الموسم من مصدر حي: المباريات، الأهداف، الصناعات، الدقائق والبطاقات.`,
+      alternates: { canonical: `/players/${slug}` },
+    };
+  }
+
   const p = playerBySlug(slug);
   if (!p) return { title: "اللاعب غير موجود" };
+
   const t = teamBySlug(p.team);
   return {
     title: `${p.name} | ${t?.name ?? p.position} | إحصائيات`,
@@ -30,8 +50,91 @@ export async function generateMetadata({
 
 export default async function PlayerPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+
+  /* ══ 1) real provider player (SportScore) ══ */
+  const real = await sdlPlayerStats("football", slug);
+  if (!real.ok && real.error.kind !== "not_found") {
+    // Transient outage: abort the render so ISR keeps the last good page and
+    // outages can never write a permanent 404 into the ISR cache. A typed
+    // not_found (player absent from the provider) falls through to the
+    // honest 404 below.
+    throw new Error(`player_stats_unavailable:${real.error.kind}`);
+  }
+  if (real.ok) {
+    const s = real.data;
+    const name = slug.replaceAll("-", " ");
+    const statCells: { label: string; value: string }[] = [
+      { label: "المباريات", value: s.appearances !== null ? String(s.appearances) : "—" },
+      { label: "الأهداف", value: s.goals !== null ? String(s.goals) : "—" },
+      { label: "الصناعات", value: s.assists !== null ? String(s.assists) : "—" },
+      { label: "الدقائق", value: s.minutes !== null ? String(s.minutes) : "—" },
+      { label: "بطاقات صفراء", value: s.yellowCards !== null ? String(s.yellowCards) : "—" },
+      { label: "بطاقات حمراء", value: s.redCards !== null ? String(s.redCards) : "—" },
+    ];
+    const extraEntries = Object.entries(s.extra).filter(([k]) => !["team", "competition"].includes(k));
+    return (
+      <div className="mx-auto max-w-[1280px] px-4 py-6">
+        <nav aria-label="مسار التنقل" className="mb-4 text-[11px] text-muted">
+          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+          <span aria-hidden> / </span>
+          <Link href="/standings" className="hover:text-gold-600 dark:hover:text-gold-400">الهدافون</Link>
+          <span aria-hidden> / </span>
+          <span className="font-semibold text-ink capitalize">{name}</span>
+        </nav>
+
+        <header className="card mb-6 flex flex-wrap items-center gap-5 px-5 py-6">
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-navy-900 text-xl font-extrabold text-gold-400" aria-hidden>
+            {name.slice(0, 2).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold capitalize">{name}</h1>
+            <p className="mt-1 text-[12.5px] text-muted">
+              {String(s.extra.team ?? "—")}
+              {s.extra.competition ? ` · ${String(s.extra.competition)}` : ""}
+            </p>
+          </div>
+        </header>
+
+        <section aria-label="إحصائيات الموسم">
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">إحصائيات الموسم</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {statCells.map((c) => (
+              <div key={c.label} className="card px-3 py-4 text-center">
+                <p className="num text-2xl font-extrabold text-gold-600 dark:text-gold-400">{c.value}</p>
+                <p className="mt-1 text-[11px] text-muted">{c.label}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {extraEntries.length > 0 ? (
+          <section className="mt-8" aria-label="إحصائيات إضافية">
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">تفاصيل إضافية</h2>
+            <div className="card grid grid-cols-2 gap-px overflow-hidden sm:grid-cols-4">
+              {extraEntries.map(([k, v]) => (
+                <div key={k} className="bg-surface px-3 py-3">
+                  <p className="num text-[15px] font-extrabold">{String(v)}</p>
+                  <p className="text-[10.5px] text-muted">{k}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-[11px] text-muted">
+          <span>المصدر: {real.provider} · إحصائيات حقيقية من طبقة البيانات</span>
+          <PoweredBy />
+        </div>
+      </div>
+    );
+  }
+
+  /* ══ 2) development/demo player ══ */
   const player = playerBySlug(slug);
-  if (!player) notFound();
+  if (!player) {
+    // honest 404: real player pages come from real provider slugs only
+    notFound();
+  }
 
   const team = teamBySlug(player.team);
   const comp = competitionBySlug(player.competition);

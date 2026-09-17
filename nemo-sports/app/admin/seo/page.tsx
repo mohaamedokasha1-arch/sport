@@ -1,17 +1,23 @@
 import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 import { allMatches, articles, competitions, players, teams } from "@/lib/data";
+import { SITE_URL, demoContentVisible } from "@/lib/site";
 
+/** Mirrors app/robots.ts — the URLs are derived, never hardcoded. */
 const robotsTxt = `User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /account
 Disallow: /api/
 
-Sitemap: https://nemo.sports/sitemap.xml`;
+Sitemap: ${SITE_URL}/sitemap.xml`;
 
 export default function AdminSeo() {
+  const showDemo = demoContentVisible();
+  // Only pages that actually exist and carry indexable content are counted —
+  // matching what app/sitemap.ts emits for the current content mode.
   const urlCount =
-    19 + allMatches.length + competitions.length + teams.length + players.length + articles.length;
+    8 /* static informational pages */ +
+    (showDemo ? 10 + allMatches.length + competitions.length + teams.length + players.length + articles.length : 0);
 
   return (
     <div>

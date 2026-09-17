@@ -5,9 +5,14 @@ import Footer from "@/components/layout/Footer";
 import LiveProvider from "@/components/live/LiveProvider";
 import { getLiveStates } from "@/lib/live";
 import { robotsForDataSource } from "@/lib/sdl-gateway";
+import { SITE_NAME, SITE_NAME_AR, SITE_URL, absoluteUrl } from "@/lib/site";
 
 const baseMetadata: Metadata = {
-  metadataBase: new URL("https://nemo.sports"),
+  // Single source of truth for every absolute SEO URL (canonical, OG, Twitter,
+  // sitemap). Previously hardcoded to "https://nemo.sports" — a domain that is
+  // not connected to this deployment, which caused the Search Console error
+  // "URL غير مسموح به" for every URL submitted via the sitemap.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "نيمو سبورتس | نتائج مباشرة، أخبار وإحصائيات لـ 8 رياضات",
     template: "%s | نيمو سبورتس",
@@ -50,9 +55,9 @@ const themeInit = `try{var t=localStorage.getItem('nemo-theme');var d=t?t==='dar
 const organizationLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "NEMO Sports",
-  alternateName: "نيمو سبورتس",
-  url: "https://nemo.sports",
+  name: SITE_NAME,
+  alternateName: SITE_NAME_AR,
+  url: SITE_URL,
   slogan: "Live Sports, Every Moment",
   description: "منصة رياضية شاملة للنتائج المباشرة والأخبار والإحصائيات.",
 };
@@ -60,12 +65,12 @@ const organizationLd = {
 const websiteLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "NEMO Sports",
-  url: "https://nemo.sports",
+  name: SITE_NAME,
+  url: SITE_URL,
   inLanguage: "ar",
   potentialAction: {
     "@type": "SearchAction",
-    target: "https://nemo.sports/search?q={search_term_string}",
+    target: absoluteUrl("/search?q={search_term_string}"),
     "query-input": "required name=search_term_string",
   },
 };

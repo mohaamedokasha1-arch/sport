@@ -110,18 +110,44 @@ async function main() {
   console.log(`  · testing ${details.length} detail pages from sitemap`);
   for (const p of details) await check(p);
 
-  // API contracts
+  // API contracts.
+  // Content mode: the demo dataset renders in development/preview only. In
+  // production without real provider data every sports-data surface is
+  // intentionally EMPTY (honest "unavailable" states, §Instruction 12), so
+  // the demo-dependent assertions below run only when demo content is on.
+  const homeHtml = await (await fetch(`${BASE}/`)).text();
+  /* Three legitimate content modes:
+     - real:      SDL provider data rendered (marker from the real-variant home)
+     - demo:      demo dataset (development/preview only)
+     - prod-empty: production without provider data → honest empty states    */
+  const realMode = homeHtml.includes("جميع المباريات والنتائج أعلاه حقيقية");
+  const emptyMode = homeHtml.includes("لوحة المباريات فارغة حاليًا");
+  const demoOn = !realMode && !emptyMode;
+  const modeName = realMode ? "REAL provider data" : demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)";
+  console.log(`  · content mode → ${modeName}`);
+  if (realMode) {
+    const powered = homeHtml.includes("SportScore");
+    console.log(`  ${powered ? "✓" : "✗"} home → SportScore attribution visible`);
+    if (!powered) failures++;
+  }
+
   const live = await (await fetch(`${BASE}/api/live`)).json();
   const liveIds = Object.keys(live);
-  const liveOk =
-    liveIds.length > 0 &&
-    liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((k) => k in live[id]));
-  console.log(`  ${liveOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, shape ${liveOk ? "valid" : "INVALID"}`);
-  if (!liveOk) failures++;
+  if (demoOn) {
+    const liveOk =
+      liveIds.length > 0 &&
+      liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((k) => k in live[id]));
+    console.log(`  ${liveOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, shape ${liveOk ? "valid" : "INVALID"}`);
+    if (!liveOk) failures++;
 
-  const anyLive = liveIds.filter((id) => live[id].status === "LIVE");
-  console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
-  if (anyLive.length === 0) failures++;
+    const anyLive = liveIds.filter((id) => live[id].status === "LIVE");
+    console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
+    if (anyLive.length === 0) failures++;
+  } else {
+    const emptyOk = liveIds.length === 0;
+    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches (production: must be empty, never fabricated)`);
+    if (!emptyOk) failures++;
+  }
 
   const rail = await (await fetch(`${BASE}/api/live?scope=rail`)).json();
   const railOk = Array.isArray(rail.matches) && rail.matches.every((m) => m.compCode && m.state);
@@ -129,9 +155,15 @@ async function main() {
   if (!railOk) failures++;
 
   const search = await (await fetch(`${BASE}/api/search?q=${encodeURIComponent("الأهلي")}`)).json();
-  const searchOk = Array.isArray(search) && search.length > 0 && search[0].url.startsWith("/");
-  console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits`);
-  if (!searchOk) failures++;
+  if (demoOn) {
+    const searchOk = Array.isArray(search) && search.length > 0 && search[0].url.startsWith("/");
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits`);
+    if (!searchOk) failures++;
+  } else {
+    const searchOk = Array.isArray(search);
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits (production: demo news hidden)`);
+    if (!searchOk) failures++;
+  }
 
   const empty = await (await fetch(`${BASE}/api/search?q=x`)).json();
   const emptyOk = Array.isArray(empty) && empty.length === 0;
@@ -163,7 +195,9 @@ async function main() {
   if (leaked) failures++;
 
   const v1events = await (await fetch(`${BASE}/api/v1/matches?events=demo-1002`)).json();
-  const eventsOk = v1events.ok === true && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string");
+  const eventsOk = demoOn
+    ? v1events.ok === true && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string")
+    : v1events.ok === true || v1events.ok === false; // typed response either way
   console.log(`  ${eventsOk ? "✓" : "✗"} /api/v1/matches?events= → ${v1events.data?.length ?? 0} canonical events`);
   if (!eventsOk) failures++;
 
@@ -184,7 +218,10 @@ async function main() {
   await check("/teams/nope", 404);
 
   const home = await (await fetch(`${BASE}/`)).text();
-  for (const token of ["مباشر الآن", "مباريات اليوم", "أخبار اليوم", "البطولات الرئيسية", 'dir="rtl"', "NEMO"]) {
+  const homeTokens = realMode
+    ? ["مباشر الآن", "مباريات اليوم", "جميع المباريات والنتائج أعلاه حقيقية", 'dir="rtl"', "NEMO"]
+    : ["مباشر الآن", "مباريات اليوم", "أخبار اليوم", "البطولات الرئيسية", 'dir="rtl"', "NEMO"];
+  for (const token of homeTokens) {
     const has = home.includes(token);
     console.log(`  ${has ? "✓" : "✗"} home contains "${token}"`);
     if (!has) failures++;
@@ -203,12 +240,15 @@ async function main() {
   );
   if (!infraOk) failures++;
 
-  /* ── ingestion is token-gated: it spends paid quota (§Instruction 9) ── */
+  /* ── ingestion is token-gated: it spends paid quota (§Instruction 9) ──
+     503 not_configured when no secret is set at all; 401 unauthorized when a
+     secret exists (e.g. CRON_SECRET for Vercel Cron) but the request carries
+     none. Both are the honest refusals. */
   const ingestRes = await fetch(`${BASE}/api/v1/ingest`, { method: "POST" });
   const ingest = await ingestRes.json();
-  const ingestOk = process.env.NEMO_INGEST_TOKEN
-    ? ingestRes.status !== 503
-    : ingestRes.status === 503 && ingest.error?.code === "not_configured";
+  const ingestOk = ingestRes.status === 503
+    ? ingest.error?.code === "not_configured"
+    : ingestRes.status === 401 && ingest.error?.code === "unauthorized";
   console.log(`  ${ingestOk ? "✓" : "✗"} /api/v1/ingest → ${ingestRes.status} ${ingest.error?.code ?? ingest.reason ?? ""}`);
   if (!ingestOk) failures++;
 
@@ -226,8 +266,12 @@ async function main() {
   console.log(`  ${noindexOk ? "✓" : "✗"} /live → robots ${noindex ? "noindex" : "indexable"} (mode=${system.mode})`);
   if (!noindexOk) failures++;
 
-  /* ── the live page is fed by the SDL, and says which provider ── */
-  const feedOk = livePage.includes("لوحة المزوّد الحيّة") && /المصدر:/.test(livePage);
+  /* ── the live page is fed by the SDL, and says which provider ──
+     Three legitimate shapes: provider rows (real data), demo rows (dev), or
+     the honest "unavailable" state (production, provider down). */
+  const feedOk =
+    livePage.includes("لوحة المزوّد الحيّة") &&
+    (/المصدر:/.test(livePage) || livePage.includes("البيانات المباشرة غير متوفرة حاليًا"));
   console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered`);
   if (!feedOk) failures++;
 
