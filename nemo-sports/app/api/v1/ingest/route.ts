@@ -12,6 +12,11 @@ export const runtime = "nodejs";
  * configured secret the route refuses to run at all instead of accepting
  * anonymous requests that would burn a paid allowance.
  *
+ * Cron cadence: vercel.json schedules it once per day because Vercel Hobby
+ * deployments reject more frequent expressions. Live page freshness does NOT
+ * depend on this — pages revalidate from SportScore on demand (30–300s TTLs)
+ * — the cron keeps the durable canonical store (history/analytics) current.
+ *
  * Auth accepts either secret, via Bearer header or ?token=:
  *  - NEMO_INGEST_TOKEN — manual/external schedulers
  *  - CRON_SECRET       — Vercel Cron sends `Authorization: Bearer
