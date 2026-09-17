@@ -15,3 +15,6 @@ packages/sdl/dist-test/
 
 # typescript incremental cache
 *.tsbuildinfo
+
+# sdl production build output (next compiles from src)
+packages/sdl/dist/

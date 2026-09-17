@@ -1,0 +1,132 @@
+{
+ "sport": "football",
+ "match": {
+  "home": "Inter Miami CF",
+  "away": "Cruz Azul",
+  "home_logo": "https://img.thesports.com/football/team/976fe1d29c112f4baeb844cdda2f04cb.png",
+  "away_logo": "https://img.thesports.com/football/team/2addd50487c8f61276d5fff8714f6a5c.png",
+  "home_score": "2",
+  "away_score": "0",
+  "status": "finished",
+  "status_text": "Finished",
+  "time": "2026-09-17T00:00:00+00:00",
+  "competition": "CONCACAF League Champions Cup",
+  "competition_logo": "https://img.thesports.com/football/competition/1911c8304da546932dea3a7ad11ae7a9.png",
+  "url": "/football/match/cruz-azul-vs-inter-miami-cf/",
+  "live_minute": null,
+  "incidents": [
+   {
+    "time": 24,
+    "type": "Goal",
+    "type_id": 1,
+    "side": "home",
+    "player": "Lionel Messi",
+    "is_goal": true,
+    "home_score": 1,
+    "away_score": 0
+   },
+   {
+    "time": 41,
+    "type": "Yellow card",
+    "type_id": 3,
+    "side": "home",
+    "player": "Matías Galarza",
+    "is_card": true
+   },
+   {
+    "time": 45,
+    "type": "Substitution",
+    "type_id": 9,
+    "side": "away",
+    "player": "",
+    "is_sub": true,
+    "player_in": "Omar Campos",
+    "player_out": "Carlos Rotondi"
+   },
+   {
+    "time": 81,
+    "type": "Goal",
+    "type_id": 1,
+    "side": "home",
+    "player": "Carlos Henrique Casimiro",
+    "is_goal": true,
+    "home_score": 2,
+    "away_score": 0
+   },
+   {
+    "time": 90,
+    "type": "Yellow card",
+    "type_id": 3,
+    "side": "home",
+    "player": "Alexander Shaw",
+    "is_card": true
+   }
+  ],
+  "stats": [],
+  "lineups": {
+   "home_formation": "4-3-3",
+   "away_formation": "5-4-1",
+   "home_coach": null,
+   "away_coach": null,
+   "confirmed": true,
+   "home_xi": [
+    {
+     "name": "Facundo Mura",
+     "number": 4,
+     "position": "D",
+     "captain": false
+    },
+    {
+     "name": "Lionel Messi",
+     "number": 10,
+     "position": "F",
+     "captain": true
+    },
+    {
+     "name": "Luis Suárez",
+     "number": 9,
+     "position": "F",
+     "captain": false
+    },
+    {
+     "name": "Dayne St. Clair",
+     "number": 97,
+     "position": "G",
+     "captain": false
+    }
+   ],
+   "home_subs": [
+    {
+     "name": "Sergio Reguilón",
+     "number": 3,
+     "position": "D",
+     "captain": false
+    }
+   ],
+   "away_xi": [
+    {
+     "name": "Kevin Mier",
+     "number": 23,
+     "position": "G",
+     "captain": false
+    }
+   ],
+   "away_subs": [
+    {
+     "name": "Luka Romero",
+     "number": 18,
+     "position": "F",
+     "captain": false
+    }
+   ]
+  },
+  "home_ht_score": 1,
+  "away_ht_score": 0,
+  "tracker": {
+   "id": "vjxm8ghenw2jr6o",
+   "profile": "9emo4h1e9hluyqd",
+   "sport": "football"
+  }
+ },
+ "updated": "2026-09-17T09:19:13.145546+00:00"
+}

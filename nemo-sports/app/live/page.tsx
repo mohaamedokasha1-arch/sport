@@ -6,6 +6,11 @@ import { allMatches, liveMatches } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { competitionBySlug, sports } from "@/lib/core-data";
 import LiveFeed from "@/components/live/LiveFeed";
+import ProviderMatchList from "@/components/data/ProviderMatchList";
+import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
+import { liveMatches as sdlLiveMatches } from "@/lib/sdl-gateway";
+import { demoContentVisible } from "@/lib/site";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 
 export const metadata: Metadata = {
   title: "النتائج المباشرة — كل المباريات الجارية الآن",
@@ -13,7 +18,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/live" },
 };
 
-export default function LivePage() {
+export const revalidate = 30;
+
+export default async function LivePage() {
+  // ── real data first (SportScore via the SDL) ──────────────────────────
+  const real = await sdlLiveMatches("football");
+  const realLive = real.ok ? real.data : [];
+
+  // Demo content renders in development/preview only; production never shows it.
+  const showDemo = demoContentVisible();
+
   const states = getLiveStates();
   const now = Date.now();
 
@@ -51,12 +65,22 @@ export default function LivePage() {
         </p>
       </header>
 
-      {liveMatches.length === 0 ? (
+      {real.ok && realLive.length > 0 ? (
+        <section className="mb-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[12px] font-bold text-live-red">
+              <span className="live-dot" aria-hidden /> {realLive.length} مباراة جارية الآن (بيانات حقيقية)
+            </p>
+            <LiveAutoRefresh intervalSeconds={60} />
+          </div>
+          <ProviderMatchList fixtures={realLive} />
+        </section>
+      ) : real.ok ? (
         <div className="card grid place-items-center gap-2 px-6 py-16 text-center">
           <p className="text-[15px] font-bold">لا توجد مباريات جارية حاليًا</p>
-          <p className="text-[13px] text-muted">ستظهر هنا فور انطلاق أول مباراة.</p>
+          <p className="text-[13px] text-muted">ستظهر هنا تلقائيًا فور انطلاق أول مباراة.</p>
         </div>
-      ) : (
+      ) : showDemo && liveMatches.length > 0 ? (
         <div className="space-y-8">
           {Object.entries(bySport).map(([sport, list]) => (
             <section key={sport}>
@@ -73,6 +97,11 @@ export default function LivePage() {
             </section>
           ))}
         </div>
+      ) : (
+        <DataUnavailable
+          title="البيانات المباشرة غير متوفرة حاليًا"
+          message="تعذر الوصول إلى مصدر البيانات الحي الآن. لن نعرض أي مباراة أو نتيجة أو دقيقة غير مؤكدة — ستعود القسم للعمل تلقائيًا فئما يتاح المصدر."
+        />
       )}
 
       {startingSoon.length > 0 ? (

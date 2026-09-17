@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import DataUnavailable from "@/components/ui/DataUnavailable";
+import ProviderMatchList from "@/components/data/ProviderMatchList";
+import { liveMatches as sdlLive, fixtures as sdlFixtures } from "@/lib/sdl-gateway";
+import PoweredBy from "@/components/ui/PoweredBy";
 import Link from "next/link";
 import MatchCard from "@/components/match/MatchCard";
 import NewsCard from "@/components/news/NewsCard";
@@ -25,8 +28,22 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export default function HomePage() {
+export const revalidate = 60;
+
+export default async function HomePage() {
   const now = Date.now();
+
+  // ── real data first (SportScore through the Sports Data Layer) ──
+  const [realLive, realFeed] = await Promise.all([sdlLive("football"), sdlFixtures({ sport: "football" })]);
+  const liveReal = realLive.ok ? realLive.data.slice(0, 6) : [];
+  const finishedReal = realFeed.ok
+    ? realFeed.data.filter((f) => f.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)).slice(0, 6)
+    : [];
+  const upcomingReal = realFeed.ok
+    ? realFeed.data.filter((f) => f.status === "scheduled" && +new Date(f.scheduledAt) > now).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)).slice(0, 6)
+    : [];
+  const realActive = realLive.ok || realFeed.ok;
+  const hasRealContent = liveReal.length > 0 || finishedReal.length > 0 || upcomingReal.length > 0;
 
   const featured = [
     ...liveMatches.filter((m) => m.featured),
@@ -72,6 +89,31 @@ export default function HomePage() {
       ) : null}
 
       <div className="mx-auto max-w-[1280px] px-4 py-6">
+        {/* ══ real-data homepage: live, today, results from the provider ══ */}
+        {realActive && hasRealContent ? (
+          <div className="space-y-10">
+            {liveReal.length > 0 ? (
+              <section aria-labelledby="live-real">
+                <SectionHead eyebrow="Live now · بيانات حقيقية" title="مباشر الآن" href="/live" linkLabel="غرفة النتائج المباشرة" />
+                <p id="live-real" className="mb-3 text-[12px] font-bold text-live-red"><span className="live-dot" aria-hidden /> {liveReal.length} مباراة جارية الآن</p>
+                <ProviderMatchList fixtures={liveReal} />
+              </section>
+            ) : null}
+            {upcomingReal.length > 0 ? (
+              <section aria-labelledby="upcoming-real">
+                <SectionHead eyebrow="Kick-off soon" title="مباريات قادمة" href="/fixtures" linkLabel="كل المباريات القادمة" />
+                <div id="upcoming-real"><ProviderMatchList fixtures={upcomingReal} /></div>
+              </section>
+            ) : null}
+            {finishedReal.length > 0 ? (
+              <section aria-labelledby="results-real">
+                <SectionHead eyebrow="Full time" title="آخر النتائج" href="/results" linkLabel="كل النتائج" />
+                <div id="results-real"><ProviderMatchList fixtures={finishedReal} /></div>
+              </section>
+            ) : null}
+            <p className="text-[11px] text-muted">جميع المباريات والنتائج أعلاه حقيقية وتُحدَّث تلقائيًا من طبقة البيانات.</p>
+          </div>
+        ) : (
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
           {/* ── main column ─────────────────────────────── */}
           <div className="min-w-0 space-y-10">
@@ -257,6 +299,7 @@ export default function HomePage() {
             </div>
           </aside>
         </div>
+        )}
       </div>
     </>
   );

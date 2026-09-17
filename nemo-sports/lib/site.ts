@@ -48,17 +48,20 @@ export const SITE_NAME_AR = "نيمو سبورتس";
 /* ── content mode ──────────────────────────────────────────── */
 
 /**
- * True when at least one real sports-data provider is configured (same
- * detection the SDL composition root uses). `NEMO_SDL_MODE=demo` forces the
- * demo adapter even when keys exist, so it forces demo content too.
+ * True when at least one real sports-data source is configured. SportScore is
+ * keyless and open, so it counts as a real source whenever it is enabled
+ * (default). `NEMO_SDL_MODE=demo` forces the offline demo adapter instead.
  */
 export function hasProviderKeys(): boolean {
   if (process.env.NEMO_SDL_MODE === "demo") return false;
-  return Boolean(
-    process.env.SPORTRADAR_KEY ||
-      process.env.SPORTMONKS_TOKEN ||
-      process.env.API_FOOTBALL_KEY ||
-      process.env.THESPORTSDB_KEY,
+  return (
+    process.env.NEMO_SPORTSCORE_ENABLED !== "0" ||
+    Boolean(
+      process.env.SPORTRADAR_KEY ||
+        process.env.SPORTMONKS_TOKEN ||
+        process.env.API_FOOTBALL_KEY ||
+        process.env.THESPORTSDB_KEY,
+    )
   );
 }
 

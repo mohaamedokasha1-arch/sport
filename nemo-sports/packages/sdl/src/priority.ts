@@ -116,6 +116,25 @@ export const DEFAULT_PRIORITY_RULES: PriorityRule[] = [
   // Competition-specific override example: Premier League live from Sportradar only chain
   rule("pr-20", "football", "premier-league", "live_matches", "sportradar", "primary"),
   rule("pr-21", "football", "premier-league", "live_matches", "sportmonks", "fallback"),
+
+  // SportScore — free open API (no key, ~10k req/24h). Registered as the
+  // last real link of every chain: it carries the platform when no paid
+  // provider key is configured, and acts as an extra fallback when they are.
+  rule("ss-1", "football", WILDCARD, "live_matches", "sportscore", "fallback"),
+  rule("ss-2", "football", WILDCARD, "fixtures", "sportscore", "fallback"),
+  rule("ss-3", "football", WILDCARD, "match_events", "sportscore", "primary"),
+  rule("ss-4", "football", WILDCARD, "match_detail", "sportscore", "primary"),
+  rule("ss-5", "football", WILDCARD, "match_stats", "sportscore", "primary"),
+  rule("ss-6", "football", WILDCARD, "match_lineups", "sportscore", "primary"),
+  rule("ss-7", "football", WILDCARD, "standings", "sportscore", "fallback"),
+  rule("ss-8", "football", WILDCARD, "top_scorers", "sportscore", "fallback"),
+  rule("ss-9", "football", WILDCARD, "player_stats", "sportscore", "primary"),
+  // other sports SportScore covers (basketball / cricket / tennis)
+  rule("ss-10", WILDCARD, WILDCARD, "live_matches", "sportscore", "fallback"),
+  rule("ss-11", WILDCARD, WILDCARD, "fixtures", "sportscore", "fallback"),
+  rule("ss-12", WILDCARD, WILDCARD, "standings", "sportscore", "fallback"),
+  rule("ss-13", WILDCARD, WILDCARD, "top_scorers", "sportscore", "fallback"),
+  rule("ss-14", WILDCARD, WILDCARD, "player_stats", "sportscore", "primary"),
 ];
 
 function rule(

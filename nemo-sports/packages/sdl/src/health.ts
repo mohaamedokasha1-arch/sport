@@ -147,7 +147,13 @@ export class HealthMonitor {
   /** Providers that may currently serve traffic, best first. */
   available(provider: ProviderName): boolean {
     const r = this.record(provider);
-    return r.enabled && r.status !== "down" && r.status !== "rate_limited" && r.status !== "disabled";
+    if (!r.enabled || r.status === "disabled") return false;
+    if (r.status !== "down" && r.status !== "rate_limited") return true;
+    // Half-open circuit: re-admit after a cooldown so a recovered provider
+    // can earn consecutive successes and close the breaker again. Without
+    // this, a single-provider platform would lock out until restart.
+    const sinceFailure = Date.now() - +new Date(r.lastFailureAt ?? 0);
+    return Number.isFinite(sinceFailure) && sinceFailure > 30_000;
   }
 
   isDegraded(provider: ProviderName): boolean {

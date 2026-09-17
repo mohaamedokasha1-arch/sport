@@ -60,7 +60,10 @@ export abstract class BaseAdapter {
     return requestKey(this.name, endpoint, params);
   }
 
-  /** GET with timeout, retry on 5xx/network, and typed error translation. */
+  /** GET with timeout, retry on 5xx/network, and typed error translation.
+   *  Identical concurrent GETs (same final URL) share one in-flight request
+   *  — a match page firing detail+events+stats+lineups simultaneously hits
+   *  the provider once, not four times (§3.8 source protection). */
   /** @internal */ async getJson<T>(endpoint: string, params: Record<string, unknown>): Promise<ProviderResult<T>> {
     const key = this.key(endpoint, params);
     const url = new URL(`${this.baseUrl()}/${endpoint.replace(/^\//, "")}`);
@@ -71,6 +74,26 @@ export abstract class BaseAdapter {
     const auth = this.auth(url.toString());
     for (const [k, v] of Object.entries(auth.query ?? {})) url.searchParams.set(k, v);
 
+    const flightKey = url.toString();
+    const existing = this.inflight.get(flightKey);
+    if (existing) return existing as Promise<ProviderResult<T>>;
+    const flight = this.getJsonFresh<T>(url, endpoint, key, { ...auth.headers });
+    this.inflight.set(flightKey, flight as Promise<ProviderResult<unknown>>);
+    void flight.then(
+      () => {
+        if (this.inflight.get(flightKey) === flight) this.inflight.delete(flightKey);
+      },
+      () => {
+        if (this.inflight.get(flightKey) === flight) this.inflight.delete(flightKey);
+      },
+    );
+    return flight;
+  }
+
+  /** @internal */ inflight = new Map<string, Promise<ProviderResult<unknown>>>();
+
+  /** Single network flight for one exact URL (called via getJson). */
+  /** @internal */ async getJsonFresh<T>(url: URL, endpoint: string, key: string, headers: Record<string, string>): Promise<ProviderResult<T>> {
     let lastError: ProviderResult<T> = {
       ok: false,
       provider: this.name,
@@ -84,7 +107,7 @@ export abstract class BaseAdapter {
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
         const res = await this.fetchImpl(url.toString(), {
-          headers: { accept: "application/json", ...auth.headers },
+          headers: { accept: "application/json", ...headers },
           signal: controller.signal,
         });
 
@@ -152,16 +175,16 @@ export function withDefaults<N extends ProviderName>(name: N) {
     getLiveMatches(_input: { sport: string }): Promise<ProviderResult<NormalizedFixture[]>> {
       return Promise.resolve(notSupported(this.name, "live_matches", this.key("live_matches", _input)));
     }
-    getMatchDetail(_input: { providerMatchId: string }): Promise<ProviderResult<NormalizedFixture>> {
+    getMatchDetail(_input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedFixture>> {
       return Promise.resolve(notSupported(this.name, "match_detail", this.key("match_detail", _input)));
     }
-    getMatchEvents(_input: { providerMatchId: string }): Promise<ProviderResult<NormalizedEvent[]>> {
+    getMatchEvents(_input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedEvent[]>> {
       return Promise.resolve(notSupported(this.name, "match_events", this.key("match_events", _input)));
     }
-    getMatchStats(_input: { providerMatchId: string }): Promise<ProviderResult<NormalizedStat[]>> {
+    getMatchStats(_input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedStat[]>> {
       return Promise.resolve(notSupported(this.name, "match_stats", this.key("match_stats", _input)));
     }
-    getMatchLineups(_input: { providerMatchId: string }): Promise<ProviderResult<NormalizedLineup[]>> {
+    getMatchLineups(_input: { providerMatchId: string; sport?: string }): Promise<ProviderResult<NormalizedLineup[]>> {
       return Promise.resolve(notSupported(this.name, "match_lineups", this.key("match_lineups", _input)));
     }
     getTeam(_input: { providerTeamId: string }): Promise<ProviderResult<NormalizedTeam>> {
@@ -173,7 +196,7 @@ export function withDefaults<N extends ProviderName>(name: N) {
     getPlayer(_input: { providerPlayerId: string }): Promise<ProviderResult<NormalizedPlayer>> {
       return Promise.resolve(notSupported(this.name, "player", this.key("player", _input)));
     }
-    getPlayerStats(_input: { providerPlayerId: string; season?: string }): Promise<ProviderResult<NormalizedPlayerStats>> {
+    getPlayerStats(_input: { providerPlayerId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedPlayerStats>> {
       return Promise.resolve(notSupported(this.name, "player_stats", this.key("player_stats", _input)));
     }
     getCompetition(_input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedCompetition>> {
@@ -182,10 +205,10 @@ export function withDefaults<N extends ProviderName>(name: N) {
     getCompetitionSeasons(_input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedSeason[]>> {
       return Promise.resolve(notSupported(this.name, "competition_seasons", this.key("competition_seasons", _input)));
     }
-    getStandings(_input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedStandingRow[]>> {
+    getStandings(_input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedStandingRow[]>> {
       return Promise.resolve(notSupported(this.name, "standings", this.key("standings", _input)));
     }
-    getTopScorers(_input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedTopScorer[]>> {
+    getTopScorers(_input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedTopScorer[]>> {
       return Promise.resolve(notSupported(this.name, "top_scorers", this.key("top_scorers", _input)));
     }
     getVenue(_input: { providerVenueId: string }): Promise<ProviderResult<NormalizedVenue>> {

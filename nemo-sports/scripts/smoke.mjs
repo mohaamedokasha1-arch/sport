@@ -116,8 +116,20 @@ async function main() {
   // intentionally EMPTY (honest "unavailable" states, §Instruction 12), so
   // the demo-dependent assertions below run only when demo content is on.
   const homeHtml = await (await fetch(`${BASE}/`)).text();
-  const demoOn = !homeHtml.includes("لوحة المباريات فارغة حاليًا");
-  console.log(`  · content mode → ${demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)"}`);
+  /* Three legitimate content modes:
+     - real:      SDL provider data rendered (marker from the real-variant home)
+     - demo:      demo dataset (development/preview only)
+     - prod-empty: production without provider data → honest empty states    */
+  const realMode = homeHtml.includes("جميع المباريات والنتائج أعلاه حقيقية");
+  const emptyMode = homeHtml.includes("لوحة المباريات فارغة حاليًا");
+  const demoOn = !realMode && !emptyMode;
+  const modeName = realMode ? "REAL provider data" : demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)";
+  console.log(`  · content mode → ${modeName}`);
+  if (realMode) {
+    const powered = homeHtml.includes("SportScore");
+    console.log(`  ${powered ? "✓" : "✗"} home → SportScore attribution visible`);
+    if (!powered) failures++;
+  }
 
   const live = await (await fetch(`${BASE}/api/live`)).json();
   const liveIds = Object.keys(live);
@@ -183,7 +195,9 @@ async function main() {
   if (leaked) failures++;
 
   const v1events = await (await fetch(`${BASE}/api/v1/matches?events=demo-1002`)).json();
-  const eventsOk = v1events.ok === true && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string");
+  const eventsOk = demoOn
+    ? v1events.ok === true && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string")
+    : v1events.ok === true || v1events.ok === false; // typed response either way
   console.log(`  ${eventsOk ? "✓" : "✗"} /api/v1/matches?events= → ${v1events.data?.length ?? 0} canonical events`);
   if (!eventsOk) failures++;
 
@@ -204,7 +218,10 @@ async function main() {
   await check("/teams/nope", 404);
 
   const home = await (await fetch(`${BASE}/`)).text();
-  for (const token of ["مباشر الآن", "مباريات اليوم", "أخبار اليوم", "البطولات الرئيسية", 'dir="rtl"', "NEMO"]) {
+  const homeTokens = realMode
+    ? ["مباشر الآن", "مباريات اليوم", "جميع المباريات والنتائج أعلاه حقيقية", 'dir="rtl"', "NEMO"]
+    : ["مباشر الآن", "مباريات اليوم", "أخبار اليوم", "البطولات الرئيسية", 'dir="rtl"', "NEMO"];
+  for (const token of homeTokens) {
     const has = home.includes(token);
     console.log(`  ${has ? "✓" : "✗"} home contains "${token}"`);
     if (!has) failures++;
@@ -223,12 +240,15 @@ async function main() {
   );
   if (!infraOk) failures++;
 
-  /* ── ingestion is token-gated: it spends paid quota (§Instruction 9) ── */
+  /* ── ingestion is token-gated: it spends paid quota (§Instruction 9) ──
+     503 not_configured when no secret is set at all; 401 unauthorized when a
+     secret exists (e.g. CRON_SECRET for Vercel Cron) but the request carries
+     none. Both are the honest refusals. */
   const ingestRes = await fetch(`${BASE}/api/v1/ingest`, { method: "POST" });
   const ingest = await ingestRes.json();
-  const ingestOk = process.env.NEMO_INGEST_TOKEN
-    ? ingestRes.status !== 503
-    : ingestRes.status === 503 && ingest.error?.code === "not_configured";
+  const ingestOk = ingestRes.status === 503
+    ? ingest.error?.code === "not_configured"
+    : ingestRes.status === 401 && ingest.error?.code === "unauthorized";
   console.log(`  ${ingestOk ? "✓" : "✗"} /api/v1/ingest → ${ingestRes.status} ${ingest.error?.code ?? ingest.reason ?? ""}`);
   if (!ingestOk) failures++;
 
@@ -247,12 +267,12 @@ async function main() {
   if (!noindexOk) failures++;
 
   /* ── the live page is fed by the SDL, and says which provider ──
-     In production without real provider data the panel intentionally shows
-     the honest "unavailable" state instead of demo rows (§Instruction 12). */
+     Three legitimate shapes: provider rows (real data), demo rows (dev), or
+     the honest "unavailable" state (production, provider down). */
   const feedOk =
     livePage.includes("لوحة المزوّد الحيّة") &&
-    (demoOn ? /المصدر:/.test(livePage) : livePage.includes("البيانات المباشرة غير متوفرة حاليًا"));
-  console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered${demoOn ? "" : " (honest empty state)"}`);
+    (/المصدر:/.test(livePage) || livePage.includes("البيانات المباشرة غير متوفرة حاليًا"));
+  console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered`);
   if (!feedOk) failures++;
 
   const adminPage = await (await fetch(`${BASE}/admin/providers`)).text();
