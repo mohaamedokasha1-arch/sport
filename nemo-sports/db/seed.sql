@@ -20,9 +20,14 @@ ON CONFLICT (slug) DO NOTHING;
 -- API-Football last (cheap but 100 req/day on the free tier), TheSportsDB only
 -- for artwork — never for scores.
 INSERT INTO provider_priority (sport, competition, data_type, provider, role) VALUES
+  -- Football-Data.org: free, reliable, official — it leads the *static*
+  -- football surfaces (tables, scorers, the day's fixtures/results) and is
+  -- deliberately only a live-data fallback, because the free plan's scores are
+  -- delayed. Registered only when FOOTBALL_DATA_API_KEY is configured.
   ('football','*','live_matches',       'sportradar',  'primary'),
   ('football','*','live_matches',       'sportmonks',  'secondary'),
   ('football','*','live_matches',       'api_football','fallback'),
+  ('football','*','live_matches',       'football_data','fallback'),
 
   ('football','*','match_events',       'sportradar',  'primary'),
   ('football','*','match_events',       'sportmonks',  'secondary'),
@@ -33,13 +38,10 @@ INSERT INTO provider_priority (sport, competition, data_type, provider, role) VA
   ('football','*','match_lineups',      'sportradar',  'primary'),
   ('football','*','match_detail',       'sportradar',  'primary'),
   ('football','*','match_detail',       'sportmonks',  'secondary'),
+  ('football','*','match_detail',       'football_data','fallback'),
 
-  ('football','*','fixtures',           'sportmonks',  'primary'),
-  ('football','*','fixtures',           'api_football','secondary'),
-  ('football','*','standings',          'sportmonks',  'primary'),
-  ('football','*','standings',          'api_football','secondary'),
-  ('football','*','top_scorers',        'sportmonks',  'primary'),
-  ('football','*','top_scorers',        'api_football','secondary'),
+  ('football','*','results',            'football_data','primary'),
+  ('football','*','results',            'sportscore',  'secondary'),
   ('football','*','team',               'sportmonks',  'primary'),
   ('football','*','team',               'thesportsdb', 'secondary'),
   ('football','*','player',             'sportmonks',  'primary'),
@@ -66,6 +68,7 @@ INSERT INTO provider_rate_limits (provider, per_second, per_minute, per_hour, pe
   ('sportradar',   2,    60,   3000, 50000, NULL,    2, 0.85),
   ('sportmonks',   NULL, 3000, NULL, NULL,  500000, 4, 0.85),
   ('api_football', 1,    10,   50,   100,   3000,   1, 0.85),
+  ('football_data',1,    8,    NULL, NULL,  NULL,   2, 0.85),
   ('thesportsdb',  1,    30,   500,  5000,  NULL,   1, 0.85),
   ('demo',         100,  NULL, NULL, NULL,  NULL,   NULL, 0.85)
 ON CONFLICT (provider) DO UPDATE SET
@@ -87,5 +90,5 @@ ON CONFLICT (field) DO UPDATE SET severity = EXCLUDED.severity, strategy = EXCLU
 
 -- ─── health rows (one per registered provider) ─────────────────────────────
 INSERT INTO provider_health (provider) VALUES
-  ('sportradar'), ('sportmonks'), ('api_football'), ('thesportsdb'), ('demo')
+  ('sportradar'), ('sportmonks'), ('api_football'), ('thesportsdb'), ('football_data'), ('sportscore'), ('demo')
 ON CONFLICT (provider) DO NOTHING;

@@ -6,6 +6,7 @@ import ProviderMatchList from "@/components/data/ProviderMatchList";
 import { filterMatches, matchCounts } from "@/lib/filters";
 import { sports } from "@/lib/core-data";
 import { fixtures as sdlFixtures } from "@/lib/sdl-gateway";
+import DataSourceNote from "@/components/data/DataSourceNote";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -62,7 +63,7 @@ export default async function MatchesPage({
           </p>
         </header>
         <ProviderMatchList fixtures={realList} />
-        <p className="mt-6 text-[11px] text-muted">المصدر: {real.provider} · آخر جلب {new Date(real.fetchedAt).toLocaleTimeString("ar-EG")}</p>
+        <DataSourceNote className="mt-6" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
       </div>
     );
   }

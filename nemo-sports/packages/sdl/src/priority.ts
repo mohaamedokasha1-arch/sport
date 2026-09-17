@@ -107,6 +107,20 @@ export const DEFAULT_PRIORITY_RULES: PriorityRule[] = [
   rule("pr-11", "football", WILDCARD, "top_scorers", "sportmonks", "primary"),
   rule("pr-12", "football", WILDCARD, "top_scorers", "api_football", "secondary"),
 
+  // Football-Data.org — free, official and reliable for the *static* football
+  // surfaces: league tables, the day's fixtures/results and the scorer list.
+  // It leads those chains because it is the source this platform promises for
+  // the major leagues, and it is registered only when its server-side key is
+  // configured. It is deliberately NOT primary for live data: the free plan's
+  // scores are delayed, so a live-capable provider (or the keyless SportScore
+  // feed) must win `live_matches`.
+  rule("fd-1", "football", WILDCARD, "standings", "football_data", "primary"),
+  rule("fd-2", "football", WILDCARD, "top_scorers", "football_data", "primary"),
+  rule("fd-3", "football", WILDCARD, "fixtures", "football_data", "primary"),
+  rule("fd-4", "football", WILDCARD, "results", "football_data", "primary"),
+  rule("fd-5", "football", WILDCARD, "match_detail", "football_data", "secondary"),
+  rule("fd-6", "football", WILDCARD, "live_matches", "football_data", "secondary"),
+
   // Images/metadata: TheSportsDB first (rich artwork), never for live scores
   rule("pr-13", WILDCARD, WILDCARD, "images", "thesportsdb", "primary"),
   rule("pr-14", WILDCARD, WILDCARD, "images", "sportmonks", "secondary"),

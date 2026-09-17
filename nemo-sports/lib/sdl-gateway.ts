@@ -216,6 +216,22 @@ export async function chainFor(sport: string, competition: string | null, dataTy
   return sdl.chainFor(sport, competition, dataType);
 }
 
+/**
+ * Cache lifetimes (seconds) the SDL is honouring for one data type.
+ * Published in API responses as `meta.cache.ttlSeconds` so a client can reason
+ * about freshness instead of guessing, and shown on the providers dashboard.
+ */
+export async function cachePolicyFor(dataType: DataType): Promise<{ raw: number; canonical: number; staleGrace: number }> {
+  const { sdl } = await sdlContext();
+  return sdl.cachePolicy(dataType);
+}
+
+/** Names + capabilities of the providers actually registered in this process. */
+export async function registeredProviders() {
+  const { sdl } = await sdlContext();
+  return sdl.registeredProviders();
+}
+
 /** Targeted cache invalidation used after a goal, red card or status change. */
 export async function invalidateMatch(matchId: string): Promise<number> {
   const { sdl } = await sdlContext();

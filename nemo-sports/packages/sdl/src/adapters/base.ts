@@ -8,6 +8,7 @@ import {
   notSupported,
   type DataType,
   type DateRange,
+  type ProviderError,
   type NormalizedCompetition,
   type NormalizedEvent,
   type NormalizedFixture,
@@ -54,6 +55,30 @@ export abstract class BaseAdapter {
   /** subclass hook: add auth headers/query */
   /** @internal */ auth(_url: string): { headers: Record<string, string>; query?: Record<string, string> } {
     return { headers: {} };
+  }
+
+  /**
+   * Subclass hook: observe every response before it is parsed.
+   *
+   * Providers that publish their remaining quota on response headers
+   * (football-data.org sends `X-Requests-Available-Minute`) record it here so
+   * the SDL can slow down *before* the provider answers 429 instead of after.
+   * The header is never forwarded anywhere and never reaches the client.
+   */
+  /** @internal */ observe(_res: Response): void {
+    /* no-op by default */
+  }
+
+  /**
+   * Subclass hook: translate an HTTP failure into a typed provider error using
+   * the parsed body. The default keeps the generic mapping, so an adapter is
+   * free to ignore it. football-data.org uses it to tell a *plan restriction*
+   * (403 "not available with your current plan" → `not_supported`, the chain
+   * moves on) apart from genuinely bad credentials (`auth`, the provider is
+   * marked unhealthy).
+   */
+  /** @internal */ refineError(_status: number, _body: unknown, fallback: ProviderError): ProviderError {
+    return fallback;
   }
 
   /** @internal */ key(endpoint: string, params: Record<string, unknown>): string {
@@ -111,26 +136,36 @@ export abstract class BaseAdapter {
           signal: controller.signal,
         });
 
+        this.observe(res);
+
+        /** Build a failure, letting the adapter refine it with the error body. */
+        const fail = async (error: ProviderError): Promise<ProviderResult<T>> => {
+          let body: unknown = null;
+          try {
+            if ((res.headers.get("content-type") ?? "").includes("json")) body = await res.json();
+          } catch {
+            body = null;
+          }
+          return { ok: false, provider: this.name, requestKey: key, fromCache: false, error: this.refineError(res.status, body, error) };
+        };
+
         if (res.status === 429) {
           const retryAfter = Number(res.headers.get("retry-after") ?? 60);
-          return {
-            ok: false,
-            provider: this.name,
-            requestKey: key,
-            fromCache: false,
-            error: { code: "rate_limited", message: `${this.name} returned 429`, httpStatus: 429, retryAfterSeconds: retryAfter },
-          };
+          return fail({ code: "rate_limited", message: `${this.name} returned 429`, httpStatus: 429, retryAfterSeconds: retryAfter });
         }
         if (res.status === 401 || res.status === 403) {
-          return { ok: false, provider: this.name, requestKey: key, fromCache: false, error: { code: "auth", message: `${this.name} rejected credentials (${res.status})`, httpStatus: res.status } };
+          return fail({ code: "auth", message: `${this.name} rejected credentials (${res.status})`, httpStatus: res.status });
         }
         if (res.status === 404) {
-          return { ok: false, provider: this.name, requestKey: key, fromCache: false, error: { code: "not_found", message: `${this.name}: ${endpoint} not found`, httpStatus: 404 } };
+          return fail({ code: "not_found", message: `${this.name}: ${endpoint} not found`, httpStatus: 404 });
         }
         if (!res.ok) {
-          lastError = { ok: false, provider: this.name, requestKey: key, fromCache: false, error: { code: "bad_response", message: `${this.name} HTTP ${res.status}`, httpStatus: res.status } };
-          if (res.status >= 500 && attempt < this.retries) continue;
-          return lastError;
+          const mapped = { code: "bad_response" as const, message: `${this.name} HTTP ${res.status}`, httpStatus: res.status };
+          if (res.status >= 500 && attempt < this.retries) {
+            lastError = { ok: false, provider: this.name, requestKey: key, fromCache: false, error: mapped };
+            continue;
+          }
+          return fail(mapped);
         }
 
         const body = (await res.json()) as T;

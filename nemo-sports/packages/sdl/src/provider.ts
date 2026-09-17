@@ -219,6 +219,10 @@ export type NormalizedStandingRow = {
   points: number;
   form: ("W" | "D" | "L")[];
   status: string | null;
+  /** Optional display metadata a provider may attach (never persisted). */
+  teamName?: string | null;
+  teamShortName?: string | null;
+  teamLogoUrl?: string | null;
 };
 
 export type NormalizedTopScorer = {
@@ -227,6 +231,11 @@ export type NormalizedTopScorer = {
   goals: number;
   appearances: number | null;
   penalties: number | null;
+  /** Optional display/statistics metadata a provider may attach (never persisted). */
+  playerName?: string | null;
+  teamName?: string | null;
+  playerPhotoUrl?: string | null;
+  assists?: number | null;
 };
 
 export type NormalizedVenue = {

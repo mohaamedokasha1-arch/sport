@@ -166,6 +166,10 @@ export class SportsDataLayer {
       sportmonks: { perSecond: null, perMinute: 3000, perHour: null, perDay: null, perMonth: 500000, concurrency: 4, throttleAt: 0.85 },
       api_football: { perSecond: 1, perMinute: 10, perHour: 50, perDay: 100, perMonth: 3000, concurrency: 1, throttleAt: 0.85 },
       thesportsdb: { perSecond: 1, perMinute: 30, perHour: 500, perDay: 5000, perMonth: null, concurrency: 1, throttleAt: 0.85 },
+      // documented: 10 calls/minute on the free plan, 8 as the internal budget;
+      // the composition root raises it for paid plans via
+      // FOOTBALL_DATA_REQUESTS_PER_MINUTE (the callers share one budget).
+      football_data: { perSecond: 2, perMinute: 8, perHour: null, perDay: null, perMonth: null, concurrency: 2, throttleAt: 0.85 },
       // documented: ~10,000 requests / 24 h / IP, burst friendly, 60 s edge cache
       sportscore: { perSecond: 6, perMinute: 120, perHour: 2400, perDay: 9000, perMonth: null, concurrency: 4, throttleAt: 0.85 },
       demo: { perSecond: 100, perMinute: null, perHour: null, perDay: null, perMonth: null, concurrency: null, throttleAt: 0.85 },
@@ -207,6 +211,15 @@ export class SportsDataLayer {
 
   isThrottled(provider: ProviderName): boolean {
     return this.throttledProviders.has(provider);
+  }
+
+  /**
+   * Effective cache lifetimes (seconds) for one data type. Exposed so the API
+   * can publish the TTL it is honouring (`meta.cache.ttlSeconds`) instead of
+   * leaving clients to guess how fresh the payload can be.
+   */
+  cachePolicy(dataType: DataType): { raw: number; canonical: number; staleGrace: number } {
+    return this.policy[dataType];
   }
 
   /* ── chain resolution ───────────────────────────────────── */

@@ -201,6 +201,47 @@ async function main() {
   console.log(`  ${eventsOk ? "✓" : "✗"} /api/v1/matches?events= → ${v1events.data?.length ?? 0} canonical events`);
   if (!eventsOk) failures++;
 
+  /* ── Football-Data.org integration (server-side provider, honest failures) ──
+     Every response is either canonical data (200) or the fixed
+     "Data temporarily unavailable" message (503). There is no third shape:
+     a successful payload never carries a provider field name, and a failed one
+     never carries fabricated rows. */
+  const fdStatusRes = await fetch(`${BASE}/api/v1/football-data/status`);
+  const fdStatus = await fdStatusRes.json();
+  const fdStatusOk =
+    fdStatusRes.status === 200 &&
+    fdStatus.ok === true &&
+    typeof fdStatus.configured === "boolean" &&
+    typeof fdStatus.registered === "boolean" &&
+    typeof fdStatus.baseUrl === "string" &&
+    fdStatus.baseUrl === "https://api.football-data.org/v4" &&
+    !/"?(apiKey|api_key|token|x-auth-token|X-Auth-Token)"?\s*:/i.test(JSON.stringify(fdStatus));
+  console.log(
+    `  ${fdStatusOk ? "✓" : "✗"} /api/v1/football-data/status → configured=${fdStatus.configured}, registered=${fdStatus.registered}, budget ${fdStatus.rateLimit?.perMinute ?? "?"}/min, cache layers ${fdStatus.cache?.layers?.length ?? 0}`,
+  );
+  if (!fdStatusOk) failures++;
+
+  for (const [label, path] of [
+    ["standings", `/api/v1/football-data/standings?competition=PL`],
+    ["matches", `/api/v1/football-data/matches?date=${new Date().toISOString().slice(0, 10)}`],
+    ["scorers", `/api/v1/football-data/scorers?competition=PL`],
+  ]) {
+    const res = await fetch(`${BASE}${path}`);
+    const body = await res.json().catch(() => ({}));
+    const canonicalOnly = Array.isArray(body.data) && !/"playedGames"|"fullTime"|"utcDate"|"crest"/.test(JSON.stringify(body.data ?? []));
+    const okShape =
+      (res.status === 200 && body.ok === true && canonicalOnly) ||
+      (res.status === 503 && body.ok === false && body.error?.message === "Data temporarily unavailable" && body.data.length === 0);
+    console.log(
+      `  ${okShape ? "✓" : "✗"} /api/v1/football-data/${label} → ${res.status} ${body.ok ? `${body.data?.length ?? 0} canonical rows` : body.error?.message ?? ""}`,
+    );
+    if (!okShape) failures++;
+  }
+
+  const badDate = await fetch(`${BASE}/api/v1/football-data/matches?date=17-09-2026`);
+  console.log(`  ${badDate.status === 400 ? "✓" : "✗"} /api/v1/football-data/matches?date= (invalid) → ${badDate.status}`);
+  if (badDate.status !== 400) failures++;
+
   const system = await (await fetch(`${BASE}/api/v1/system`)).json();
   const systemOk =
     system.ok === true &&
@@ -252,8 +293,14 @@ async function main() {
   console.log(`  ${ingestOk ? "✓" : "✗"} /api/v1/ingest → ${ingestRes.status} ${ingest.error?.code ?? ingest.reason ?? ""}`);
   if (!ingestOk) failures++;
 
+  /* ── attribution: the Football-Data.org licence requires a visible dofollow
+        link at the bottom of the site (the API host itself must NOT ship) ── */
+  const attributionOk = home.includes("Powered by Football-Data.org") && home.includes("https://www.football-data.org/");
+  console.log(`  ${attributionOk ? "✓" : "✗"} footer → "Powered by Football-Data.org" visible with its link`);
+  if (!attributionOk) failures++;
+
   /* ── the frontend must never call a provider (§2.2) ── */
-  const providerHosts = /api\.sportmonks\.com|api-sports\.io|api\.sportradar\.com|thesportsdb\.com/;
+  const providerHosts = /api\.sportmonks\.com|api-sports\.io|api\.sportradar\.com|thesportsdb\.com|api\.football-data\.org/;
   const clientChunks = await listClientChunks();
   const leakedHost = clientChunks.find((c) => providerHosts.test(c.body));
   console.log(`  ${leakedHost ? "✗" : "✓"} client bundle → no provider hostname in ${clientChunks.length} shipped chunks`);
