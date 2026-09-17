@@ -188,9 +188,23 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     this.retries = cfg.retries ?? 1;
   }
 
-  /** @internal */
+  /**
+   * @internal
+   * On Vercel the default base is the internal edge relay
+   * (/api/v1/sportscore-relay): sportscore.com's edge protection 403s
+   * Vercel serverless IP/TLS ranges (verified live — UA changes don't help),
+   * while edge functions and browsers are served. The relay is part of OUR
+   * backend, so users still never talk to SportScore directly; the SDL's
+   * cache/coalescing/rate-limits sit in front of it unchanged. Local and
+   * test environments keep the direct URL (SPORTSCORE_BASE_URL overrides
+   * everything, e.g. the replay harness).
+   */
   override baseUrl(): string {
-    return (this.baseUrlOverride ?? process.env.SPORTSCORE_BASE_URL ?? "https://sportscore.com/api/widget").replace(/\/+$/, "");
+    const explicit = this.baseUrlOverride ?? process.env.SPORTSCORE_BASE_URL;
+    if (explicit) return explicit.replace(/\/+$/, "");
+    const origin = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+    if (origin) return `https://${origin.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/api/v1/sportscore-relay`;
+    return "https://sportscore.com/api/widget";
   }
 
   /**
