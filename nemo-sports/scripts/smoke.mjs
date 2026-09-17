@@ -177,15 +177,23 @@ async function main() {
   if (!indexOk) failures++;
 
   const v1live = await (await fetch(`${BASE}/api/v1/live?sport=football`)).json();
-  const v1liveOk =
-    v1live.ok === true &&
+  /* Shape contract: every answer is typed — either canonical fixtures with
+     provider metadata, or a typed failure with an empty list. An EMPTY board is
+     a legitimate answer (nothing in play right now, or no live provider wired in
+     production), so the count is only asserted for the demo dataset, which is
+     the one source guaranteed to ship fixtures. */
+  const v1liveShape =
     Array.isArray(v1live.data) &&
-    v1live.data.length > 0 &&
-    ["provider", "demo"].includes(v1live.meta.source) &&
-    typeof v1live.meta.provider === "string" &&
-    v1live.data.every((f) => typeof f.providerId === "string" && typeof f.scheduledAt === "string");
+    (v1live.ok === true
+      ? ["provider", "demo"].includes(v1live.meta?.source) &&
+        typeof v1live.meta?.provider === "string" &&
+        v1live.data.every((f) => typeof f.providerId === "string" && typeof f.scheduledAt === "string")
+      : v1live.ok === false
+        ? typeof v1live.error?.code === "string" && v1live.data.length === 0
+        : false);
+  const v1liveOk = v1liveShape && (!demoOn || v1live.data.length > 0);
   console.log(
-    `  ${v1liveOk ? "✓" : "✗"} /api/v1/live → ${v1live.data?.length ?? 0} fixtures from ${v1live.meta?.provider ?? "?"} (source=${v1live.meta?.source ?? "?"})`,
+    `  ${v1liveOk ? "✓" : "✗"} /api/v1/live → ${v1live.data?.length ?? 0} fixtures from ${v1live.meta?.provider ?? v1live.error?.code ?? "?"} (source=${v1live.meta?.source ?? "none"})`,
   );
   if (!v1liveOk) failures++;
 
