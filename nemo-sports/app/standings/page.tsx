@@ -5,6 +5,7 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import PoweredBy from "@/components/ui/PoweredBy";
 import { standings as sdlStandings, topScorers as sdlTopScorers } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
+import type { NormalizedStandingRow, NormalizedTopScorer } from "@/packages/sdl/src";
 import { standings as demoStandings, topScorers as demoTopScorers } from "@/lib/data";
 import { competitionBySlug, playerBySlug, teamBySlug } from "@/lib/core-data";
 import StandingsTable from "@/components/competition/StandingsTable";
@@ -23,21 +24,32 @@ export const revalidate = 300;
  * per-competition notice — never a mock table.
  */
 const LIVE_COMPETITIONS: { sport: string; slug: string; name: string }[] = [
-  { sport: "football", slug: "uefa-champions-league", name: "دوري أبطال أوروبا" },
-  { sport: "football", slug: "la-liga", name: "الدوري الإسباني" },
-  { sport: "football", slug: "serie-a", name: "الدوري الإيطالي" },
+  { sport: "football", slug: "english-premier-league", name: "الدوري الإنجليزي الممتاز" },
+  { sport: "football", slug: "spanish-la-liga", name: "الدوري الإسباني" },
+  { sport: "football", slug: "italian-serie-a", name: "الدوري الإيطالي" },
   { sport: "football", slug: "bundesliga", name: "الدوري الألماني" },
-  { sport: "football", slug: "ligue-1", name: "الدوري الفرنسي" },
-  { sport: "football", slug: "premier-league", name: "الدوري الإنجليزي الممتاز" },
+  { sport: "football", slug: "french-ligue-1", name: "الدوري الفرنسي" },
+  { sport: "football", slug: "uefa-champions-league", name: "دوري أبطال أوروبا" },
 ];
 
 export default async function StandingsPage() {
-  const results = await Promise.all(
-    LIVE_COMPETITIONS.map(async (c) => {
-      const [table, scorers] = await Promise.all([sdlStandings(c.sport, c.slug), sdlTopScorers(c.sport, c.slug)]);
-      return { ...c, table: table.ok ? table.data : null, tableError: table.ok ? null : table.error.message, scorers: scorers.ok ? scorers.data : null };
-    }),
-  );
+  /* Sequential per-competition fetch: a 12-call parallel burst reads as bot
+   * traffic to SportScore's edge and gets challenged (verified live); one
+   * competition at a time passes reliably, and the SDL cache layers mean
+   * this full walk only happens on cache misses (every ~5 min). */
+  type CompetitionResult = {
+    sport: string;
+    slug: string;
+    name: string;
+    table: NormalizedStandingRow[] | null;
+    tableError: string | null;
+    scorers: NormalizedTopScorer[] | null;
+  };
+  const results: CompetitionResult[] = [];
+  for (const c of LIVE_COMPETITIONS) {
+    const [table, scorers] = [await sdlStandings(c.sport, c.slug), await sdlTopScorers(c.sport, c.slug)];
+    results.push({ ...c, table: table.ok ? table.data : null, tableError: table.ok ? null : table.error.message, scorers: scorers.ok ? scorers.data : null });
+  }
 
   const okCompetitions = results.filter((r) => r.table && r.table.length > 0);
 
