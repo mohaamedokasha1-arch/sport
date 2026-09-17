@@ -193,9 +193,19 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     return (this.baseUrlOverride ?? process.env.SPORTSCORE_BASE_URL ?? "https://sportscore.com/api/widget").replace(/\/+$/, "");
   }
 
-  /** @internal documented optional self-identification */
+  /**
+   * @internal documented optional self-identification.
+   * The User-Agent matters in production: sportscore.com's edge protection
+   * 403s requests that arrive without a UA (Vercel serverless fetch sends
+   * none), while browser-like agents are served. We identify honestly as the
+   * NEMO Sports widget consumer + site origin (the attribution link already
+   * points back at sportscore.com).
+   */
   override auth(): { headers: Record<string, string>; query?: Record<string, string> } {
-    return { headers: {}, query: { src: this.src } };
+    return {
+      headers: { "user-agent": "Mozilla/5.0 (compatible; NEMO-Sports/1.0; +https://nemo-sports.vercel.app)" },
+      query: { src: this.src },
+    };
   }
 
   /* ── shared helpers ─────────────────────────────────────── */
