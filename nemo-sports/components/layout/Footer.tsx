@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import PoweredBy from "@/components/ui/PoweredBy";
+import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
 import { sports } from "@/lib/core-data";
 import { competitions } from "@/lib/core-data";
 
@@ -116,8 +117,11 @@ export default function Footer() {
           <span>
             شعارات الفرق المعروضة رسوم توضيحية من تصميمنا، ولا نُضمّن أي شعارات أو بثّات مملوكة للغير.
           </span>
-          {/* SportScore attribution (license requirement: visible dofollow link) */}
-          <PoweredBy />
+          {/* Data-source attributions (licence requirements: visible dofollow links) */}
+          <span className="flex flex-wrap items-center gap-2">
+            <PoweredByFootballData />
+            <PoweredBy />
+          </span>
         </div>
       </div>
     </footer>

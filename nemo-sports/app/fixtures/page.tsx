@@ -6,6 +6,7 @@ import { postponed, upcomingNext, upcomingToday } from "@/lib/data";
 import { dateAr, dayLabel } from "@/lib/format";
 import ProviderMatchList from "@/components/data/ProviderMatchList";
 import { fixtures as sdlFixtures } from "@/lib/sdl-gateway";
+import DataSourceNote from "@/components/data/DataSourceNote";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -40,7 +41,7 @@ export default async function FixturesPage() {
           </p>
         </header>
         <ProviderMatchList fixtures={realUpcoming} />
-        <p className="mt-6 text-[11px] text-muted">المصدر: {real.provider} · المواعيد بتوقيت جهازك</p>
+        <DataSourceNote className="mt-6" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
       </div>
     );
   }

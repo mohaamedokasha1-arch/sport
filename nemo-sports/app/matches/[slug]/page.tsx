@@ -122,12 +122,14 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
   /* ══ 1) real provider match (SportScore via the SDL) ══════════════════ */
   const real = await sdlMatchDetail("football", slug);
-  if (!real.ok && real.error.kind !== "not_found") {
+  if (!real.ok && real.error.kind !== "not_found" && real.error.kind !== "no_provider_configured") {
     // Transient provider/cache outage: abort this render so ISR keeps the
     // last good page (a failed background revalidation retains the previous
     // version). First-time renders hit the branded error boundary. Throwing
     // here also prevents an outage from writing a permanent 404 into the
-    // ISR cache — 404 is reserved for typed not_found (match truly absent).
+    // ISR cache — 404 is reserved for a match that truly cannot exist, which
+    // includes a deployment with no detail provider configured at all
+    // (retrying can never change that answer, so a stable 404 is honest).
     throw new Error(`match_detail_unavailable:${real.error.kind}`);
   }
   if (real.ok) {

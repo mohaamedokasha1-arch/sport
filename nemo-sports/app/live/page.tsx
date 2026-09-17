@@ -9,6 +9,7 @@ import LiveFeed from "@/components/live/LiveFeed";
 import ProviderMatchList from "@/components/data/ProviderMatchList";
 import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
 import { liveMatches as sdlLiveMatches } from "@/lib/sdl-gateway";
+import DataSourceNote from "@/components/data/DataSourceNote";
 import { demoContentVisible } from "@/lib/site";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 
@@ -74,6 +75,7 @@ export default async function LivePage() {
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
           <ProviderMatchList fixtures={realLive} />
+          <DataSourceNote className="mt-3" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
         </section>
       ) : real.ok ? (
         <div className="card grid place-items-center gap-2 px-6 py-16 text-center">

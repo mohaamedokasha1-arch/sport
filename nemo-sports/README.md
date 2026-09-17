@@ -35,6 +35,11 @@ npm run check    # فحص شامل لكل المسارات مقابل خادم �
 | `DATABASE_URL` | المخزن الكنسي الدائم في Postgres (بدونه: ذاكرة داخل العملية) |
 | `REDIS_URL` | طبقات الكاش الخمس مشتركة بين النسخ (بدونه: LRU داخل العملية) |
 | `NEMO_INGEST_TOKEN` | مهمة الاستيعاب؛ بدونه يرفض `/api/v1/ingest` بالعمل (503) حتى لا يُصرف رصيد مدفوع بلا حراسة |
+| `FOOTBALL_DATA_API_KEY` | مفتاح **Football-Data.org** (من لوحة المزوّد) — يُقرأ على السيرفر فقط. عند ضبطه يقود المزوّد سلاسل الترتيب والهدافين والمباريات |
+| `FOOTBALL_DATA_REQUESTS_PER_MINUTE` | سقف الطلبات الداخلي للمزوّد (افتراضي `8`، والخطة المجانية تسمح بـ`10/دقيقة`). ارفعه للخطط المدفوعة |
+| `FOOTBALL_DATA_COMPETITIONS` | البطولات المراقَبة في الطلبات غير المقيَّدة (افتراضي: الدوريات الكبرى + الأبطال) |
+| `FOOTBALL_DATA_SEASON` | تثبيت موسم معيّن بصيغة سنة البداية (`2025`). الافتراضي: الموسم الحالي |
+| `FOOTBALL_DATA_BASE_URL` | تجاوز عنوان الـBase URL (للتطوير مقابل mock محلي فقط؛ اتركه فارغًا في الإنتاج) |
 | `NEMO_SDL_MODE` | `auto` (افتراضي) أو `demo` لإجبار المحوّل التجريبي |
 
 ```bash
@@ -153,6 +158,54 @@ db/schema.sql           المخطط الكنسي (Postgres) · db/seed.sql أو
 - **الصراعات**: النتيجة/الحالة/الترتيب = المزوّد الأساسي يفوز، وما يُرفض لا يُكتب أبدًا
   بل يبقى في طابور المراجعة حتى قرار المحرّر.
 - التوثيق الكامل وطريقة إضافة مزوّد أو نوع بيانات جديد: `packages/sdl/README.md`.
+
+### تكامل Football-Data.org (المصدر المجاني الموثوق لكرة القدم)
+
+المزوّد مُسجّل في طبقة البيانات (`packages/sdl/src/adapters/football-data.ts`)
+ويُفعَّل تلقائيًا عند وجود `FOOTBALL_DATA_API_KEY`، بلا أي تغيير في الكود:
+
+```
+الصفحات / واجهات API ← lib/football-data.ts ← lib/sdl-gateway.ts ← SDL
+                      ← FootballDataAdapter ← https://api.football-data.org/v4
+```
+
+| البند | التنفيذ |
+|---|---|
+| Base URL | `https://api.football-data.org/v4` |
+| التوثيق | ترويسة `X-Auth-Token` فقط — لا يظهر المفتاح أبدًا في رابط أو سجل أو استجابة |
+| مكان المفتاح | متغيّر بيئة على السيرفر (`FOOTBALL_DATA_API_KEY`) يُقرأ في `getSdl()`؛ لا واجهة عميل ولا حزمة متصفح تراه (يفحصه `npm run check`) |
+| الترتيب | `GET /competitions/{code}/standings` — يُعرض جدول `TOTAL` فقط ولا تُدمج جداول HOME/AWAY |
+| المباريات والنتائج | `GET /matches?date=YYYY-MM-DD` (و`dateFrom/dateTo` افتراضيًا) + `GET /competitions/{code}/matches` |
+| الهدافون | `GET /competitions/{code}/scorers` — مورد يتطلب خطة تتضمّن بيانات الهدافين؛ على الخطة المجانية يعيد المصدر `403` فنعرض «البيانات غير متوفرة» بدل أي أسماء مُخترعة |
+| البطولات | الكود الرسمي (`PL`, `PD`, `SA`, `BL1`, `FL1`, `CL`, …) مع قبول أسماء/اختصارات مثل `english-premier-league` |
+| الكاش | طبقان في الـ SDL (استجابة المزوّد + البيانات الكنسية) مع `staleGrace`: جدول كل 15 دقيقة، هدافون كل ساعة، مباريات اليوم كل 5 دقائق — و`meta.cache.ttlSeconds` يعلن الصلاحية في كل استجابة |
+| Rate Limiting | عدّاد مشترك في العملية (وفي Redis عند ضبطه): `1/ثانية` و`8/دقيقة` افتراضيًا مع مهلة انتظار وتراجع قبل `429`؛ ويُقرأ رأس `X-Requests-Available-Minute` من المصدر |
+| الفشل | `"Data temporarily unavailable"` مع `503` وقائمة فارغة — لا مخطط بديل ولا بيانات وهمية، وأي `stale` يُوسم صراحةً بأنه آخر قيمة صحيحة |
+| Attribution | «Powered by Football-Data.org» مع رابط dofollow في أسفل الموقع (`components/ui/PoweredByFootballData.tsx`) وفي `components/data/DataSourceNote.tsx` أسفل كل سطح بيانات |
+
+واجهات الخدمة (Backend):
+
+```bash
+GET /api/v1/football-data/standings?competition=PL
+GET /api/v1/football-data/matches?date=2026-09-17[&competition=PL]
+GET /api/v1/football-data/scorers?competition=PL
+GET /api/v1/football-data/status      # هل المفتاح مضبوط؟ كم بقي من الحصة؟ ما سياسة الكاش؟
+```
+
+- كل استجابة ناجحة تحمل `meta`: المزوّد، `fromCache`، `stale`، `fetchedAt`،
+  `cache.ttlSeconds`، و`attribution` — وكل استجابة فاشلة تحمل الرسالة الثابتة فقط.
+- `/api/v1/football-data/status` يعرض الحصة المتبقية (`quota`) وحالة الكاش
+  وسقف الطلبات، ولا يعرض المفتاح ولا أي ترويسة تحمله.
+
+**سلوك الحصة (Quota)**: الصفحات لا تُطلق طلبات متوازية عمياء؛ فهي تطلب جداول
+الدوريات أولًا ثم قوائم الهدافين، وتشتغل حصيلة الدقيقة الواحدة على الكاش أولًا.
+عند نفاد الحصة يتخطى الـ SDL المزوّد ويُكمل بسلسلة البدائل (وليس ببيانات وهمية)،
+ثم تُستكمل القوائم الناقصة تلقائيًا في دورة التحديث التالية لأن الجداول مخزّنة
+15 دقيقة والهدافين 60 دقيقة.
+
+**تطوير بلا إنترنت**: `node scripts/mock-football-data.mjs` يشغّل محاكيًا محليًا
+لـ`v4` على نفس ملفات الـFixtures التي تستخدمها الاختبارات، ويُربط بالموقع عبر
+`FOOTBALL_DATA_API_KEY=mock` و`FOOTBALL_DATA_BASE_URL=http://127.0.0.1:4321/v4`.
 
 ### محرك النتائج المباشرة
 `lib/live.ts` **يشتق** الحالة من الزمن الحقيقي منذ انطلاق المباراة بدل تخزينها:

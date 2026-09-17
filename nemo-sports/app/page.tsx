@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import ProviderMatchList from "@/components/data/ProviderMatchList";
-import { liveMatches as sdlLive, fixtures as sdlFixtures } from "@/lib/sdl-gateway";
+import { cachePolicyFor, liveMatches as sdlLive, fixtures as sdlFixtures } from "@/lib/sdl-gateway";
+import { footballTopScorers } from "@/lib/football-data";
+import DataSourceNote from "@/components/data/DataSourceNote";
 import PoweredBy from "@/components/ui/PoweredBy";
 import Link from "next/link";
 import MatchCard from "@/components/match/MatchCard";
@@ -33,8 +35,14 @@ export const revalidate = 60;
 export default async function HomePage() {
   const now = Date.now();
 
-  // ── real data first (SportScore through the Sports Data Layer) ──
-  const [realLive, realFeed] = await Promise.all([sdlLive("football"), sdlFixtures({ sport: "football" })]);
+  // ── real data first (through the Sports Data Layer) ──
+  // Three calls at most, all cached server-side: live scores, the day's
+  // fixtures/results and the top scorers of the current season.
+  const [realLive, realFeed, scorers] = await Promise.all([
+    sdlLive("football"),
+    sdlFixtures({ sport: "football" }),
+    footballTopScorers("english-premier-league"),
+  ]);
   const liveReal = realLive.ok ? realLive.data.slice(0, 6) : [];
   const finishedReal = realFeed.ok
     ? realFeed.data.filter((f) => f.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)).slice(0, 6)
@@ -44,6 +52,8 @@ export default async function HomePage() {
     : [];
   const realActive = realLive.ok || realFeed.ok;
   const hasRealContent = liveReal.length > 0 || finishedReal.length > 0 || upcomingReal.length > 0;
+  /** the TTL the SDL is honouring for the fixtures feed — published, not guessed */
+  const cacheTtl = (await cachePolicyFor("fixtures")).canonical;
 
   const featured = [
     ...liveMatches.filter((m) => m.featured),
@@ -111,7 +121,52 @@ export default async function HomePage() {
                 <div id="results-real"><ProviderMatchList fixtures={finishedReal} /></div>
               </section>
             ) : null}
-            <p className="text-[11px] text-muted">جميع المباريات والنتائج أعلاه حقيقية وتُحدَّث تلقائيًا من طبقة البيانات.</p>
+
+            {/* ── top scorers (Football-Data.org) ── */}
+            <section aria-labelledby="scorers-real">
+              <SectionHead eyebrow="Top scorers" title="الهدافون" href="/standings" linkLabel="الترتيب والهدافون" />
+              {scorers.ok && scorers.data.length > 0 ? (
+                <div id="scorers-real" className="card overflow-hidden">
+                  <ol className="grid divide-y divide-line sm:grid-cols-2 sm:divide-y-0">
+                    {scorers.data.slice(0, 6).map((s, i) => (
+                      <li key={s.playerProviderId} className="flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-0">
+                        <span className="num w-4 shrink-0 text-[12px] font-extrabold text-gold-600 dark:text-gold-400">{i + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{s.playerName ?? s.playerProviderId}</span>
+                        <span className="hidden shrink-0 text-[11px] text-muted sm:block">{s.teamName ?? ""}</span>
+                        <span className="num shrink-0 text-[13px] font-extrabold">{s.goals}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2">
+                    <DataSourceNote
+                      provider={scorers.source.provider}
+                      fromCache={scorers.source.fromCache}
+                      stale={scorers.source.stale}
+                      fetchedAt={scorers.source.fetchedAt}
+                      ttlSeconds={scorers.source.ttlSeconds}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div id="scorers-real" className="card px-4 py-3 text-[11.5px] text-muted">
+                  <span className="font-bold text-ink dark:text-white/80">Data temporarily unavailable</span> — قائمة الهدافين غير
+                  متاحة من المصدر الآن. لا نعرض أسماء أو أرقامًا غير مؤكدة.
+                </div>
+              )}
+            </section>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+              <p className="text-[11px] text-muted">جميع المباريات والنتائج أعلاه حقيقية وتُحدَّث تلقائيًا من طبقة البيانات.</p>
+              {realFeed.ok ? (
+                <DataSourceNote
+                  provider={realFeed.provider}
+                  fromCache={realFeed.fromCache}
+                  stale={realFeed.stale}
+                  fetchedAt={realFeed.fetchedAt}
+                  ttlSeconds={cacheTtl}
+                />
+              ) : null}
+            </div>
           </div>
         ) : (
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">

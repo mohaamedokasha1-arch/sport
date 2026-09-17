@@ -11,10 +11,13 @@ export default function DataUnavailable({
   title = "البيانات غير متوفرة حاليًا",
   message = "نحن نربط المنصة بمصادر البيانات الرياضية الرسمية. لن نعرض أي نتائج أو أخبار غير مؤكدة — ستعود هذه القسم للعمل فور توفر البيانات الحقيقية.",
   hint,
+  /** the fixed English wording every failed data surface carries */
+  english = "Data temporarily unavailable",
 }: {
   title?: string;
   message?: string;
   hint?: string;
+  english?: string;
 }) {
   return (
     <div className="card my-6 flex flex-col items-center gap-2 px-6 py-10 text-center">
@@ -25,6 +28,8 @@ export default function DataUnavailable({
         📡
       </span>
       <h2 className="text-[15px] font-extrabold">{title}</h2>
+      {/* Fixed message shown on every failed feed — no fabricated data behind it. */}
+      <p className="text-[12px] font-bold tracking-wide text-live-red/90">{english}</p>
       <p className="max-w-md text-[12.5px] leading-6 text-muted">{message}</p>
       {hint ? <p className="max-w-md text-[11px] leading-5 text-muted">{hint}</p> : null}
       <p className="mt-2 text-[11px] text-muted">

@@ -1,0 +1,31 @@
+{
+  "filters": { "season": "2025", "limit": "20" },
+  "competition": { "id": 2021, "name": "Premier League", "code": "PL", "type": "LEAGUE", "emblem": "https://crests.football-data.org/PL.png" },
+  "season": { "id": 2404, "startDate": "2025-08-15", "endDate": "2026-05-24", "currentMatchday": 5 },
+  "scorers": [
+    {
+      "player": { "id": 3550, "name": "Erling Haaland", "position": "Centre-Forward", "nationality": "Norway", "dateOfBirth": "2000-07-21" },
+      "team": { "id": 65, "name": "Manchester City FC", "shortName": "Man City", "tla": "MCI", "crest": "https://crests.football-data.org/65.png" },
+      "playedMatches": 5,
+      "goals": 7,
+      "assists": 1,
+      "penalties": 1
+    },
+    {
+      "player": { "id": 3312, "name": "Mohamed Salah", "position": "Right Winger", "nationality": "Egypt", "dateOfBirth": "1992-06-15" },
+      "team": { "id": 64, "name": "Liverpool FC", "shortName": "Liverpool", "tla": "LIV", "crest": "https://crests.football-data.org/64.png" },
+      "playedMatches": 5,
+      "goals": 5,
+      "assists": 3,
+      "penalties": 0
+    },
+    {
+      "player": { "id": 3746, "name": "Cole Palmer", "position": "Attacking Midfield", "nationality": "England", "dateOfBirth": "2002-05-06" },
+      "team": { "id": 61, "name": "Chelsea FC", "shortName": "Chelsea", "tla": "CHE", "crest": "https://crests.football-data.org/61.png" },
+      "playedMatches": 5,
+      "goals": 4,
+      "assists": 2,
+      "penalties": 2
+    }
+  ]
+}
