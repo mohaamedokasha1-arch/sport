@@ -1,12 +1,12 @@
 import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 
 const users = [
-  { name: "مدير المنصة", email: "owner@nemo.sports", role: "Owner", joined: "2025-01-12", last: "قبل دقيقتين", status: "نشط" },
-  { name: "سارة منير", email: "sara@nemo.sports", role: "Super Admin", joined: "2025-03-04", last: "قبل 20 دقيقة", status: "نشط" },
-  { name: "كريم عبد الله", email: "karim@nemo.sports", role: "Editor", joined: "2025-06-19", last: "قبل ساعة", status: "نشط" },
-  { name: "أحمد فؤاد", email: "ahmed@nemo.sports", role: "Sports Editor", joined: "2025-08-02", last: "قبل 3 ساعات", status: "نشط" },
-  { name: "ليلى حسن", email: "laila@nemo.sports", role: "Editor", joined: "2026-01-15", last: "أمس", status: "نشط" },
-  { name: "معتز سامي", email: "moataz@nemo.sports", role: "Moderator", joined: "2026-04-22", last: "قبل 5 أيام", status: "موقوف" },
+  { name: "مدير المنصة", email: "owner@nemo-sports.example", role: "Owner", joined: "2025-01-12", last: "قبل دقيقتين", status: "نشط" },
+  { name: "سارة منير", email: "sara@nemo-sports.example", role: "Super Admin", joined: "2025-03-04", last: "قبل 20 دقيقة", status: "نشط" },
+  { name: "كريم عبد الله", email: "karim@nemo-sports.example", role: "Editor", joined: "2025-06-19", last: "قبل ساعة", status: "نشط" },
+  { name: "أحمد فؤاد", email: "ahmed@nemo-sports.example", role: "Sports Editor", joined: "2025-08-02", last: "قبل 3 ساعات", status: "نشط" },
+  { name: "ليلى حسن", email: "laila@nemo-sports.example", role: "Editor", joined: "2026-01-15", last: "أمس", status: "نشط" },
+  { name: "معتز سامي", email: "moataz@nemo-sports.example", role: "Moderator", joined: "2026-04-22", last: "قبل 5 أيام", status: "موقوف" },
 ];
 
 const roles = [
@@ -67,7 +67,7 @@ export default function AdminUsers() {
               <input className={inputCls} placeholder="الاسم الكامل" />
             </Field>
             <Field label="البريد الإلكتروني">
-              <input type="email" className={inputCls} placeholder="name@nemo.sports" />
+              <input type="email" className={inputCls} placeholder="name@nemo-sports.example" />
             </Field>
             <Field label="الدور">
               <select className={inputCls}>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import SectionHead from "@/components/ui/SectionHead";
 import { players, teamBySlug } from "@/lib/core-data";
@@ -30,6 +31,13 @@ export default function PlayersPage() {
           <Link href="/search" className="font-bold text-gold-600 dark:text-gold-400">ابحث عن لاعب</Link>
         </p>
       </header>
+
+      {players.length === 0 ? (
+        <DataUnavailable
+          title="دليل اللاعبين غير متوفر حاليًا"
+          message="صفحات اللاعبين تُبنى من إحصائيات رسمية مؤكدة فقط — لا إحصائيات وهمية."
+        />
+      ) : null}
 
       <div className="space-y-9">
         {order.map((g) =>

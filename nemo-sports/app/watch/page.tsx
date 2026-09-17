@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import Crest from "@/components/ui/Crest";
 import SectionHead from "@/components/ui/SectionHead";
@@ -33,6 +34,13 @@ export default function WatchPage() {
           <span className="num font-bold">{broadcastable.length}</span> مباراة عبر نواقل رسميين
         </p>
       </header>
+
+      {broadcastable.length === 0 ? (
+        <DataUnavailable
+          title="لا توجد مباريات متاحة للبث الآن"
+          message="نعرض فقط روابط بث رسمية مرخّصة مرتبطة بمباريات حقيقية مؤكدة."
+        />
+      ) : null}
 
       <div className="mb-8 grid gap-4 md:grid-cols-3">
         {[

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import MatchCard from "@/components/match/MatchCard";
 import NewsCard from "@/components/news/NewsCard";
@@ -74,8 +75,14 @@ export default function HomePage() {
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
           {/* ── main column ─────────────────────────────── */}
           <div className="min-w-0 space-y-10">
+        {todaysMatches.length === 0 && liveMatches.length === 0 && news.length === 0 ? (
+          <DataUnavailable
+            title="لوحة المباريات فارغة حاليًا"
+            message="نيمو سبورتس يعرض مباريات ونتائج وأخبارًا من مصادر رسمية مؤكدة فقط. عندما تتوفر البيانات الحقيقية ستظهر هنا مباشرة."
+          />
+        ) : null}
             {/* featured */}
-            <section aria-labelledby="featured-title">
+            <section aria-labelledby="featured-title" className={featured.length === 0 ? "hidden" : undefined}>
               <SectionHead
                 eyebrow="Match of the day"
                 title="مباراة اليوم"

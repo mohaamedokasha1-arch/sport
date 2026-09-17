@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { liveMatches } from "@/lib/sdl-gateway";
 import { getCanonicalStore } from "@/lib/db/pg";
+import { demoContentVisible } from "@/lib/site";
 import type { UUID } from "@/packages/sdl/src";
 
 /**
@@ -38,6 +39,26 @@ export default async function LiveFeed({ sport = "football" }: { sport?: string 
   }
 
   const store = await getCanonicalStore();
+
+  /**
+   * §Instruction 12 — the SDL's offline demo adapter also returns `ok: true`
+   * rows. In production (demo content hidden) those rows are NOT real data,
+   * so they must never be presented as live scores. Show the honest state
+   * instead; with real provider keys configured, `source` is "provider" and
+   * the rows render normally.
+   */
+  if (!demoContentVisible() && result.source === "demo") {
+    return (
+      <section className="mb-6 rounded-[6px] border border-line bg-white p-4 dark:border-navy-800 dark:bg-navy-900">
+        <h2 className="mb-2 text-[15px] font-extrabold">لوحة المزوّد الحيّة</h2>
+        <p className="text-[13px] leading-6 text-ink-soft dark:text-white/60">
+          البيانات المباشرة غير متوفرة حاليًا — لا يوجد مزوّد بيانات حقيقي مربوط بعد
+          (الوضع الحالي: محوّل demo). لن نعرض مباريات أو نتائج وهمية؛ ستعمل هذه اللوحة
+          تلقائيًا فور إضافة مفاتيح المزوّدين.
+        </p>
+      </section>
+    );
+  }
 
   // Resolve display names from the canonical store; an unmapped team keeps its
   // provider reference visible rather than being silently invented.

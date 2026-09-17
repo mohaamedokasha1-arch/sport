@@ -110,18 +110,32 @@ async function main() {
   console.log(`  · testing ${details.length} detail pages from sitemap`);
   for (const p of details) await check(p);
 
-  // API contracts
+  // API contracts.
+  // Content mode: the demo dataset renders in development/preview only. In
+  // production without real provider data every sports-data surface is
+  // intentionally EMPTY (honest "unavailable" states, §Instruction 12), so
+  // the demo-dependent assertions below run only when demo content is on.
+  const homeHtml = await (await fetch(`${BASE}/`)).text();
+  const demoOn = !homeHtml.includes("لوحة المباريات فارغة حاليًا");
+  console.log(`  · content mode → ${demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)"}`);
+
   const live = await (await fetch(`${BASE}/api/live`)).json();
   const liveIds = Object.keys(live);
-  const liveOk =
-    liveIds.length > 0 &&
-    liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((k) => k in live[id]));
-  console.log(`  ${liveOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, shape ${liveOk ? "valid" : "INVALID"}`);
-  if (!liveOk) failures++;
+  if (demoOn) {
+    const liveOk =
+      liveIds.length > 0 &&
+      liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((k) => k in live[id]));
+    console.log(`  ${liveOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, shape ${liveOk ? "valid" : "INVALID"}`);
+    if (!liveOk) failures++;
 
-  const anyLive = liveIds.filter((id) => live[id].status === "LIVE");
-  console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
-  if (anyLive.length === 0) failures++;
+    const anyLive = liveIds.filter((id) => live[id].status === "LIVE");
+    console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
+    if (anyLive.length === 0) failures++;
+  } else {
+    const emptyOk = liveIds.length === 0;
+    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches (production: must be empty, never fabricated)`);
+    if (!emptyOk) failures++;
+  }
 
   const rail = await (await fetch(`${BASE}/api/live?scope=rail`)).json();
   const railOk = Array.isArray(rail.matches) && rail.matches.every((m) => m.compCode && m.state);
@@ -129,9 +143,15 @@ async function main() {
   if (!railOk) failures++;
 
   const search = await (await fetch(`${BASE}/api/search?q=${encodeURIComponent("الأهلي")}`)).json();
-  const searchOk = Array.isArray(search) && search.length > 0 && search[0].url.startsWith("/");
-  console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits`);
-  if (!searchOk) failures++;
+  if (demoOn) {
+    const searchOk = Array.isArray(search) && search.length > 0 && search[0].url.startsWith("/");
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits`);
+    if (!searchOk) failures++;
+  } else {
+    const searchOk = Array.isArray(search);
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits (production: demo news hidden)`);
+    if (!searchOk) failures++;
+  }
 
   const empty = await (await fetch(`${BASE}/api/search?q=x`)).json();
   const emptyOk = Array.isArray(empty) && empty.length === 0;
@@ -226,9 +246,13 @@ async function main() {
   console.log(`  ${noindexOk ? "✓" : "✗"} /live → robots ${noindex ? "noindex" : "indexable"} (mode=${system.mode})`);
   if (!noindexOk) failures++;
 
-  /* ── the live page is fed by the SDL, and says which provider ── */
-  const feedOk = livePage.includes("لوحة المزوّد الحيّة") && /المصدر:/.test(livePage);
-  console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered`);
+  /* ── the live page is fed by the SDL, and says which provider ──
+     In production without real provider data the panel intentionally shows
+     the honest "unavailable" state instead of demo rows (§Instruction 12). */
+  const feedOk =
+    livePage.includes("لوحة المزوّد الحيّة") &&
+    (demoOn ? /المصدر:/.test(livePage) : livePage.includes("البيانات المباشرة غير متوفرة حاليًا"));
+  console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered${demoOn ? "" : " (honest empty state)"}`);
   if (!feedOk) failures++;
 
   const adminPage = await (await fetch(`${BASE}/admin/providers`)).text();

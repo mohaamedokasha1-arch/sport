@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import NewsCard from "@/components/news/NewsCard";
 import { articles } from "@/lib/data";
@@ -41,6 +42,13 @@ export default async function NewsPage({
           {" "}محتوى أصلي وملخصات موثقة من مصادر خارجية
         </p>
       </header>
+
+      {articles.length === 0 ? (
+        <DataUnavailable
+          title="لا توجد أخبار منشورة حاليًا"
+          message="الأخبار تُنشر من فريق التحرير أو بملخص موثق من مصدر خارجي. لا توجد أخبار وهمية على نيمو سبورتس."
+        />
+      ) : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
         <Link

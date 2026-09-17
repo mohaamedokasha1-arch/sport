@@ -6,6 +6,7 @@ import NewsCard from "@/components/news/NewsCard";
 import { articleBySlug, articles, relatedArticles } from "@/lib/data";
 import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact, dateAr } from "@/lib/format";
+import { SITE_NAME, absoluteUrl } from "@/lib/site";
 
 export function generateStaticParams() {
   return articles.map((a) => ({ slug: a.slug }));
@@ -50,7 +51,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     dateModified: published.toISOString(),
     inLanguage: "ar",
     author: { "@type": "Person", name: article.author },
-    publisher: { "@type": "Organization", name: "NEMO Sports" },
+    publisher: { "@type": "Organization", name: SITE_NAME, url: absoluteUrl("/") },
+    mainEntityOfPage: absoluteUrl(`/news/${article.slug}`),
     articleSection: article.category,
   };
 

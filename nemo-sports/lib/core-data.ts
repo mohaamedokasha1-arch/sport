@@ -4,6 +4,8 @@
    Demo dataset: fictional-but-realistic, no third-party content.
    ───────────────────────────────────────────────────────────── */
 
+import { demoContentVisible } from "./site";
+
 export type Sport = {
   slug: string;
   name: string;
@@ -101,7 +103,7 @@ const t = (
   extra: Partial<Team> = {},
 ): Team => ({ slug, name, nameEn, short, sport, country, flag, competition, founded, primary, secondary, ...extra });
 
-export const teams: Team[] = [
+const TEAMS_RAW: Team[] = [
   /* ── Premier League ─────────────────────────────────────── */
   t("manchester-city", "مانشستر سيتي", "Manchester City", "MCI", "football", "إنجلترا", "🏴", "premier-league", 1880, "#6CABDD", "#1C2C5B", { stadium: "ملعب الاتحاد", capacity: 61474, coach: "بيب غوارديولا", captain: "برناردو سيلفا" }),
   t("arsenal", "آرسنال", "Arsenal", "ARS", "football", "إنجلترا", "🏴", "premier-league", 1886, "#EF0107", "#023474", { stadium: "ملعب الإمارات", capacity: 60704, coach: "ميكيل أرتيتا", captain: "مارتن أوديغارد" }),
@@ -228,7 +230,7 @@ const p = (
   minutes: apps * 82, yellows: Math.max(0, Math.round(apps / 14)), reds: 0, bio, ...extra,
 });
 
-export const players: Player[] = [
+const PLAYERS_RAW: Player[] = [
   /* الأهلي */
   p("mohamed-elshenawy", "محمد الشناوي", "Mohamed El Shenawy", "al-ahly", "egyptian-league", "football", "مصر", "🇪🇬", 1, "حارس مرمى", "حراسة المرمى", "1988-12-18", 22, 0, 0, "قائد الأهلي وحارس مرمى منتخب مصر، من أكثر الحراس حفاظًا على نظافة الشباك في الدوري المصري.", { height: 190, weight: 87, foot: "يمين" }),
   p("mohamed-sherif", "محمد شريف", "Mohamed Sherif", "al-ahly", "egyptian-league", "football", "مصر", "🇪🇬", 9, "مهاجم", "الهجوم", "1996-02-04", 24, 14, 3, "مهاجم الأهلي وهداف الفريق في الدوري، يتميز بالتحرك خلف الدفاع وإنهاء الهجمات.", { height: 180, weight: 76, foot: "يمين" }),
@@ -270,6 +272,16 @@ export const players: Player[] = [
 ];
 
 /* ── lookups ─────────────────────────────────────────────── */
+/* ── demo-content gate ──────────────────────────────────────
+   These entity datasets (teams, players and their fabricated squads, stats
+   and bios) are demo material. They are exposed publicly only when
+   `demoContentVisible()` allows the demo dataset; in production the public
+   exports resolve to empty lists so no fictional entity page can be
+   rendered, indexed or listed in the sitemap. The raw arrays stay available
+   internally for the demo match factory (`lib/data.ts`). */
+export const teams: Team[] = demoContentVisible() ? TEAMS_RAW : [];
+export const players: Player[] = demoContentVisible() ? PLAYERS_RAW : [];
+
 export const sportBySlug = (s: string) => sports.find((x) => x.slug === s);
 export const competitionBySlug = (s: string) => competitions.find((x) => x.slug === s);
 export const teamBySlug = (s: string) => teams.find((x) => x.slug === s);
@@ -277,3 +289,7 @@ export const playerBySlug = (s: string) => players.find((x) => x.slug === s);
 export const teamsByCompetition = (c: string) => teams.filter((x) => x.competition === c);
 export const playersByTeam = (t: string) => players.filter((x) => x.team === t);
 export const competitionsBySport = (s: string) => competitions.filter((x) => x.sport === s);
+
+/** Raw demo arrays — for lib/data.ts's match factory only, never for UI. */
+export const TEAMS_ALL = TEAMS_RAW;
+export const PLAYERS_ALL = PLAYERS_RAW;

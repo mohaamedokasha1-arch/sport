@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import MatchCard from "@/components/match/MatchCard";
 import SectionHead from "@/components/ui/SectionHead";
@@ -29,6 +30,13 @@ export default function ResultsPage() {
           اضغط أي مباراة لعرض الأحداث والإحصائيات الكاملة
         </p>
       </header>
+
+      {groups.length === 0 ? (
+        <DataUnavailable
+          title="لا توجد نتائج مؤكدة حاليًا"
+          message="لا نعرض أي نتيجة غير مؤكدة من مصدر رسمي. ستعود النتائج للظهور فور توفر بيانات حقيقية عبر طبقة البيانات."
+        />
+      ) : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
         {[

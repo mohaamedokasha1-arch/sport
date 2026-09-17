@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "البحث",
   description: "ابحث عن فريق أو لاعب أو بطولة أو مباراة أو خبر في نيمو سبورتس.",
   alternates: { canonical: "/search" },
+  // Search result pages are utility pages with query-dependent content —
+  // they must not be indexed or listed in the sitemap (Google guideline).
+  robots: { index: false, follow: true },
 };
 
 const norm = (s: string) =>

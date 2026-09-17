@@ -4,7 +4,22 @@
    live matches, today's games and tomorrow's fixtures.
    ───────────────────────────────────────────────────────────── */
 
-import { competitions, teams, type Competition, type Team } from "./core-data";
+import { competitions, TEAMS_ALL, type Competition, type Team } from "./core-data";
+import { demoContentVisible } from "./site";
+
+/**
+ * Demo-content gate (§Instruction 10).
+ *
+ * Everything below this line is an offline demo dataset whose times are
+ * computed relative to "now" so the product can be developed and demoed with
+ * zero provider keys. It is ONLY exposed when `demoContentVisible()` allows
+ * it (development/preview, or an explicit demo deployment). In production
+ * every export resolves to an empty dataset, so pages render honest
+ * "data unavailable" states instead of fabricated matches, scores, news and
+ * statistics — and nothing fake can be indexed or listed in the sitemap.
+ */
+const SHOW_DEMO = demoContentVisible();
+const EMPTY_MATCHES: Match[] = [];
 
 export { competitions, teams, players, sports } from "./core-data";
 export type { Competition, Team, Player, Sport } from "./core-data";
@@ -137,8 +152,11 @@ type MatchInput = Partial<Match> & {
 };
 
 export function m(i: MatchInput): Match {
-  const home = teams.find((x) => x.slug === i.home)!;
-  const away = teams.find((x) => x.slug === i.away)!;
+  // Uses the RAW demo teams (TEAMS_ALL) — the public `teams` export is gated
+  // and empty in production, but the factory must still be able to build the
+  // demo dataset for development/preview.
+  const home = TEAMS_ALL.find((x) => x.slug === i.home)!;
+  const away = TEAMS_ALL.find((x) => x.slug === i.away)!;
   const comp = competitions.find((x) => x.slug === i.competition)!;
   const d = new Date(i.kickoff);
   const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -283,7 +301,7 @@ function defaultLineups(home: Team, away: Team, sport: string): Lineup[] {
 
 /* ── live matches ─────────────────────────────────────────── */
 
-export const liveMatches: Match[] = [
+const liveMatches_RAW: Match[] = [
   m({
     sport: "football", competition: "premier-league", home: "manchester-city", away: "liverpool",
     kickoff: rel(-63), status: "LIVE", homeScore: 1, awayScore: 2, clock: "63'", minute: 63,
@@ -361,9 +379,11 @@ export const liveMatches: Match[] = [
   }),
 ];
 
+
+export const liveMatches: Match[] = SHOW_DEMO ? liveMatches_RAW : EMPTY_MATCHES;
 /* ── today · finished ─────────────────────────────────────── */
 
-export const finishedToday: Match[] = [
+const finishedToday_RAW: Match[] = [
   m({ sport: "football", competition: "premier-league", home: "arsenal", away: "chelsea", kickoff: at(0, 14, 0), status: "FINISHED", homeScore: 2, awayScore: 1, clock: "انتهت", minute: 90, featured: true, viewers: 902_330, referee: "أنتوني تايلور", attendance: 60_704,
     events: [
       { id: "e1", minute: 19, type: "goal", side: "home", player: "بوكايو ساكا" },
@@ -399,9 +419,11 @@ export const finishedToday: Match[] = [
   m({ sport: "hockey", competition: "nhl", home: "boston-bruins", away: "toronto-maple", kickoff: at(0, 2, 0), status: "FINISHED", homeScore: 4, awayScore: 2, clock: "نهائي", minute: 3, attendance: 17_850 }),
 ];
 
+
+export const finishedToday: Match[] = SHOW_DEMO ? finishedToday_RAW : EMPTY_MATCHES;
 /* ── today · upcoming ─────────────────────────────────────── */
 
-export const upcomingToday: Match[] = [
+const upcomingToday_RAW: Match[] = [
   m({ sport: "football", competition: "premier-league", home: "manchester-united", away: "tottenham", kickoff: at(0, 21, 0), status: "UPCOMING", clock: "21:00", featured: true, viewers: 410_000, round: "الجولة 24",
     broadcast: { provider: "beIN SPORTS", license: "external", regions: ["الشرق الأوسط", "شمال أفريقيا"], status: "COMING_SOON", url: "https://www.beinsports.com", geoBlocked: true } }),
   m({ sport: "football", competition: "la-liga", home: "barcelona", away: "atletico-madrid", kickoff: at(0, 22, 0), status: "UPCOMING", clock: "22:00", featured: true, viewers: 512_000, round: "الجولة 24",
@@ -416,9 +438,11 @@ export const upcomingToday: Match[] = [
     broadcast: { provider: "DAZN", license: "external", regions: ["العالم"], status: "COMING_SOON", url: "https://www.dazn.com", geoBlocked: false, note: "نزال موحّد على ألقاب الوزن الثقيل." } }),
 ];
 
+
+export const upcomingToday: Match[] = SHOW_DEMO ? upcomingToday_RAW : EMPTY_MATCHES;
 /* ── yesterday ────────────────────────────────────────────── */
 
-export const finishedYesterday: Match[] = [
+const finishedYesterday_RAW: Match[] = [
   m({ sport: "football", competition: "premier-league", home: "newcastle", away: "aston-villa", kickoff: at(-1, 20, 0), status: "FINISHED", homeScore: 3, awayScore: 1, clock: "انتهت", minute: 90,
     events: [
       { id: "e1", minute: 14, type: "goal", side: "home", player: "ألكسندر إيزاك" },
@@ -441,9 +465,11 @@ export const finishedYesterday: Match[] = [
   m({ sport: "volleyball", competition: "volley-nations", home: "brazil-volley", away: "poland-volley", kickoff: at(-1, 17, 0), status: "FINISHED", homeScore: 2, awayScore: 3, clock: "انتهت", minute: 0 }),
 ];
 
+
+export const finishedYesterday: Match[] = SHOW_DEMO ? finishedYesterday_RAW : EMPTY_MATCHES;
 /* ── tomorrow & later ─────────────────────────────────────── */
 
-export const upcomingNext: Match[] = [
+const upcomingNext_RAW: Match[] = [
   m({ sport: "football", competition: "champions-league", home: "real-madrid", away: "bayern-munich", kickoff: at(1, 22, 0), status: "UPCOMING", clock: "22:00", featured: true, round: "الجولة 7 · مرحلة الدوري",
     broadcast: { provider: "beIN SPORTS", license: "external", regions: ["الشرق الأوسط", "شمال أفريقيا"], status: "COMING_SOON", url: "https://www.beinsports.com", geoBlocked: true } }),
   m({ sport: "football", competition: "champions-league", home: "psg", away: "barcelona", kickoff: at(1, 22, 0), status: "UPCOMING", clock: "22:00", featured: true, round: "الجولة 7 · مرحلة الدوري" }),
@@ -459,12 +485,16 @@ export const upcomingNext: Match[] = [
   m({ sport: "hockey", competition: "nhl", home: "ny-rangers", away: "vegas-golden", kickoff: at(1, 22, 0), status: "UPCOMING", clock: "22:00", round: "الموسم المنتظم" }),
 ];
 
-export const postponed: Match[] = [
+
+export const upcomingNext: Match[] = SHOW_DEMO ? upcomingNext_RAW : EMPTY_MATCHES;
+const postponed_RAW: Match[] = [
   m({ sport: "football", competition: "premier-league", home: "everton", away: "fulham", kickoff: at(0, 21, 30), status: "POSTPONED", clock: "مؤجلة", round: "الجولة 24" }),
   m({ sport: "football", competition: "egyptian-league", home: "west-ham", away: "brighton", kickoff: at(1, 19, 0), status: "CANCELLED", clock: "ملغاة", round: "الجولة 24" }),
 ];
 
-export const allMatches: Match[] = [
+
+export const postponed: Match[] = SHOW_DEMO ? postponed_RAW : EMPTY_MATCHES;
+const allMatches_RAW: Match[] = [
   ...liveMatches,
   ...finishedToday,
   ...upcomingToday,
@@ -473,6 +503,8 @@ export const allMatches: Match[] = [
   ...postponed,
 ];
 
+
+export const allMatches: Match[] = SHOW_DEMO ? allMatches_RAW : EMPTY_MATCHES;
 export const matchById = (id: string) => allMatches.find((x) => x.id === id);
 export const matchBySlug = (slug: string) => allMatches.find((x) => x.slug === slug);
 export const teamMatches = (slug: string) =>
@@ -505,7 +537,7 @@ export type Article = {
   source?: { name: string; url: string };
 };
 
-export const articles: Article[] = [
+const articles_RAW: Article[] = [
   {
     slug: "ahly-zamalek-cairo-derby-preview",
     title: "ديربي القاهرة: كيف يخطط الأهلي والزمالك لمعركة الوسط؟",
@@ -629,6 +661,8 @@ export const articles: Article[] = [
   },
 ];
 
+
+export const articles: Article[] = SHOW_DEMO ? articles_RAW : [];
 export const breakingNews = articles.filter((a) => a.breaking);
 export const articleBySlug = (s: string) => articles.find((a) => a.slug === s);
 export const relatedArticles = (a: Article) =>
@@ -646,7 +680,7 @@ export type StandingRow = {
 const row = (pos: number, team: string, p: number, w: number, d: number, l: number, gf: number, ga: number, form: StandingRow["form"], zone?: StandingRow["zone"]): StandingRow =>
   ({ pos, team, played: p, won: w, drawn: d, lost: l, gf, ga, points: w * 3 + d, form, zone });
 
-export const standings: Record<string, StandingRow[]> = {
+const standings_RAW: Record<string, StandingRow[]> = {
   "premier-league": [
     row(1, "arsenal", 24, 17, 5, 2, 52, 18, ["W", "W", "D", "W", "W"], "ucl"),
     row(2, "manchester-city", 24, 16, 5, 3, 55, 24, ["W", "L", "W", "W", "D"], "ucl"),
@@ -677,9 +711,11 @@ export const standings: Record<string, StandingRow[]> = {
   ],
 };
 
+
+export const standings: Record<string, StandingRow[]> = SHOW_DEMO ? standings_RAW : {};
 export type TopScorer = { pos: number; player: string; team: string; goals: number; apps: number; penalties: number };
 
-export const topScorers: Record<string, TopScorer[]> = {
+const topScorers_RAW: Record<string, TopScorer[]> = {
   "premier-league": [
     { pos: 1, player: "erling-haaland", team: "manchester-city", goals: 24, apps: 26, penalties: 3 },
     { pos: 2, player: "mohamed-salah", team: "liverpool", goals: 19, apps: 26, penalties: 4 },
@@ -695,13 +731,15 @@ export const topScorers: Record<string, TopScorer[]> = {
   ],
 };
 
+
+export const topScorers: Record<string, TopScorer[]> = SHOW_DEMO ? topScorers_RAW : {};
 /* ── broadcast partners directory (license registry) ──────── */
 export type BroadcastPartner = {
   id: string; name: string; type: string; licenseType: "embed" | "external";
   regions: string[]; status: "approved" | "pending" | "rejected"; competitions: string[]; verifiedAt: string;
 };
 
-export const broadcastPartners: BroadcastPartner[] = [
+const broadcastPartners_RAW: BroadcastPartner[] = [
   { id: "bp1", name: "beIN SPORTS", type: "قناة رياضية مرخّصة", licenseType: "external", regions: ["الشرق الأوسط", "شمال أفريقيا"], status: "approved", competitions: ["premier-league", "champions-league", "la-liga"], verifiedAt: "2026-01-08" },
   { id: "bp2", name: "أون سبورت", type: "قناة رياضية مرخّصة", licenseType: "external", regions: ["مصر"], status: "approved", competitions: ["egyptian-league"], verifiedAt: "2026-01-02" },
   { id: "bp3", name: "NBA League Pass", type: "منصة بث رسمية", licenseType: "embed", regions: ["العالم (باستثناء الولايات المتحدة)"], status: "approved", competitions: ["nba"], verifiedAt: "2025-12-19" },
@@ -710,14 +748,20 @@ export const broadcastPartners: BroadcastPartner[] = [
   { id: "bp6", name: "Sky Sports", type: "قناة رياضية مرخّصة", licenseType: "external", regions: ["المملكة المتحدة", "أيرلندا"], status: "pending", competitions: ["premier-league"], verifiedAt: "2026-02-01" },
 ];
 
+
+/** Directory shown on /broadcast-rights: in production this registry must be fed from the admin/DB, not from a hardcoded demo list. */
+export const broadcastPartners: BroadcastPartner[] = SHOW_DEMO ? broadcastPartners_RAW : [];
 /* ── data sources registry (Primary → Backup → Manual) ────── */
 export type DataSource = {
   id: string; name: string; kind: "primary" | "backup" | "manual"; sports: string[];
   latency: string; status: "connected" | "degraded" | "offline"; errorRate: number; lastSync: string;
 };
 
-export const dataSources: DataSource[] = [
+const dataSources_RAW: DataSource[] = [
   { id: "ds1", name: "SportRadar (Primary)", kind: "primary", sports: ["football", "basketball", "tennis", "handball", "volleyball", "baseball", "hockey"], latency: "≈ 4 ثوانٍ", status: "connected", errorRate: 0.2, lastSync: "قبل 4 ثوانٍ" },
   { id: "ds2", name: "Football-Data (Backup)", kind: "backup", sports: ["football"], latency: "≈ 12 ثانية", status: "connected", errorRate: 0.8, lastSync: "قبل دقيقة" },
   { id: "ds3", name: "إدخال يدوي (Last Resort)", kind: "manual", sports: ["boxing"], latency: "يدوي", status: "connected", errorRate: 0, lastSync: "قبل 9 دقائق" },
 ];
+
+
+export const dataSources: DataSource[] = SHOW_DEMO ? dataSources_RAW : [];

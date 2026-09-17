@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import Link from "next/link";
 import Crest from "@/components/ui/Crest";
 import StandingsTable from "@/components/competition/StandingsTable";
@@ -24,6 +25,13 @@ export default function StandingsPage() {
           كل البطولات ←
         </Link>
       </header>
+
+      {Object.entries(standings).length === 0 ? (
+        <DataUnavailable
+          title="جداول الترتيب غير متوفرة حاليًا"
+          message="الترتيب يُعرض فقط من مصادر رسمية مؤكدة، ولا نستخدم جداول تجريبية في الإنتاج."
+        />
+      ) : null}
 
       <div className="space-y-10">
         {Object.entries(standings).map(([comp, rows]) => {

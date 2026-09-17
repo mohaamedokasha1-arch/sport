@@ -6,6 +6,7 @@ import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { teamBySlug } from "@/lib/core-data";
+import { absoluteUrl } from "@/lib/site";
 
 export function generateStaticParams() {
   return allMatches.map((m) => ({ slug: m.slug }));
@@ -57,13 +58,18 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     "@type": "SportsEvent",
     name: `${home.nameEn} vs ${away.nameEn}`,
     startDate: match.kickoff,
+    // Status must match what the page actually shows (Google checks this).
+    // Note: a live match is NOT "rescheduled" — that was a semantic bug.
     eventStatus:
       state.status === "FINISHED"
         ? "https://schema.org/EventCompleted"
-        : state.status === "LIVE"
-          ? "https://schema.org/EventRescheduled"
-          : "https://schema.org/EventScheduled",
+        : state.status === "POSTPONED"
+          ? "https://schema.org/EventPostponed"
+          : state.status === "CANCELLED"
+            ? "https://schema.org/EventCancelled"
+            : "https://schema.org/EventScheduled",
     sport: comp.nameEn,
+    url: absoluteUrl(`/matches/${match.slug}`),
     location: match.venue
       ? { "@type": "Place", name: match.venue, address: { "@type": "PostalAddress", addressCountry: home.country } }
       : undefined,

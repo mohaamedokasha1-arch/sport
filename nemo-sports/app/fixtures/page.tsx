@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DataUnavailable from "@/components/ui/DataUnavailable";
 import MatchCard from "@/components/match/MatchCard";
 import SectionHead from "@/components/ui/SectionHead";
 import { postponed, upcomingNext, upcomingToday } from "@/lib/data";
@@ -33,6 +34,13 @@ export default function FixturesPage() {
           <span className="num font-bold">{all.length}</span> مباراة خلال الأيام القادمة
         </p>
       </header>
+
+      {days.length === 0 ? (
+        <DataUnavailable
+          title="لا توجد مباريات قادمة مؤكدة"
+          message="جدول المباريات يُبنى من بيانات حقيقية فقط. لن نعرض مباريات أو مواعيد غير مؤكدة."
+        />
+      ) : null}
 
       <div className="space-y-9">
         {days.map(([day, list]) => (

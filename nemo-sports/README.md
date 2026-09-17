@@ -29,6 +29,8 @@ npm run check    # فحص شامل لكل المسارات مقابل خادم �
 
 | المتغير | ماذا يفتح |
 |---|---|
+| `NEXT_PUBLIC_SITE_URL` | أصل الإنتاج الموحّد (canonical، Open Graph، JSON-LD، sitemap، robots). الافتراضي: `https://nemo-sports.vercel.app` — اضبطه مرة واحدة عند ربط دومين مخصص فعليًا |
+| `NEXT_PUBLIC_DEMO_CONTENT` | `1` لإظهار بيانات العرض التجريبي في بناء إنتاجي (لعروض الديمو فقط — يبقى noindex). في الإنتاج العادي البيانات التجريبية مخفية وتظهر حالات «البيانات غير متوفرة» الصادقة |
 | `SPORTRADAR_KEY` · `SPORTMONKS_TOKEN` · `API_FOOTBALL_KEY` · `THESPORTSDB_KEY` | تفعيل المزوّد في سلسلة الأولويات؛ وأول مفتاح ينقل الوضع من `demo` إلى `live` فيعيد الفهرسة |
 | `DATABASE_URL` | المخزن الكنسي الدائم في Postgres (بدونه: ذاكرة داخل العملية) |
 | `REDIS_URL` | طبقات الكاش الخمس مشتركة بين النسخ (بدونه: LRU داخل العملية) |
@@ -181,10 +183,21 @@ db/schema.sql           المخطط الكنسي (Postgres) · db/seed.sql أو
 
 ## 4. SEO
 
-- صفحة مستقلة (SSG) لكل مباراة وفريق ولاعب وبطولة ومقالة — 209 صفحة في البناء.
-- Meta title/description/canonical لكل صفحة · Open Graph · `lang="ar" dir="rtl"`.
-- JSON-LD: `Organization` · `WebSite` + `SearchAction` · `SportsEvent` · `NewsArticle`.
-- `sitemap.xml` (194 رابط) + `robots.txt` · breadcrumb مرئي في الصفحات العميقة.
+- **الدومين الموحّد**: كل عناوين SEO تُشتق من `lib/site.ts` (`NEXT_PUBLIC_SITE_URL` ←
+  `VERCEL_PROJECT_PRODUCTION_URL` ← `VERCEL_URL` ← `https://nemo-sports.vercel.app`).
+  لا يوجد أي دومين مكتوب يدويًا في الكود — أصل الخطأ القديم الذي جعل Search Console
+  يرفض كل الروابط بخطأ «URL غير مسموح به».
+- Meta title/description/canonical لكل صفحة (عبر `metadataBase`) · Open Graph ·
+  `lang="ar" dir="rtl"` · صفحة البحث `noindex` وغير موجودة في الـsitemap.
+- JSON-LD: `Organization` · `WebSite` + `SearchAction` · `SportsEvent` · `NewsArticle` —
+  بروابط مطلقة على دومين الإنتاج وحالات أحداث مطابقة لما تعرضه الصفحة.
+- `sitemap.xml` ديناميكي وواعٍ لوضع البيانات: يعرض فقط صفحات موجودة فعلًا وتعيد 200 —
+  صفحات الكيانات التجريبية (مباريات/فرق/لاعبون/أخبار demo) لا تدخل الـsitemap أبدًا
+  لأن slugs تُعاد حسابها من «الآن» عند كل بناء وستتحول إلى 404.
+- `robots.txt` يشير إلى sitemap على نفس الدومين، ويمنع `/admin` و`/account` و`/api` فقط.
+- الفهرسة مرتبطة بمصدر البيانات (Instruction 6): بناء يعمل على بيانات تجريبية =
+  `noindex` على كل الصفحات + sitemap مصغّر للصفحات الثابتة الحقيقية فقط. بإضافة مفاتيح
+  المزوّدين ينتقل الموقع تلقائيًا إلى `index, follow` ويتوسّع الـsitemap.
 - First Load JS للمشترك 103KB · CSS المنتج ≈ 51KB · لا صور خارجية (لا LCP متعثّر).
 
 ---

@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+
+# local env files (never commit credentials)
+.env
+.env.local
+.env.*.local
+
+# sdl test build output
+packages/sdl/dist-test/
+
+# typescript incremental cache
+*.tsbuildinfo
