@@ -192,7 +192,7 @@ export class SportmonksAdapter extends withDefaults("sportmonks") {
 
   constructor(cfg: SportmonksConfig = {}) {
     super(cfg);
-    this.token = cfg.apiToken ?? process.env.SPORTMONKS_TOKEN ?? null;
+    this.token = cfg.apiToken ?? process.env.SPORTMONKS_TOKEN ?? process.env.SPORTMONKS_API_TOKEN ?? null;
     this.base = cfg.baseUrl ?? "https://api.sportmonks.com/v3/football";
     this.maxPages = 5;
   }

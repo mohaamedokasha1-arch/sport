@@ -1,6 +1,7 @@
 import { allMatches, type Match } from "./data";
 import { getLiveStates } from "./live";
 import { teamBySlug } from "./core-data";
+import { siteDay } from "./tz";
 
 export type MatchQuery = {
   sport?: string;
@@ -18,15 +19,10 @@ const norm = (s: string) =>
     .replace(/ة/g, "ه")
     .replace(/[\u064B-\u0652]/g, "");
 
-const dayDiff = (iso: string) => {
-  const d = new Date(iso);
-  const now = new Date();
-  return Math.round(
-    (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
-      new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
-      86400000,
-  );
-};
+/* Day boundaries follow the site timezone (Africa/Cairo, lib/tz.ts) so
+   "today / tomorrow / this week" mean the same thing on the server and on
+   every visitor's device. */
+const dayDiff = (iso: string) => Math.round((siteDay(iso) - siteDay(Date.now())) / 86400000);
 
 export function filterMatches(q: MatchQuery, now = Date.now()) {
   const states = getLiveStates(undefined, now);

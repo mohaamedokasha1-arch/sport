@@ -1,4 +1,5 @@
 import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
+import { SITE_TZ } from "@/lib/tz";
 
 /**
  * Provenance line rendered directly under a data surface.
@@ -27,7 +28,7 @@ export function providerLabel(provider: string): string {
   return labels[provider] ?? provider;
 }
 
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
 export default function DataSourceNote({
   provider,

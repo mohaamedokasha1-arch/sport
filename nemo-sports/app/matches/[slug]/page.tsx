@@ -6,6 +6,7 @@ import PoweredBy from "@/components/ui/PoweredBy";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
+import { SITE_TZ } from "@/lib/tz";
 import { teamBySlug } from "@/lib/core-data";
 import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
@@ -61,7 +62,7 @@ function clockOf(f: NormalizedFixture): string {
   if (f.status === "halftime") return "استراحة";
   if (f.minute !== null && ["live", "extra_time", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
   if (f.status === "finished") return "انتهت";
-  if (f.status === "scheduled") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+  if (f.status === "scheduled") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
   return STATUS_AR[f.status] ?? f.status;
 }
 
@@ -229,7 +230,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </div>
             </div>
             <p className="mt-4 text-center text-[11px] text-muted">
-              {dateAr(f.scheduledAt)} · {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+              {dateAr(f.scheduledAt)} · {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ })}
               {" · "}
               {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا من المصدر" : "بيانات حقيقية من طبقة البيانات"}
             </p>
@@ -322,7 +323,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
           <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-[11px] text-muted">
             <span>
-              المصدر: {real.provider} · آخر جلب: {new Date(real.fetchedAt).toLocaleTimeString("ar-EG")}
+              المصدر: {real.provider} · آخر جلب: {new Date(real.fetchedAt).toLocaleTimeString("ar-EG", { timeZone: SITE_TZ })}
               {real.fromCache ? " (من الكاش)" : ""}
             </span>
             <PoweredBy />

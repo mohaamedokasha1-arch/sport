@@ -286,9 +286,13 @@ export function getSdl(): { sdl: SportsDataLayer; mode: "live" | "demo"; missing
     singleton = createSdl(
       {
         SPORTRADAR_KEY: process.env.SPORTRADAR_KEY,
-        SPORTMONKS_TOKEN: process.env.SPORTMONKS_TOKEN,
+        // Accepted spellings: SPORTMONKS_TOKEN (original) or SPORTMONKS_API_TOKEN
+        // (the name used in api-football.com-style deployments). One variable,
+        // two aliases — whichever is set activates the provider.
+        SPORTMONKS_TOKEN: process.env.SPORTMONKS_TOKEN ?? process.env.SPORTMONKS_API_TOKEN,
         API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY,
-        THESPORTSDB_KEY: process.env.THESPORTSDB_KEY,
+        // Accepted spellings: THESPORTSDB_KEY (original) or THESPORTSDB_API_KEY.
+        THESPORTSDB_KEY: process.env.THESPORTSDB_KEY ?? process.env.THESPORTSDB_API_KEY,
         // Server-only variable: it is read here, in the process that talks to
         // the provider, and is never inlined into any client bundle.
         FOOTBALL_DATA_API_KEY: process.env.FOOTBALL_DATA_API_KEY,

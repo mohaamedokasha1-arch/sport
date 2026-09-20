@@ -129,7 +129,7 @@ export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
 
   constructor(cfg: TheSportsDbConfig = {}) {
     super(cfg);
-    this.apiKey = cfg.apiKey ?? process.env.THESPORTSDB_KEY ?? null;
+    this.apiKey = cfg.apiKey ?? process.env.THESPORTSDB_KEY ?? process.env.THESPORTSDB_API_KEY ?? null;
     this.version = cfg.version ?? 2;
     // community endpoints are strict: 1 rps and short retries
     this.timeoutMs = cfg.timeoutMs ?? 6000;
