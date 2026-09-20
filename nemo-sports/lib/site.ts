@@ -59,8 +59,10 @@ export function hasProviderKeys(): boolean {
     Boolean(
       process.env.SPORTRADAR_KEY ||
         process.env.SPORTMONKS_TOKEN ||
+        process.env.SPORTMONKS_API_TOKEN ||
         process.env.API_FOOTBALL_KEY ||
         process.env.THESPORTSDB_KEY ||
+        process.env.THESPORTSDB_API_KEY ||
         process.env.FOOTBALL_DATA_API_KEY,
     )
   );

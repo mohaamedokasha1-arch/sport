@@ -1,5 +1,11 @@
 import type { Match, MatchEvent } from "./data";
 import { teamBySlug, competitionBySlug, sportBySlug, type Team } from "./core-data";
+import { siteParts, siteDay } from "./tz";
+
+/* Every formatter below is anchored to the site timezone (Africa/Cairo,
+   lib/tz.ts) so SSR and client render identical strings regardless of the
+   server's or viewer's own timezone. Signatures and output formats are
+   unchanged — only the time anchor is centralized. */
 
 export const STATUS_AR: Record<string, string> = {
   LIVE: "مباشر",
@@ -15,26 +21,25 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /** 14:05 */
 export function timeOf(iso: string): string {
-  const d = new Date(iso);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const p = siteParts(iso);
+  return `${pad(p.hours)}:${pad(p.minutes)}`;
 }
 
 /** السبت ٢٠ سبتمبر */
 export function dateAr(iso: string): string {
-  const d = new Date(iso);
-  const day = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][d.getDay()];
+  const p = siteParts(iso);
+  const day = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][p.weekday];
   const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
-  return `${day} ${d.getDate()} ${months[d.getMonth()]}`;
+  return `${day} ${p.date} ${months[p.month - 1]}`;
 }
 
 export function shortDate(iso: string): string {
-  const d = new Date(iso);
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  const p = siteParts(iso);
+  return `${pad(p.date)}/${pad(p.month)}`;
 }
 
-export function isSameDay(iso: string, ref = new Date()): boolean {
-  const d = new Date(iso);
-  return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth() && d.getDate() === ref.getDate();
+export function isSameDay(iso: string, ref: string | number | Date = new Date()): boolean {
+  return siteDay(iso) === siteDay(ref);
 }
 
 /** "منذ 12 دقيقة" / "بعد 3 ساعات" */
@@ -53,10 +58,8 @@ export function relative(iso: string, now = Date.now()): string {
 }
 
 /** "خلال يومين" / "اليوم" / "غدًا" */
-export function dayLabel(iso: string, now = Date.now()): string {
-  const d = new Date(iso);
-  const today = new Date(now);
-  const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+export function dayLabel(iso: string, now: string | number | Date = Date.now()): string {
+  const days = Math.round((siteDay(iso) - siteDay(now)) / 86400000);
   if (days === 0) return "اليوم";
   if (days === 1) return "غدًا";
   if (days === -1) return "أمس";
@@ -64,18 +67,15 @@ export function dayLabel(iso: string, now = Date.now()): string {
   return dateAr(iso);
 }
 
-export function daysUntil(iso: string, now = Date.now()): number {
-  const d = new Date(iso);
-  const today = new Date(now);
-  return Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000);
+export function daysUntil(iso: string, now: string | number | Date = Date.now()): number {
+  return Math.round((siteDay(iso) - siteDay(now)) / 86400000);
 }
 
 export function age(birth: string): number {
-  const b = new Date(birth);
-  const now = new Date();
-  let a = now.getFullYear() - b.getFullYear();
-  const m = now.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+  const b = siteParts(birth);
+  const n = siteParts(new Date());
+  let a = n.year - b.year;
+  if (n.month < b.month || (n.month === b.month && n.date < b.date)) a--;
   return a;
 }
 

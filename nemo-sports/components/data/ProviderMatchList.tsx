@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PoweredBy from "@/components/ui/PoweredBy";
+import { SITE_TZ } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
@@ -23,7 +24,7 @@ const STATUS_AR: Record<string, string> = {
 };
 
 const timeOf = (iso: string) =>
-  new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
 export function MatchStatePill({ fixture }: { fixture: NormalizedFixture }) {
   const live = ["live", "halftime", "extra_time", "penalty_shootout"].includes(fixture.status);

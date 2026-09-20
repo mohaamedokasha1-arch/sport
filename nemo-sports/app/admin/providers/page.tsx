@@ -1,5 +1,6 @@
 import { AdminHead, Panel, Pill, Table } from "@/components/admin/ui";
 import { diagnostics, chainFor } from "@/lib/sdl-gateway";
+import { SITE_TZ } from "@/lib/tz";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,7 @@ export default async function AdminProviders() {
                 <Pill key="s" tone={statusTone(p.health)}>{statusAr[p.health] ?? p.health}</Pill>,
                 <span key="a" className="num">{p.available ? "نعم" : "لا"}</span>,
                 <span key="f" className="num">{h?.consecutiveFailures ?? 0}</span>,
-                <span key="t" className="num text-[11px] text-white/50">{h?.lastSuccessAt ? new Date(h.lastSuccessAt).toLocaleTimeString("ar-EG") : "—"}</span>,
+                <span key="t" className="num text-[11px] text-white/50">{h?.lastSuccessAt ? new Date(h.lastSuccessAt).toLocaleTimeString("ar-EG", { timeZone: SITE_TZ }) : "—"}</span>,
               ];
             })}
           />

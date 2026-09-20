@@ -2,6 +2,7 @@ import Link from "next/link";
 import { liveMatches } from "@/lib/sdl-gateway";
 import { getCanonicalStore } from "@/lib/db/pg";
 import { demoContentVisible } from "@/lib/site";
+import { SITE_TZ } from "@/lib/tz";
 import type { UUID } from "@/packages/sdl/src";
 
 /**
@@ -79,7 +80,7 @@ export default async function LiveFeed({ sport = "football" }: { sport?: string 
         <h2 className="text-[15px] font-extrabold">لوحة المزوّد الحيّة</h2>
         <p className="num text-[11px] text-ink-soft dark:text-white/50">
           المصدر: {result.provider} · {result.fromCache ? "من الكاش" : "طلب جديد"}
-          {result.stale ? " · بيانات قديمة (آخر قيمة صالحة)" : ""} · {new Date(result.fetchedAt).toLocaleTimeString("ar-EG")}
+          {result.stale ? " · بيانات قديمة (آخر قيمة صالحة)" : ""} · {new Date(result.fetchedAt).toLocaleTimeString("ar-EG", { timeZone: SITE_TZ })}
         </p>
       </header>
 
@@ -90,7 +91,7 @@ export default async function LiveFeed({ sport = "football" }: { sport?: string 
           {rows.slice(0, 12).map((f) => (
             <li key={`${f.providerId}`} className="flex items-center gap-3 px-4 py-3">
               <span className="num w-[52px] shrink-0 text-[12px] text-ink-soft dark:text-white/50">
-                {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
+                {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ })}
               </span>
               <span className="min-w-0 flex-1 truncate text-[13px] font-bold">
                 {f.homeProviderId ? names.get(`${result.provider}:${f.homeProviderId}`) ?? `فريق ${f.homeProviderId}` : "—"}
