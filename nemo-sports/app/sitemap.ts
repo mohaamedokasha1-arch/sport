@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL, demoContentVisible, hasProviderKeys } from "@/lib/site";
-import { liveMatches, fixtures } from "@/lib/sdl-gateway";
+import { SITE_URL } from "@/lib/site";
+import { liveMatches, fixtures, dataServable, hasMatchIdentity } from "@/lib/sdl-gateway";
+import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
  * Sitemap policy — only URLs that actually exist, return 200 and carry real
@@ -20,7 +21,13 @@ import { liveMatches, fixtures } from "@/lib/sdl-gateway";
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const indexable = hasProviderKeys() && !demoContentVisible();
+  // Same rule as robotsForDataSource(): listing data sections requires that the
+  // platform can actually serve data, not merely that a provider is registered.
+  // Previously this was `hasProviderKeys() && !demoContentVisible()`, and
+  // because SportScore is keyless-and-enabled-by-default hasProviderKeys() was
+  // always true — so the sitemap advertised data sections even while every one
+  // of them rendered "Data temporarily unavailable".
+  const indexable = await dataServable();
 
   const always: string[] = [
     "", // homepage
@@ -70,8 +77,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
       const [liveRes, feedRes] = await Promise.all([liveMatches("football"), fixtures({ sport: "football" })]);
       const slugs = new Set<string>();
-      if (liveRes.ok) for (const f of liveRes.data) slugs.add(f.providerId);
-      if (feedRes.ok) for (const f of feedRes.data) slugs.add(f.providerId);
+      // Only fixtures that can actually render a page. A provider can return a
+      // shell with no team identities; listing it here would advertise a URL
+      // whose page 404s (see hasMatchIdentity in lib/sdl-gateway.ts).
+      const add = (list: NormalizedFixture[]) => {
+        for (const f of list) if (f.providerId && hasMatchIdentity(f)) slugs.add(f.providerId);
+      };
+      if (liveRes.ok) add(liveRes.data);
+      if (feedRes.ok) add(feedRes.data);
       let i = 0;
       for (const slug of slugs) {
         if (i++ >= 200) break;

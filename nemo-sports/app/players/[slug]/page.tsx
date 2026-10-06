@@ -8,7 +8,7 @@ import { articles, teamMatches } from "@/lib/data";
 import { competitionBySlug, playerBySlug, players, teamBySlug } from "@/lib/core-data";
 import { age } from "@/lib/format";
 import PoweredBy from "@/components/ui/PoweredBy";
-import { playerStats as sdlPlayerStats } from "@/lib/sdl-gateway";
+import { playerStats as sdlPlayerStats, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 
 export const revalidate = 1800;
@@ -38,7 +38,9 @@ export async function generateMetadata({
   }
 
   const p = playerBySlug(slug);
-  if (!p) return { title: "اللاعب غير موجود" };
+  // Explicit robots so the 404 emits one directive, not the layout's
+  // `index, follow` stacked on Next.js's built-in not-found `noindex`.
+  if (!p) return { title: "اللاعب غير موجود", robots: { index: false, follow: true } };
 
   const t = teamBySlug(p.team);
   return {
@@ -53,11 +55,16 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
 
   /* ══ 1) real provider player (SportScore) ══ */
   const real = await sdlPlayerStats("football", slug);
-  if (!real.ok && real.error.kind !== "not_found") {
-    // Transient outage: abort the render so ISR keeps the last good page and
-    // outages can never write a permanent 404 into the ISR cache. A typed
-    // not_found (player absent from the provider) falls through to the
-    // honest 404 below.
+  if (!real.ok && !PERMANENT_FAILURE_KINDS.has(real.error.kind)) {
+    // Transient outage only: abort the render so ISR keeps the last good page
+    // and an outage can never write a permanent 404 into the ISR cache.
+    //
+    // PERMANENT failures fall through to the honest notFound() below. This
+    // used to rethrow on `no_provider_configured`, so every unknown player
+    // slug answered HTTP 500 on a deployment with no stats provider — a
+    // condition retrying can never change. app/matches/[slug] already reasoned
+    // its way to the same conclusion in a comment; the two sibling pages were
+    // simply inconsistent.
     throw new Error(`player_stats_unavailable:${real.error.kind}`);
   }
   if (real.ok) {

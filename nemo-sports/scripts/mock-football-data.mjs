@@ -48,6 +48,22 @@ const server = createServer((req, res) => {
     return json(200, ROUTES.scorers);
   }
   if (path.endsWith("/standings")) return json(200, ROUTES.standings);
+
+  /* `GET /matches/{id}` — the single-match endpoint. Football-Data.org really
+   * has it, and FootballDataAdapter.getMatchDetail() calls it expecting ONE
+   * FdMatch object. Returning the whole list here made every match-detail
+   * lookup normalize into an identity-less shell, so /matches/<id> could never
+   * render and the sitemap advertised URLs that 404. An unknown id answers a
+   * real 404, which is the authoritative not_found the SDL's chain aggregation
+   * needs in order to give dynamic pages a stable 404 instead of a 500. */
+  const detail = path.match(/^\/matches\/([^/?]+)$/);
+  if (detail) {
+    const id = Number(detail[1]);
+    const found = Number.isFinite(id) ? ROUTES.matches.matches.find((m) => m.id === id) : null;
+    if (!found) return json(404, { message: `match ${detail[1]} not found`, errorCode: 404 });
+    return json(200, found);
+  }
+
   if (path.startsWith("/matches")) return json(200, ROUTES.matches);
   if (path === "/competitions") return json(200, { count: 12, competitions: [{ code: "PL" }, { code: "PD" }] });
   if (/^\/competitions\/[A-Z0-9]+$/.test(path)) {

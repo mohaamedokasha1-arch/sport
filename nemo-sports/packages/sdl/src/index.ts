@@ -47,6 +47,7 @@ export {
   type SdlResult,
   type SdlFailure,
   type FetchReport,
+  type Attempt,
   type SdlLogEntry,
   type SdlLogger,
   type CostLedger,

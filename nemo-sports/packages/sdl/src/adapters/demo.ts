@@ -22,6 +22,7 @@ import type {
   NormalizedStat,
   NormalizedTeam,
   NormalizedTopScorer,
+  ProviderError,
   ProviderResult,
 } from "../provider";
 import type { ProviderHealth } from "../provider";
@@ -36,7 +37,14 @@ export type DemoConfig = HttpOptions & {
   seasons?: NormalizedSeason[];
   stats?: NormalizedStat[];
   /** simulate provider faults in tests */
-  failWith?: { dataType: DataType; error: string; code?: "network" | "timeout" | "rate_limited" | "auth" } | null;
+  /**
+   * Fault injection for tests and offline demos. Accepts the full
+   * `ProviderError` code union — the demo adapter stands in for a real
+   * provider, so it must be able to simulate any answer one can give,
+   * including an authoritative 404 (`not_found`). It previously omitted
+   * `not_found`, which made the chain's not-found aggregation untestable.
+   */
+  failWith?: { dataType: DataType; error: string; code?: ProviderError["code"] } | null;
   latencyMs?: number;
 };
 

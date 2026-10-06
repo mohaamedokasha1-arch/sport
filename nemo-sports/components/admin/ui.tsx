@@ -125,6 +125,37 @@ export function Pill({ tone, children }: { tone: "ok" | "warn" | "bad" | "idle";
   return <span className={`rounded-[3px] px-2 py-0.5 text-[10px] font-extrabold ${map[tone]}`}>{children}</span>;
 }
 
+/**
+ * Honest placeholder for a panel whose backing integration does not exist yet.
+ *
+ * The admin UI used to fill these slots with invented numbers (a hardcoded
+ * 184,320 daily visits, a fabricated 12-bar traffic chart, a made-up user
+ * roster). That contradicted the rule the public pages already follow — show
+ * an honest empty state rather than fabricated data — and it did so on a
+ * publicly reachable URL. Anything not yet wired renders this instead.
+ */
+export function NotConnected({
+  title,
+  message,
+  requires,
+}: {
+  title: string;
+  message: string;
+  requires?: string;
+}) {
+  return (
+    <div className="rounded-[3px] border border-dashed border-navy-700 px-4 py-6 text-center">
+      <p className="text-[12.5px] font-extrabold text-white/70">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-md text-[11.5px] leading-relaxed text-white/45">{message}</p>
+      {requires ? (
+        <p className="num mt-3 inline-block rounded-[3px] border border-navy-700 px-2.5 py-1 text-[10.5px] text-white/40">
+          يتطلب: {requires}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">

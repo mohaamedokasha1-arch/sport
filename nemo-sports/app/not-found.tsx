@@ -1,5 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
+
+/**
+ * Explicit metadata for the 404 surface.
+ *
+ * Without it every 404 emitted TWO conflicting robots directives — Next.js's
+ * own built-in `noindex` for not-found, plus `index, follow` inherited from
+ * `app/layout.tsx`'s generateMetadata:
+ *
+ *   <meta name="robots" content="noindex">
+ *   <meta name="robots" content="index, follow">
+ *
+ * Declaring robots here lets the not-found route override the layout instead
+ * of adding a second tag, so the page emits exactly one directive.
+ */
+export const metadata: Metadata = {
+  title: "الصفحة غير موجودة (404)",
+  robots: { index: false, follow: true },
+};
 
 export default function NotFound() {
   return (

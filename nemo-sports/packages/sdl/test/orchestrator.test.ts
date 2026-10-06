@@ -214,6 +214,66 @@ test("hard failure only when there is no provider and no cached value", async ()
   assert.equal(res.error.dataType, "live_matches");
 });
 
+/**
+ * Regression: an authoritative 404 must not be masked by an inconclusive
+ * network failure elsewhere in the chain.
+ *
+ * The aggregation used to require EVERY attempt to be a not_found, so with one
+ * provider answering 404 and another unreachable the caller received
+ * `all_providers_failed`. Dynamic pages classify that kind as transient and
+ * rethrow to protect ISR — which turned an ordinary unknown slug into an HTTP
+ * 500 whenever any provider in the chain happened to be down.
+ */
+test("not_found survives a network failure elsewhere in the chain", async () => {
+  const { sdl, primary, backup } = setup();
+  primary.setFault({ dataType: "live_matches", error: "no such match", code: "not_found" });
+  backup.setFault({ dataType: "live_matches", error: "socket hang up", code: "network" });
+
+  const res = await liveQuery(sdl);
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.equal(res.error.kind, "not_found", "a definitive 404 outranks an unreachable provider");
+  assert.equal(res.error.attempts.length, 2);
+});
+
+/** The reverse must hold too: no authoritative answer ⇒ never claim not_found. */
+test("all_providers_failed when every attempt was inconclusive", async () => {
+  const { sdl, primary, backup } = setup();
+  primary.setFault({ dataType: "live_matches", error: "socket hang up", code: "network" });
+  backup.setFault({ dataType: "live_matches", error: "timed out", code: "timeout" });
+
+  const res = await liveQuery(sdl);
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.equal(res.error.kind, "all_providers_failed", "an outage must never masquerade as a missing entity");
+});
+
+/** A rate limit is also inconclusive — it says nothing about the entity. */
+test("not_found survives a rate-limited sibling provider", async () => {
+  const { sdl, primary, backup } = setup();
+  primary.setFault({ dataType: "live_matches", error: "quota spent", code: "rate_limited" });
+  backup.setFault({ dataType: "live_matches", error: "no such match", code: "not_found" });
+
+  const res = await liveQuery(sdl);
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  assert.equal(res.error.kind, "not_found");
+});
+
+/** Attempts must carry the typed code, not just a message string to grep. */
+test("attempts expose the typed provider error code", async () => {
+  const { sdl, primary, backup } = setup();
+  primary.setFault({ dataType: "live_matches", error: "no such match", code: "not_found" });
+  backup.setFault({ dataType: "live_matches", error: "socket hang up", code: "network" });
+
+  const res = await liveQuery(sdl);
+  assert.equal(res.ok, false);
+  if (res.ok) return;
+  const byProvider = Object.fromEntries(res.error.attempts.map((a) => [a.provider, a.code]));
+  assert.equal(byProvider.demo, "not_found");
+  assert.equal(byProvider.demo_b, "network");
+});
+
 test("coalescer: concurrent identical requests share one call", async () => {
   const coalescer = new RequestCoalescer();
   let calls = 0;
