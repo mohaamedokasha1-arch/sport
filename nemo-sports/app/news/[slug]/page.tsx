@@ -8,6 +8,16 @@ import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact, dateAr } from "@/lib/format";
 import { SITE_NAME, absoluteUrl } from "@/lib/site";
 
+/**
+ * Bound the lifetime of an on-demand ISR entry.
+ *
+ * Without this, a page (or a 404) rendered while a provider was briefly
+ * unreachable is cached with no expiry: an article would stay wrong until the
+ * next deploy. A bounded revalidate lets a transient outage self-heal while
+ * still serving from cache in the normal case.
+ */
+export const revalidate = 900;
+
 export function generateStaticParams() {
   return articles.map((a) => ({ slug: a.slug }));
 }

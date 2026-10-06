@@ -479,6 +479,42 @@ async function main() {
   console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered`);
   if (!feedOk) failures++;
 
+  /* ── the teams directory is derived from real league tables ──
+     Same three legitimate shapes as /live: a real directory, a dev/demo
+     directory, or the honest "unavailable" state. The second assertion is the
+     one that matters — H7 was an *asymmetry* (detail pages worked while the
+     list pages that link to them stayed empty), so if the standings surface is
+     being served by a real provider, the directory derived from those same
+     standings must not silently fall back to empty. */
+  const teamsPage = await (await fetch(`${BASE}/teams`)).text();
+  const teamsReal = teamsPage.includes("فريقًا من جداول ترتيب حقيقية");
+  const teamsEmpty = teamsPage.includes("دليل الفرق غير متوفر حاليًا");
+  const teamsShapeOk = teamsReal || teamsEmpty || /<h1[^>]*>الفرق<\/h1>/.test(teamsPage);
+  console.log(`  ${teamsShapeOk ? "✓" : "✗"} /teams → ${teamsReal ? "real standings-derived directory" : teamsEmpty ? "honest unavailable state" : "directory rendered"}`);
+  if (teamsShapeOk) ok.push("/teams (shape)"); else failures++;
+
+  /* Discriminate a real data surface by the DataSourceNote marker (`المصدر:`),
+   * NOT by the string "Football-Data.org": the site-wide footer carries the
+   * licence attribution on every page, including /about, so matching on it made
+   * this check assert "standings real" in every state and fail whenever the
+   * provider was legitimately down. */
+  const standingsPage = await (await fetch(`${BASE}/standings`)).text();
+  const standingsReal = standingsPage.includes("المصدر:");
+  if (standingsReal) {
+    console.log(`  ${teamsReal ? "✓" : "✗"} standings real ⇒ teams directory real (no empty-list asymmetry)`);
+    if (teamsReal) ok.push("/teams (parity with /standings)"); else failures++;
+  }
+
+  /* A real provider team id renders real data; the id comes from the directory
+     itself so this passes against whatever competition set is configured. */
+  const teamHref = teamsPage.match(/href="\/teams\/([0-9]+)"/);
+  if (teamHref) {
+    const teamPage = await (await fetch(`${BASE}/teams/${teamHref[1]}`)).text();
+    const teamOk = teamPage.includes("بيانات حقيقية") && !teamPage.includes("internal server error");
+    console.log(`  ${teamOk ? "✓" : "✗"} /teams/${teamHref[1]} → real provider team view`);
+    if (teamOk) ok.push(`/teams/${teamHref[1]} (real view)`); else failures++;
+  }
+
   // Guarded namespace — only assert the rendered panel when a token is set.
   if (ADMIN_TOKEN) {
     const adminPage = await (await fetch(`${BASE}/admin/providers`, { headers: adminAuth })).text();

@@ -6,6 +6,8 @@ import Crest from "@/components/ui/Crest";
 import MatchCard from "@/components/match/MatchCard";
 import NewsCard from "@/components/news/NewsCard";
 import StandingsTable from "@/components/competition/StandingsTable";
+import DataSourceNote from "@/components/data/DataSourceNote";
+import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
 import { articles, standings, teamMatches } from "@/lib/data";
 import {
   competitionBySlug,
@@ -15,9 +17,31 @@ import {
   teams,
 } from "@/lib/core-data";
 import { age, number } from "@/lib/format";
+import { footballDataCompetitions, footballMatches, footballStandings } from "@/lib/football-data";
+import { team as sdlTeam, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
+import { demoContentVisible } from "@/lib/site";
+import type { NormalizedFixture, NormalizedStandingRow } from "@/packages/sdl/src";
+
+/**
+ * Bound the lifetime of an on-demand ISR entry.
+ *
+ * Without this, a page (or a 404) rendered while a provider was briefly
+ * unreachable is cached with no expiry: team identity and league position would stay wrong until the
+ * next deploy. A bounded revalidate lets a transient outage self-heal while
+ * still serving from cache in the normal case.
+ */
+export const revalidate = 1800;
 
 export function generateStaticParams() {
-  return teams.map((t) => ({ slug: t.slug }));
+  // Demo slugs are prerendered for development/preview only; real provider
+  // team ids render on demand (dynamicParams stays true).
+  return demoContentVisible() ? teams.map((t) => ({ slug: t.slug })) : [];
+}
+
+/** Local name of a competition id (code or SportScore slug). */
+function competitionNameAr(id: string): string {
+  const majors = footballDataCompetitions(true);
+  return majors.find((c) => c.slug === id || c.code === id)?.nameAr ?? id;
 }
 
 export async function generateMetadata({
@@ -26,8 +50,25 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+
+  /* ── real provider team first ── */
+  const real = await sdlTeam("football", slug);
+  if (real.ok) {
+    const t = real.data;
+    const title = `${t.name} | الفريق`;
+    const description = `كل ما يخص ${t.name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
+    return {
+      title,
+      description,
+      alternates: { canonical: `/teams/${slug}` },
+      openGraph: { title, description, type: "article" },
+    };
+  }
+
   const t = teamBySlug(slug);
-  if (!t) return { title: "الفريق غير موجود" };
+  // Explicit robots so a 404 emits one consistent directive instead of the
+  // layout's `index, follow` stacked on Next.js's built-in not-found noindex.
+  if (!t) return { title: "الفريق غير موجود", robots: { index: false, follow: true } };
   const comp = competitionBySlug(t.competition);
   return {
     title: `${t.name} | ${comp?.name ?? sportBySlug(t.sport)?.name}`,
@@ -38,6 +79,19 @@ export async function generateMetadata({
 
 export default async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+
+  /* ══ 1) real provider team ══════════════════════════════════════════ */
+  const real = await sdlTeam("football", slug);
+  if (!real.ok && !PERMANENT_FAILURE_KINDS.has(real.error.kind)) {
+    // Transient outage only: abort so ISR keeps the last good page rather than
+    // caching a wrong answer. Permanent failures (not_found, no provider,
+    // unsupported) fall through to the demo lookup and then to an honest 404.
+    throw new Error(`team_unavailable:${real.error.kind}`);
+  }
+  if (real.ok) {
+    return <RealTeamView slug={slug} provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} name={real.data.name} shortName={real.data.shortName} logoUrl={real.data.logoUrl} countryName={real.data.countryName} foundedYear={real.data.foundedYear} venueName={real.data.venueName} primaryColor={real.data.primaryColor} secondaryColor={real.data.secondaryColor} />;
+  }
+
   const team = teamBySlug(slug);
   if (!team) notFound();
 
@@ -244,5 +298,190 @@ function Group({ title, list }: { title: string; list: ReturnType<typeof teamMat
         ))}
       </div>
     </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Real-data team view
+   ──────────────────────────────────────────────────────────────────────────
+   Every value here is resolved from a provider: the identity from `team`, the
+   league position/points/form from `standings`, and the matches from
+   `fixtures` for the competition the standings row placed this team in. A
+   section whose data could not be resolved says so instead of showing zeros.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Canonical NEMO match statuses are LOWERCASE — see FD_STATUS in
+ * packages/sdl/src/adapters/football-data.ts, which normalizes football-data's
+ * `FINISHED`/`IN_PLAY`/`TIMED` into `finished`/`live`/`scheduled`. The demo
+ * `Match` type in lib/data.ts is the one domain that uses uppercase, so the two
+ * vocabularies must not be mixed: comparing an SDL fixture against "FINISHED"
+ * silently matches nothing and files every result under "upcoming".
+ */
+const STATUS_AR: Record<string, string> = {
+  scheduled: "لم تبدأ",
+  live: "جارية",
+  halftime: "الاستراحة",
+  finished: "انتهت",
+  awarded: "اعتبارية",
+  suspended: "موقوفة",
+  postponed: "مؤجلة",
+  cancelled: "ملغاة",
+};
+
+/** Statuses that mean "this match has a final result". */
+const SETTLED = new Set(["finished", "awarded", "cancelled"]);
+
+const arabicDateTime = (iso: string) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("ar-EG", {
+    weekday: "short", day: "numeric", month: "long",
+    hour: "2-digit", minute: "2-digit", timeZone: "Africa/Cairo",
+  });
+};
+
+async function RealTeamView(props: {
+  slug: string;
+  provider: string;
+  fromCache: boolean;
+  stale?: boolean;
+  fetchedAt: string;
+  name: string;
+  shortName: string | null;
+  logoUrl: string | null;
+  countryName: string | null;
+  foundedYear: number | null;
+  venueName: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+}) {
+  /* Locate this team in a real league table: that row is the honest source for
+   * its competition, position, points and form, and it also tells us which
+   * competition to load matches from. */
+  const majors = footballDataCompetitions(true);
+  const ids = majors.map((c) => c.slug ?? c.code);
+  const tables = await Promise.all(ids.map((id) => footballStandings(id)));
+  let row: NormalizedStandingRow | null = null;
+  let compId: string | null = null;
+  tables.forEach((res, i) => {
+    if (row || !res.ok) return;
+    const hit = res.data.find((r: NormalizedStandingRow) => r.teamProviderId === props.slug) ?? null;
+    if (hit) { row = hit; compId = ids[i] ?? null; }
+  });
+
+  /* Matches of that competition, filtered to this team. */
+  const fixturesRes = compId ? await footballMatches({ competitionId: compId }) : null;
+  const mine = (fixturesRes?.ok ? fixturesRes.data : []).filter(
+    (f) => f.homeProviderId === props.slug || f.awayProviderId === props.slug,
+  );
+  const played = mine.filter((f) => f.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt));
+  const upcoming = mine.filter((f) => !SETTLED.has(f.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+
+  const r = row as NormalizedStandingRow | null;
+
+  const facts: [string, string | number | null][] = [
+    ["الدولة", props.countryName],
+    ["سنة التأسيس", props.foundedYear],
+    ["الملعب", props.venueName],
+    ["المركز", r?.position ?? null],
+    ["النقاط", r?.points ?? null],
+    ["لعب", r?.played ?? null],
+    ["فاز / تعادل / خسر", r ? `${r.won} / ${r.drawn} / ${r.lost}` : null],
+    ["فارق الأهداف", r ? r.goalsFor - r.goalsAgainst : null],
+  ];
+
+  return (
+    <div className="mx-auto max-w-[1280px] px-4 py-6">
+      <header className="mb-4 flex flex-wrap items-center gap-4">
+        {props.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={props.logoUrl} alt="" width={72} height={72} className="h-[72px] w-[72px] object-contain" />
+        ) : (
+          <span className="grid h-[72px] w-[72px] place-items-center rounded-[6px] bg-navy-850 text-lg font-extrabold text-white/70">
+            {(props.shortName ?? props.name).slice(0, 3).toUpperCase()}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="eyebrow mb-1">Team · بيانات حقيقية</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{props.name}</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-muted">
+            {props.shortName ? <span>{props.shortName}</span> : null}
+            {compId ? (
+              <Link className="chip hover:text-white" href={`/competitions/${compId}`}>
+                {competitionNameAr(compId)}
+              </Link>
+            ) : null}
+            {props.primaryColor ? (
+              <span className="flex items-center gap-1.5" title="ألوان الفريق">
+                <span className="h-3 w-3 rounded-[2px]" style={{ background: props.primaryColor }} aria-hidden />
+                {props.secondaryColor ? <span className="h-3 w-3 rounded-[2px]" style={{ background: props.secondaryColor }} aria-hidden /> : null}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <DataSourceNote provider={props.provider} fromCache={props.fromCache} stale={props.stale} fetchedAt={props.fetchedAt} className="mb-6" />
+
+      <dl className="card mb-8 grid grid-cols-2 gap-x-4 gap-y-3 p-4 sm:grid-cols-4">
+        {facts.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <dt className="truncate text-[11px] text-muted">{k}</dt>
+            <dd className="num truncate text-[15px] font-bold">{v === null || v === "" ? "—" : v}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {r?.form?.length ? <p className="mb-8 text-[12px] text-muted">سلسلة آخر النتائج: <span className="num font-bold tracking-[0.2em] text-white">{r.form.join("")}</span></p> : null}
+
+      <div className="grid gap-8 lg:grid-cols-2">
+        <section>
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">المباريات القادمة</h2>
+          {upcoming.length === 0 ? (
+            <p className="text-[12px] text-muted">لا توجد مباريات قادمة ضمن نافذة المباريات المسترجعة حاليًا.</p>
+          ) : (
+            <ul className="space-y-2">
+              {upcoming.slice(0, 10).map((f) => (
+                <li key={f.providerId}>
+                  <Link href={`/matches/${f.providerId}`} className="card flex items-center justify-between gap-3 p-3 transition hover:border-gold-500/50">
+                    <span className="min-w-0 text-[13px]">
+                      <span className="block truncate font-bold">{f.homeName ?? "فريق"} – {f.awayName ?? "فريق"}</span>
+                      <span className="num block text-[11px] text-muted">{arabicDateTime(f.scheduledAt) ?? "—"}</span>
+                    </span>
+                    <span className="chip shrink-0">{STATUS_AR[f.status] ?? f.status}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">أحدث النتائج</h2>
+          {played.length === 0 ? (
+            <p className="text-[12px] text-muted">لا توجد نتائج ضمن نافذة المباريات المسترجعة حاليًا.</p>
+          ) : (
+            <ul className="space-y-2">
+              {played.slice(0, 10).map((f) => (
+                <li key={f.providerId}>
+                  <Link href={`/matches/${f.providerId}`} className="card flex items-center justify-between gap-3 p-3 transition hover:border-gold-500/50">
+                    <span className="min-w-0 text-[13px]">
+                      <span className="block truncate font-bold">{f.homeName ?? "فريق"} – {f.awayName ?? "فريق"}</span>
+                      <span className="num block text-[11px] text-muted">{arabicDateTime(f.scheduledAt) ?? "—"}</span>
+                    </span>
+                    <span className="num shrink-0 text-[15px] font-extrabold">{f.homeScore ?? "–"} : {f.awayScore ?? "–"}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <footer className="mt-8">
+        <PoweredByFootballData />
+      </footer>
+    </div>
   );
 }

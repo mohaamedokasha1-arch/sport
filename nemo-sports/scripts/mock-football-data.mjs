@@ -47,6 +47,56 @@ const server = createServer((req, res) => {
     if (url.searchParams.get("simulate") === "restricted") return json(403, ROUTES.restricted);
     return json(200, ROUTES.scorers);
   }
+
+  /* Teams. Derived from the standings fixture rather than a new file, so the
+   * fixture set stays the single source of truth and this mock cannot drift
+   * from the unit tests. `/teams/{id}` is what FootballDataAdapter.getTeam()
+   * calls; `/competitions/{code}/teams` is football-data.org's list endpoint.
+   * Unknown ids answer a real 404 — the authoritative not_found the SDL chain
+   * needs in order to give /teams/[slug] a stable 404 instead of a 500. */
+  /* Only the TOTAL group is the real league table; HOME/AWAY are filtered views
+   * of the same teams. Flat-mapping every group would list team 64 three times,
+   * which the real adapter never does (it skips non-TOTAL groups) — mirroring
+   * that here keeps the mock from teaching a test the wrong shape. */
+  const TEAM_ROWS = ROUTES.standings.standings
+    .filter((s) => String(s.type ?? "TOTAL").toUpperCase() === "TOTAL")
+    .flatMap((s) => s.table);
+  const teamById = (id) => TEAM_ROWS.find((r) => String(r.team.id) === String(id))?.team ?? null;
+
+  const teamMatch = path.match(/^\/teams\/([^/?]+)$/);
+  if (teamMatch) {
+    const team = teamById(teamMatch[1]);
+    if (!team) return json(404, { message: `team ${teamMatch[1]} not found`, errorCode: 404 });
+    return json(200, {
+      ...team,
+      area: ROUTES.standings.area ?? { id: 2072, name: "England", code: "ENG" },
+      // Deliberately omitted rather than invented: `founded`, `venue` and
+      // `clubColors` are not in the fixture, and the adapter maps a missing
+      // field to null. Fabricating them here would let a bug hide.
+      address: null,
+      website: null,
+    });
+  }
+
+  if (/^\/competitions\/[A-Z0-9]+\/teams$/.test(path)) {
+    return json(200, { count: TEAM_ROWS.length, competition: ROUTES.standings.competition, teams: TEAM_ROWS.map((r) => r.team) });
+  }
+
+  /* `GET /competitions/{code}/matches` — a competition's fixtures. This is the
+   * endpoint FootballDataAdapter.getFixtures() calls whenever a competition id
+   * is supplied, so without it a team page (which loads its league's fixtures
+   * and filters them down to that team) always came back empty even though the
+   * matches were sitting in ROUTES.matches. Unknown codes answer a real 404 so
+   * the SDL aggregates not_found rather than a silent empty list. */
+  const compMatches = path.match(/^\/competitions\/([A-Z0-9]+)\/matches$/);
+  if (compMatches) {
+    const code = compMatches[1];
+    const known = code === (ROUTES.standings.competition?.code ?? "PL") || ROUTES.matches.matches.some((m) => (m.competition?.code ?? "") === code);
+    if (!known) return json(404, { message: `competition ${code} not found`, errorCode: 404 });
+    const rows = ROUTES.matches.matches.filter((m) => (m.competition?.code ?? "") === code);
+    return json(200, { filters: { competition: code }, resultSet: ROUTES.matches.resultSet ?? { count: rows.length }, competition: ROUTES.standings.competition, matches: rows });
+  }
+
   if (path.endsWith("/standings")) return json(200, ROUTES.standings);
 
   /* `GET /matches/{id}` — the single-match endpoint. Football-Data.org really

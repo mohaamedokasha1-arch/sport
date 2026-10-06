@@ -543,3 +543,137 @@ When the chain fails purely on our **own** rate-limit budget, `all_providers_fai
 ### Still open
 
 Phases 3–8 as scoped in §4: Auth.js + `users`/`roles`/`sessions` + argon2id + 2FA (C3) · provision Postgres/Redis and flip `canonical`/`cache` off `memory` · close the build-time-env trap (H5) · wire `/teams`, `/players` list, `/competitions/[slug]`, `/search`, news, and admin write paths to the SDL (H7/H8) · canonical `match_id` so provider IDs stop being public URLs (M2) · inbound rate limiting (M3) · CSRF, error reporting, E2E (M7/M8/L4) · **English as a second language** (L1, now in scope).
+
+---
+
+## 8. Implementation record — Phase 6a: `/teams` wired to real data
+
+Phase 6 begins with the teams surface because it was the clearest case of the
+**H7 asymmetry**: `/teams/[slug]`-style detail pages could already resolve real
+entities, while the list page that is supposed to link to them was demo-only and
+therefore permanently empty in production — so working pages were unreachable.
+
+### 8.1 Changes
+
+| # | File | Change | Finding |
+|---|------|--------|---------|
+| 1 | `packages/sdl/src/priority.ts` | Added `fd-7` (`football` / `*` / `team` → `football_data`, **fallback**) and `fd-8` (same for `competition`) | new — see 8.2 |
+| 2 | `db/seed.sql` | Same two rules seeded, so the DB-driven chain matches the code default | ditto |
+| 3 | `lib/sdl-gateway.ts` | New `team()`, `competition()`, `DirectoryTeam`, `teamsDirectory()`; imported `NormalizedTeam` / `NormalizedCompetition` | H7 |
+| 4 | `app/teams/page.tsx` | Real standings-derived directory → dev/demo directory → honest empty; `noStore()` on the empty branch | H7, H5 |
+| 5 | `app/teams/[slug]/page.tsx` | Real provider team view (identity + league row + that league's fixtures filtered to the team); demo view retained as fallback; `PERMANENT_FAILURE_KINDS` → `notFound()`, transient → rethrow | H7, H4 |
+| 6 | `app/teams/[slug]/page.tsx` | `generateStaticParams()` gated on `demoContentVisible()` | H7 |
+| 7 | `app/teams/[slug]/page.tsx`, `app/competitions/[slug]/page.tsx`, `app/news/[slug]/page.tsx` | Added `export const revalidate` (1800/1800/900) | **new — see 8.3** |
+| 8 | `scripts/mock-football-data.mjs` | Added `GET /competitions/{code}/matches`; `/teams` listing now uses only the `TOTAL` standings group | test fidelity |
+| 9 | `scripts/smoke.mjs` | +3 checks: `/teams` shape, standings↔teams parity, real team view; count now 42 | verification |
+
+### 8.2 New finding — a capability with no priority rule is dead code
+
+`football_data` declared `team` and `competition` in `capabilities` and
+implemented `getTeam()` / `getCompetition()`, but **no priority rule existed for
+either data type**. Once Sportmonks and TheSportsDB are absent (both need paid
+keys), `chainFor()` returned an empty chain and the fetch failed with
+`no_provider_configured` — even though a free, official, already-configured
+source could answer. The adapter code was reachable in tests and unreachable in
+production.
+
+Rules were added as **`fallback`**, not `primary`, so a keyed premium provider
+still wins where one is configured.
+
+**Generalisation (worth checking for every future adapter):** declaring a
+capability and implementing the method is not enough — without a
+`sdl_priority_rules` row the orchestrator will never select it. This is a silent
+failure mode: nothing errors, the data just never arrives.
+
+### 8.3 New finding — cached 404s with no expiry (`H9`)
+
+`/teams/[slug]`, `/competitions/[slug]` and `/news/[slug]` exported **no
+`revalidate`**. For an on-demand ISR route that means an entry is cached with no
+expiry, so a 404 rendered while a provider was briefly unreachable stays a 404
+**until the next deploy**. `/matches/[slug]` (30s) and `/players/[slug]` (1800s)
+already bounded theirs; these three did not.
+
+This was found empirically: `/teams/64` kept returning 404 across a process
+restart after the mock gained the route, because the on-disk ISR entry survived
+the restart. Now bounded at 1800/1800/900 so a transient outage self-heals.
+
+Related, and confirmed rather than assumed: switching a deployment from a
+reachable provider to an unreachable one leaves `/live` serving its previous
+`index, follow` for one stale-while-revalidate window before it self-corrects to
+`noindex, nofollow`. That is H6 working as designed, not a regression — verified
+by observing the same URL flip within 35s.
+
+### 8.4 New finding — two status vocabularies must not be mixed
+
+The SDL normalises provider statuses to **lowercase canonical** values
+(`FD_STATUS`: `FINISHED`→`finished`, `IN_PLAY`→`live`, `TIMED`→`scheduled`). The
+demo `Match` type in `lib/data.ts` is the one domain that uses **uppercase**
+(`FINISHED`/`UPCOMING`/`LIVE`). The first draft of the real team view filtered
+SDL fixtures on `"FINISHED"`, which silently matched nothing and filed Liverpool's
+3–1 result under *upcoming* instead of *results*.
+
+Audited every uppercase comparison in `app/`, `lib/` and `components/`: all
+others operate on the demo type and are internally consistent. Only the new
+real-data path was affected. It now uses `status === "finished"` plus a `SETTLED`
+set, with a comment recording the trap.
+
+### 8.5 `noStore()` on the honest-empty branch — a targeted H5 fix
+
+`/teams` was `○ (Static)` with `revalidate = 900`. Built without provider env
+(the normal local case; Vercel builds *with* env), it prerendered the
+honest-empty state and ISR served it for the whole window — so `/standings`
+could show a real table while `/teams`, derived from those same standings,
+advertised "0 فريق". The new parity smoke check caught exactly this.
+
+Fix: call `unstable_noStore()` on the empty branch only. A transient answer must
+never be the thing that gets cached. Effect on the route table: `○ /teams … 15m`
+→ `ƒ /teams` when built env-less; when real data *is* available at build time the
+branch is not reached and the page still prerenders and revalidates normally.
+
+**H5 remains open** — this is one surface. The same pattern still needs rolling
+out to the other data list pages in Phase 5.
+
+### 8.6 Verification
+
+```
+npm run sdl:typecheck      ✓
+npx tsc --noEmit           ✓
+npm run sdl:test           138/138 pass
+npm run build              exit 0, 48 static pages
+```
+
+Real values rendered for `/teams/64`, cross-checked against the fixture:
+
+| Field | Rendered | Fixture |
+|-------|----------|---------|
+| Position | 1 | 1 |
+| Points | 13 | 13 |
+| Played | 5 | 5 |
+| W/D/L | 4 / 1 / 0 | 4/1/0 |
+| Goal difference | 8 | 12−4 |
+| Form | `WWDWL` | `W,W,D,W,L` |
+| Latest result | `/matches/512001` — 3 : 1 | Liverpool 3–1 Man United |
+| Founded / Venue | `—` | not supplied by the source |
+
+Founded and venue render as `—` because the source does not return them; they are
+deliberately **not** invented, and the mock omits them for the same reason so a
+regression cannot hide behind a plausible-looking value.
+
+Both states, full suite:
+
+| State | Result | `/teams` | Indexability | Sitemap |
+|-------|--------|----------|--------------|---------|
+| A — provider registered, unreachable | ✅ ALL GREEN, 34 checks | honest unavailable state | `noindex, nofollow` | 8 URLs |
+| B — mock provider, real data | ✅ ALL GREEN, 41 checks | real standings-derived directory + real team view | indexable | 21 URLs (incl. `/teams`) |
+
+Check counts differ by state because the real-team-view check only runs when the
+directory yields real provider ids.
+
+### 8.7 Still open
+
+Phases 3–8 as scoped in §4, minus what §7 and this section closed. Phase 6
+continues with: `/players` list · `/competitions` + `[slug]` (15 hardcoded
+shells) · `/search` (Postgres FTS behind the existing Arabic normaliser) · news
+pipeline · admin write paths. Then M2 canonical match URLs (the sitemap still
+advertises `/matches/512001`), H5 rollout beyond `/teams`, and the AR/EN i18n
+phase.

@@ -10,7 +10,7 @@
  * frontend can mark the page non-indexable (Instruction 6).
  */
 
-import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats } from "@/packages/sdl/src";
+import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats, type NormalizedTeam, type NormalizedCompetition } from "@/packages/sdl/src";
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 
@@ -232,6 +232,94 @@ export async function topScorers(sport: string, competitionProviderId: string): 
       call: (p) => p.getTopScorers({ providerCompetitionId: competitionProviderId, sport }),
     }),
   );
+}
+
+/** One team, by provider team id (e.g. football-data.org's numeric id). */
+export async function team(sport: string, providerTeamId: string): Promise<GatewayResult<NormalizedTeam>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedTeam>({
+      sport,
+      dataType: "team",
+      endpoint: "team",
+      params: { sport, providerTeamId },
+      call: (p) => p.getTeam({ providerTeamId }),
+    }),
+  );
+}
+
+/** One competition, by provider competition id or official code. */
+export async function competition(sport: string, providerCompetitionId: string): Promise<GatewayResult<NormalizedCompetition>> {
+  const { sdl } = await sdlContext();
+  return wrap(
+    await sdl.fetch<NormalizedCompetition>({
+      sport,
+      dataType: "competition",
+      endpoint: "competition",
+      params: { sport, providerCompetitionId },
+      call: (p) => p.getCompetition({ providerCompetitionId }),
+    }),
+  );
+}
+
+/**
+ * The team directory, derived from league tables.
+ * ─────────────────────────────────────────────────────────────────────────
+ * No provider in the chain exposes a "list every team" call, and inventing a
+ * roster is exactly what this platform refuses to do. But a standings row
+ * already carries a real team identity — provider id, name, short name and
+ * crest — so the tables the site already fetches (and caches for 15 minutes)
+ * are a legitimate directory of the teams that actually exist in the
+ * competitions we cover.
+ *
+ * De-duplicated by provider id; a team in two tables appears once, keeping the
+ * first competition that listed it.
+ */
+export type DirectoryTeam = {
+  providerId: string;
+  name: string;
+  shortName: string | null;
+  logoUrl: string | null;
+  competition: string;
+  position: number | null;
+  points: number | null;
+};
+
+export async function teamsDirectory(sport: string, competitionIds: string[]): Promise<GatewayResult<DirectoryTeam[]>> {
+  const results = await Promise.all(competitionIds.map((c) => standings(sport, c)));
+  const byId = new Map<string, DirectoryTeam>();
+  type OkMeta = Extract<GatewayResult<NormalizedStandingRow[]>, { ok: true }>;
+  let meta: OkMeta | null = null;
+  let firstError: SdlFailure | null = null;
+
+  results.forEach((res, i) => {
+    if (!res.ok) {
+      firstError ??= res.error;
+      return;
+    }
+    meta ??= res;
+    for (const row of res.data) {
+      const id = row.teamProviderId;
+      if (!id || byId.has(id)) continue;
+      byId.set(id, {
+        providerId: id,
+        name: row.teamName ?? row.teamShortName ?? id,
+        shortName: row.teamShortName ?? null,
+        logoUrl: row.teamLogoUrl ?? null,
+        competition: competitionIds[i] ?? "",
+        position: row.position ?? null,
+        points: row.points ?? null,
+      });
+    }
+  });
+
+  if (byId.size === 0 || meta === null) {
+    return { ok: false, error: firstError ?? { kind: "no_provider_configured", message: "no standings available to derive a team directory", dataType: "standings", attempts: [] } };
+  }
+  // Every field is carried through from a real standings row; nothing here is
+  // synthesized, so the honest provider/cache metadata travels with it.
+  const source: OkMeta = meta;
+  return { ...source, data: [...byId.values()] };
 }
 
 /** Season statistics for one player (provider player slug). */

@@ -44,10 +44,16 @@ INSERT INTO provider_priority (sport, competition, data_type, provider, role) VA
   ('football','*','results',            'sportscore',  'secondary'),
   ('football','*','team',               'sportmonks',  'primary'),
   ('football','*','team',               'thesportsdb', 'secondary'),
+  -- football_data implements getTeam()/getCompetition() and declares both
+  -- capabilities, but had no rule here: once Sportmonks and TheSportsDB are
+  -- absent (both need keys) the chain resolved to nothing and a free official
+  -- source that CAN answer was never asked. Last, so a keyed premium wins.
+  ('football','*','team',               'football_data','fallback'),
   ('football','*','player',             'sportmonks',  'primary'),
   ('football','*','player_stats',       'sportmonks',  'primary'),
   ('football','*','player_stats',       'api_football','secondary'),
   ('football','*','competition',        'sportmonks',  'primary'),
+  ('football','*','competition',        'football_data','fallback'),
   ('football','*','competition_seasons','sportmonks',  'primary'),
   ('football','*','venue',              'api_football','primary'),
   ('football','*','venue',              'thesportsdb', 'secondary'),
