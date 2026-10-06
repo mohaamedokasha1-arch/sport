@@ -34,6 +34,13 @@ const CONTENT_SECURITY_POLICY = [
   "font-src 'self' data:",
   "connect-src 'self'",
   "media-src 'self'",
+  // Match-page live players (components/match/MatchStreamPlayer.tsx) embed
+  // the registered per-match source in an <iframe>. `frame-src` falls back
+  // to default-src ('self') without this line, which would blank every
+  // external player. Frames are only rendered for matches that have a
+  // source registered in lib/match-streams.ts; `https:` keeps future
+  // provider hosts working from the admin/data source without a redeploy.
+  "frame-src 'self' https:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

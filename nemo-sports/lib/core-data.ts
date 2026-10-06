@@ -52,6 +52,7 @@ export const competitions: Competition[] = [
   { slug: "egyptian-league", name: "الدوري المصري الممتاز", nameEn: "Egyptian Premier League", sport: "football", country: "مصر", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "EGY", tier: "domestic" },
   { slug: "caf-champions-league", name: "دوري أبطال أفريقيا", nameEn: "CAF Champions League", sport: "football", country: "أفريقيا", season: "2026/2027", format: "دوري + كأس", rounds: 13, teamsCount: 16, code: "CAF", tier: "continental" },
   { slug: "serie-a", name: "الدوري الإيطالي", nameEn: "Serie A", sport: "football", country: "إيطاليا", season: "2026/2027", format: "دوري", rounds: 38, teamsCount: 20, code: "SA", tier: "domestic" },
+  { slug: "international-friendly", name: "الوديات الدولية", nameEn: "International Friendly", sport: "football", country: "دولية", season: "2026", format: "كأس", rounds: 1, teamsCount: 2, code: "INT", tier: "international" },
   // Basketball
   { slug: "nba", name: "دوري كرة السلة الأمريكي", nameEn: "NBA", sport: "basketball", country: "الولايات المتحدة", season: "2026/2027", format: "دوري", rounds: 82, teamsCount: 30, code: "NBA", tier: "domestic" },
   { slug: "euroleague", name: "اليوروليغ", nameEn: "EuroLeague", sport: "basketball", country: "أوروبا", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "EL", tier: "continental" },
@@ -139,6 +140,9 @@ const TEAMS_RAW: Team[] = [
   t("pharco", "فاركو", "Pharco FC", "PHR", "football", "مصر", "🇪🇬", "egyptian-league", 2010, "#F2A900", "#002B5C", { stadium: "استاد حرس الحدود", capacity: 22000, coach: "أحمد خطاب", captain: "أحمد البحراوي" }),
   t("ceramica", "سيراميكا كليوباترا", "Ceramica Cleopatra", "CER", "football", "مصر", "🇪🇬", "egyptian-league", 2007, "#00447C", "#F5C518", { stadium: "استاد السويس الجديد", capacity: 25000, coach: "علي ماهر", captain: "محمد بسام" }),
   t("al-ittihad-alex", "الاتحاد السكندري", "Al Ittihad Alexandria", "ITT", "football", "مصر", "🇪🇬", "egyptian-league", 1914, "#009B48", "#FFFFFF", { stadium: "استاد الإسكندرية", capacity: 13660, coach: "أحمد سامي", captain: "محمود علاء" }),
+  /* ── International football ─────────────────────────────── */
+  t("argentina", "الأرجنتين", "Argentina", "ARG", "football", "الأرجنتين", "🇦🇷", "international-friendly", 1893, "#75AADB", "#FFFFFF", { coach: "ليونيل سكالوني", captain: "ليونيل ميسي" }),
+  t("benin", "بنين", "Benin", "BEN", "football", "بنين", "🇧🇯", "international-friendly", 1962, "#FCD116", "#E8112D", { coach: "الجهاز الفني", captain: "قائد منتخب بنين" }),
   /* ── NBA ────────────────────────────────────────────────── */
   t("boston-celtics", "بوسطن سلتيكس", "Boston Celtics", "BOS", "basketball", "الولايات المتحدة", "🇺🇸", "nba", 1946, "#007A33", "#BA9653", { stadium: "تي دي غاردن", capacity: 19156, coach: "جو مازولا", captain: "جايسون تيتوم" }),
   t("la-lakers", "لوس أنجلوس ليكرز", "Los Angeles Lakers", "LAL", "basketball", "الولايات المتحدة", "🇺🇸", "nba", 1947, "#552583", "#FDB927", { stadium: "كريبتو أرينا", capacity: 18997, coach: "جي جي ريديك", captain: "ليبرون جيمس" }),
