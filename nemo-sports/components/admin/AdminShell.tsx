@@ -11,6 +11,7 @@ const GROUPS = [
     items: [
       { href: "/admin", label: "لوحة البيانات", exact: true },
       { href: "/admin/articles", label: "المقالات والأخبار" },
+      { href: "/admin/news", label: "الأخبار التلقائية (RSS)" },
       { href: "/admin/matches", label: "المباريات والنتائج" },
     ],
   },

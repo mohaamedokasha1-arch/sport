@@ -20,6 +20,7 @@ export async function GET() {
       "/api/v1/football-data/matches": "GET ?date=YYYY-MM-DD&competition= — the day's fixtures and results",
       "/api/v1/football-data/scorers": "GET ?competition=PL — top scorers (plan-dependent upstream resource)",
       "/api/v1/football-data/status": "GET — key configured? quota left? cache TTLs and hit rates",
+      "/api/v1/news": "GET ?category=&team=&player=&competition=&limit=&offset= — ingested headlines (metadata + original links)",
       "/api/v1/system": "GET — provider health, cost, cache and conflict state (admin)",
     },
     meta: {

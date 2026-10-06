@@ -2,6 +2,7 @@ import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import PoweredBy from "@/components/ui/PoweredBy";
 import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
+import AttributionFooter from "@/components/ui/AttributionFooter";
 import { sports } from "@/lib/core-data";
 import { competitions } from "@/lib/core-data";
 
@@ -122,6 +123,7 @@ export default function Footer() {
             <PoweredByFootballData />
             <PoweredBy />
           </span>
+          <AttributionFooter className="w-full border-t border-white/10 pt-3" />
         </div>
       </div>
     </footer>

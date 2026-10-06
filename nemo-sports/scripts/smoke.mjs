@@ -51,6 +51,7 @@ const pages = [
 const adminRoutes = [
   "/admin",
   "/admin/articles",
+  "/admin/news",
   "/admin/matches",
   "/admin/competitions",
   "/admin/broadcast",
@@ -376,6 +377,28 @@ async function main() {
     : ingestRes.status === 401 && ingest.error?.code === "unauthorized";
   console.log(`  ${ingestOk ? "✓" : "✗"} /api/v1/ingest → ${ingestRes.status} ${ingest.error?.code ?? ingest.reason ?? ""}`);
   if (!ingestOk) failures++;
+
+  /* ── news pipeline: public feed is typed, cron entry is gated ── */
+  const newsRes = await fetch(`${BASE}/api/v1/news?limit=5`);
+  const news = await newsRes.json().catch(() => ({}));
+  const newsOk =
+    newsRes.status === 200 &&
+    news.ok === true &&
+    Array.isArray(news.data) &&
+    typeof news.meta?.total === "number" &&
+    typeof news.meta?.stale === "boolean" &&
+    news.data.every((a) => typeof a.title === "string" && typeof a.sourceUrl === "string" && typeof a.sourceName === "string");
+  console.log(`  ${newsOk ? "✓" : "✗"} /api/v1/news → ${newsRes.status} ${news.meta?.total ?? 0} articles (stale=${news.meta?.stale})`);
+  if (!newsOk) failures++;
+
+  const newsCronRes = await fetch(`${BASE}/api/cron/fetch-news`);
+  const newsCron = await newsCronRes.json().catch(() => ({}));
+  const newsCronOk =
+    newsCronRes.status === 503
+      ? newsCron.error?.code === "not_configured"
+      : newsCronRes.status === 401 && newsCron.error?.code === "unauthorized";
+  console.log(`  ${newsCronOk ? "✓" : "✗"} /api/cron/fetch-news → ${newsCronRes.status} ${newsCron.error?.code ?? ""} (must refuse anonymous)`);
+  if (!newsCronOk) failures++;
 
   /* ── attribution: the Football-Data.org licence requires a visible dofollow
         link at the bottom of the site (the API host itself must NOT ship) ── */
