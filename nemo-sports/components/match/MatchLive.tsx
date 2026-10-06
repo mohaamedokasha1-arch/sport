@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import Crest from "@/components/ui/Crest";
 import StatusBadge from "@/components/ui/StatusBadge";
+import MatchStreamPlayer, { type MatchStreamInfo, type MatchStreamPhase } from "@/components/match/MatchStreamPlayer";
 import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, dateAr, homeTeam, number, relative, timeOf } from "@/lib/format";
@@ -24,10 +25,13 @@ export default function MatchLive({
   match,
   initial,
   relatedNews,
+  stream,
 }: {
   match: Match;
   initial: LiveState;
   relatedNews: { slug: string; title: string; excerpt: string; author: string; publishedAgoMin: number }[];
+  /** per-match live source (null → no player section renders at all) */
+  stream?: MatchStreamInfo | null;
 }) {
   const state = useMatchState(match.id, initial);
   const [tab, setTab] = useState<TabId>("summary");
@@ -36,6 +40,11 @@ export default function MatchLive({
   const comp = compOf(match);
   const isLive = state.status === "LIVE" || state.status === "HT";
   const isDone = state.status === "FINISHED";
+  const streamPhase: MatchStreamPhase = isLive
+    ? "live"
+    : isDone || state.status === "POSTPONED" || state.status === "CANCELLED" || state.status === "SUSPENDED"
+      ? "inactive"
+      : "upcoming";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -118,6 +127,23 @@ export default function MatchLive({
 
         {/* broadcast */}
         <BroadcastPanel match={match} isLive={isLive} isDone={isDone} />
+
+        {/* live stream player — only when a source is registered for this match */}
+        <MatchStreamPlayer
+          stream={stream ?? null}
+          phase={streamPhase}
+          home={home.name}
+          away={away.name}
+          inactiveNote={
+            state.status === "POSTPONED"
+              ? "تأجّلت المباراة — لا يوجد بث مباشر حاليًا."
+              : state.status === "CANCELLED"
+                ? "أُلغيت المباراة — لا يوجد بث مباشر."
+                : state.status === "SUSPENDED"
+                  ? "المباراة موقوفة — لا يوجد بث مباشر حاليًا."
+                  : "انتهت المباراة — لم يعد البث المباشر نشطًا."
+          }
+        />
 
         {/* tabs */}
         <div className="no-bar mt-5 flex gap-1 overflow-x-auto border-b border-line">

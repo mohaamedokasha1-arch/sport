@@ -303,6 +303,22 @@ function defaultLineups(home: Team, away: Team, sport: string): Lineup[] {
 
 const liveMatches_RAW: Match[] = [
   m({
+    sport: "football", competition: "international-friendly", home: "argentina", away: "benin",
+    kickoff: rel(-67), status: "LIVE", homeScore: 2, awayScore: 0, clock: "67'", minute: 67,
+    featured: true, viewers: 486_320, referee: "حكم دولي", attendance: 42_150, round: "ودية دولية",
+    venue: "استاد العاصمة",
+    // The live player for THIS match comes from lib/match-streams.ts
+    // (the per-match registry) — this entry only feeds the broadcast panel.
+    broadcast: { provider: "المشغل المباشر", license: "external", regions: ["العالم"], status: "LIVE_NOW", url: "https://912acsss8af382.yasirtv.com/playerv5.php?match=4856705&key=9f39972b67d6ce22189507d008acwc26", geoBlocked: false, note: "بث المباراة الودية بين الأرجنتين وبنين." },
+    events: [
+      { id: "ab1", minute: 12, type: "goal", side: "home", player: "لاوتارو مارتينيز", detail: "تسديدة من داخل المنطقة" },
+      { id: "ab2", minute: 38, type: "yellow", side: "away", player: "لاعب بنين ٤", detail: "تدخل متأخر" },
+      { id: "ab3", minute: 45, type: "period", side: "neutral", player: "نهاية الشوط الأول" },
+      { id: "ab4", minute: 58, type: "goal", side: "home", player: "خوليان ألفاريز", detail: "تمريرة حاسمة" },
+    ],
+    periods: [{ label: "الشوط الأول", home: 1, away: 0 }],
+  }),
+  m({
     sport: "football", competition: "premier-league", home: "manchester-city", away: "liverpool",
     kickoff: rel(-63), status: "LIVE", homeScore: 1, awayScore: 2, clock: "63'", minute: 63,
     featured: true, viewers: 1_284_902, referee: "مايكل أوليفر", attendance: 61_474, round: "الجولة 24",

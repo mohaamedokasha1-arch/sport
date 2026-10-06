@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
+import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
 import PoweredBy from "@/components/ui/PoweredBy";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
+import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
 import { teamBySlug } from "@/lib/core-data";
@@ -147,10 +149,13 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     const live = ["live", "halftime", "extra_time", "penalty_shootout"].includes(f.status);
     const played = f.homeScore !== null && f.awayScore !== null;
 
-    const [eventsRes, lineupsRes, statsRes] = await Promise.all([
+    // Stream source for THIS match only (null for every other match →
+    // no player section renders there). See lib/match-streams.ts.
+    const [eventsRes, lineupsRes, statsRes, stream] = await Promise.all([
       matchEvents(slug),
       matchLineups("football", slug),
       matchStats("football", slug),
+      streamForMatch({ slug, home, away }),
     ]);
     const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data : [];
     const lineups: NormalizedLineup[] = lineupsRes.ok ? lineupsRes.data : [];
@@ -242,6 +247,15 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا من المصدر" : "بيانات حقيقية من طبقة البيانات"}
             </p>
           </header>
+
+          {/* live stream — rendered only when a source is registered for THIS match */}
+          <MatchStreamPlayer
+            stream={stream}
+            phase={streamPhase(f.status)}
+            home={home}
+            away={away}
+            inactiveNote={inactiveStreamNote(f.status)}
+          />
 
           {/* events timeline */}
           <section className="mt-8">
@@ -351,7 +365,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 }
 
 /* The original demo view, kept for development/preview design QA. */
-function DemoMatchView({ slug }: { slug: string }) {
+async function DemoMatchView({ slug }: { slug: string }) {
   const match = matchBySlug(slug);
   if (!match) notFound();
 
@@ -360,6 +374,9 @@ function DemoMatchView({ slug }: { slug: string }) {
   const comp = compOf(match);
   const states = getLiveStates();
   const state = states[match.id];
+  // Same per-match registry as the real page: null for every match that
+  // has no registered source (see lib/match-streams.ts).
+  const stream = await streamForMatch({ slug: match.slug, home: home.name, away: away.name });
 
   const related = articles
     .filter(
@@ -412,6 +429,7 @@ function DemoMatchView({ slug }: { slug: string }) {
         <MatchLive
           match={match}
           initial={state}
+          stream={stream}
           relatedNews={related.map((a) => ({
             slug: a.slug,
             title: a.title,
