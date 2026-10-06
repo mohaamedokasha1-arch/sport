@@ -8,7 +8,7 @@ import { getLiveStates } from "@/lib/live";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
 import { teamBySlug } from "@/lib/core-data";
-import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats } from "@/lib/sdl-gateway";
+import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
 
@@ -75,7 +75,7 @@ export async function generateMetadata({
 
   // ── real match first ──
   const real = await sdlMatchDetail("football", slug);
-  if (real.ok) {
+  if (real.ok && hasMatchIdentity(real.data)) {
     const f = real.data;
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
@@ -107,7 +107,10 @@ export async function generateMetadata({
     }
   }
 
-  return { title: "المباراة غير موجودة" };
+  // No real match and no demo match: a stable, non-indexable "not found".
+  // The explicit robots directive keeps Next.js's built-in not-found noindex
+  // from being emitted alongside the layout's `index, follow`.
+  return { title: "المباراة غير موجودة", robots: { index: false, follow: true } };
 }
 
 const StatBar = ({ label, home, away }: { label: string; home: string; away: string }) => (
@@ -123,7 +126,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
   /* ══ 1) real provider match (SportScore via the SDL) ══════════════════ */
   const real = await sdlMatchDetail("football", slug);
-  if (!real.ok && real.error.kind !== "not_found" && real.error.kind !== "no_provider_configured") {
+  if (!real.ok && !PERMANENT_FAILURE_KINDS.has(real.error.kind)) {
     // Transient provider/cache outage: abort this render so ISR keeps the
     // last good page (a failed background revalidation retains the previous
     // version). First-time renders hit the branded error boundary. Throwing
@@ -135,6 +138,10 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
   }
   if (real.ok) {
     const f = real.data;
+    // A successful call can still yield a contentless shell. Rendering it
+    // would publish an indexable "— ضد —" page for an unbounded slug space,
+    // so it is a 404 instead. See hasMatchIdentity().
+    if (!hasMatchIdentity(f)) notFound();
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
     const live = ["live", "halftime", "extra_time", "penalty_shootout"].includes(f.status);

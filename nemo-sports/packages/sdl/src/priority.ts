@@ -120,6 +120,13 @@ export const DEFAULT_PRIORITY_RULES: PriorityRule[] = [
   rule("fd-4", "football", WILDCARD, "results", "football_data", "primary"),
   rule("fd-5", "football", WILDCARD, "match_detail", "football_data", "secondary"),
   rule("fd-6", "football", WILDCARD, "live_matches", "football_data", "secondary"),
+  // `team` and `competition` were missing here even though the adapter declares
+  // both in its capabilities and implements getTeam()/getCompetition(). Without
+  // a rule the chain resolves to nothing once Sportmonks and TheSportsDB are
+  // absent (both need keys), so a free, official source that CAN answer was
+  // never asked. Registered last, so a keyed premium provider still wins.
+  rule("fd-7", "football", WILDCARD, "team", "football_data", "fallback"),
+  rule("fd-8", "football", WILDCARD, "competition", "football_data", "fallback"),
 
   // Images/metadata: TheSportsDB first (rich artwork), never for live scores
   rule("pr-13", WILDCARD, WILDCARD, "images", "thesportsdb", "primary"),

@@ -22,7 +22,7 @@ import { nowIso, requestKey } from "./normalize";
 import { RequestCoalescer, RateLimiter, type RateLimitConfig } from "./rate-limit";
 import { PriorityConfig, DEFAULT_PRIORITY_RULES, type PriorityRole } from "./priority";
 import { MemoryCanonicalStore, type CanonicalStore } from "./store";
-import type { DataType, ProviderResult, SportsDataProvider } from "./provider";
+import type { DataType, ProviderError, ProviderResult, SportsDataProvider } from "./provider";
 import type { ProviderName, UUID } from "./types";
 
 export type SdlLogEntry = {
@@ -44,6 +44,23 @@ export type CostLedger = {
   avoided: number;
 };
 
+/**
+ * One provider's contribution to a fetch attempt chain.
+ *
+ * `code` carries the typed ProviderError code so callers can tell an
+ * *authoritative* answer ("this entity does not exist") apart from an
+ * *inconclusive* one (network failure, timeout, rate limit). Matching on the
+ * error message string — which is how the not_found aggregation below used to
+ * work — breaks as soon as an adapter words its 404 differently.
+ */
+export type Attempt = {
+  provider: ProviderName;
+  ok: boolean;
+  error?: string;
+  code?: ProviderError["code"];
+  ms: number;
+};
+
 export type FetchReport<T> = {
   data: T;
   provider: ProviderName;
@@ -51,7 +68,7 @@ export type FetchReport<T> = {
   fromCache: boolean;
   stale: boolean;
   fetchedAt: string;
-  attempts: { provider: ProviderName; ok: boolean; error?: string; ms: number }[];
+  attempts: Attempt[];
   /** populated when we served stale data because every provider failed (§14.1) */
   degraded: boolean;
   conflicts: Conflict[];
@@ -61,7 +78,7 @@ export type SdlFailure = {
   kind: "no_provider_configured" | "all_providers_failed" | "unsupported" | "not_found";
   message: string;
   dataType: DataType;
-  attempts: { provider: ProviderName; ok: boolean; error?: string; ms: number }[];
+  attempts: Attempt[];
 };
 
 export type SdlResult<T> = { ok: true; value: FetchReport<T> } | { ok: false; error: SdlFailure };
@@ -275,7 +292,7 @@ export class SportsDataLayer {
   }): Promise<SdlResult<T>> {
     const policy = this.policy[input.dataType];
     const canonicalKey = input.canonicalKey ?? `sdl:canonical:${input.dataType}:${requestKey("canon", input.endpoint, input.params)}`;
-    const attempts: { provider: ProviderName; ok: boolean; error?: string; ms: number }[] = [];
+    const attempts: Attempt[] = [];
     const raised: Conflict[] = [];
 
     // Layer 2: canonical cache (shared across providers)
@@ -328,7 +345,7 @@ export class SportsDataLayer {
         if (!verdict.allowed) {
           // No slot opened in time (quota genuinely spent or the wait timed
           // out): skip this provider and continue the chain / fail over.
-          attempts.push({ provider: link.provider, ok: false, error: `rate limit: ${verdict.reason}`, ms: 0 });
+          attempts.push({ provider: link.provider, ok: false, error: `rate limit: ${verdict.reason}`, code: "rate_limited", ms: 0 });
           const cost = this.cost.get(link.provider);
           if (cost) cost.avoided++;
           this.logger.log({ at: nowIso(), level: "warn", area: "cost", message: `skipped ${link.provider} — ${verdict.reason}, retry in ${verdict.retryAfterSeconds}s`, provider: link.provider, dataType: input.dataType });
@@ -343,7 +360,7 @@ export class SportsDataLayer {
       const cost = this.cost.get(link.provider);
 
       if (!result.ok) {
-        attempts.push({ provider: link.provider, ok: false, error: result.error.message, ms });
+        attempts.push({ provider: link.provider, ok: false, error: result.error.message, code: result.error.code, ms });
         if (result.error.code === "not_supported") {
           // capability drift: log and continue the chain rather than failing
           this.logger.log({ at: nowIso(), level: "warn", area: "provider", message: result.error.message, provider: link.provider, dataType: input.dataType });
@@ -390,12 +407,30 @@ export class SportsDataLayer {
       };
     }
 
-    // Preserve the typed not_found when every attempt agreed the entity does
-    // not exist — callers rely on it for honest 404s (an outage must never
-    // masquerade as a missing entity, nor a missing entity as an outage).
-    const allNotFound = attempts.length > 0 && attempts.every((a) => a.ok === false && (a.error ?? "").includes("not found"));
+    // Preserve the typed not_found when the chain's *authoritative* answers all
+    // agree the entity does not exist — callers rely on it for honest 404s.
+    //
+    // An attempt is authoritative when the provider actually answered: a 404
+    // says the entity is absent, a success says it is present (unreachable
+    // here, since the loop would have returned). Network failures, timeouts and
+    // rate limits are INCONCLUSIVE — they are evidence about the provider, not
+    // about the entity, so they abstain rather than veto.
+    //
+    // This used to require `every` attempt to be a not_found, which meant one
+    // unreachable provider masked another provider's definitive 404 and the
+    // caller received `all_providers_failed`. Dynamic pages treat that kind as
+    // transient and rethrow to protect ISR, so an ordinary typo'd slug surfaced
+    // as an HTTP 500 whenever any provider in the chain was down.
+    //
+    // Safe against the reverse error too: an entity this platform has ever
+    // served successfully is returned from the `:stale` grace cache checked
+    // above, so it never reaches this branch during an outage. Only slugs that
+    // have never resolved can be 404'd here.
+    const authoritative = attempts.filter((a) => a.code === "not_found" || a.ok);
+    const allNotFound = authoritative.length > 0 && authoritative.every((a) => a.code === "not_found");
     if (allNotFound) {
-      return { ok: false, error: { kind: "not_found", message: attempts[0]?.error ?? "not found", dataType: input.dataType, attempts } };
+      const notFoundAttempt = attempts.find((a) => a.code === "not_found");
+      return { ok: false, error: { kind: "not_found", message: notFoundAttempt?.error ?? "not found", dataType: input.dataType, attempts } };
     }
 
     return {

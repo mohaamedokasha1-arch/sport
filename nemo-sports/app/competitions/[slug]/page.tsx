@@ -15,6 +15,16 @@ import {
 } from "@/lib/data";
 import { playerBySlug, sportBySlug, teamBySlug, teamsByCompetition } from "@/lib/core-data";
 
+/**
+ * Bound the lifetime of an on-demand ISR entry.
+ *
+ * Without this, a page (or a 404) rendered while a provider was briefly
+ * unreachable is cached with no expiry: competition metadata and its table would stay wrong until the
+ * next deploy. A bounded revalidate lets a transient outage self-heal while
+ * still serving from cache in the normal case.
+ */
+export const revalidate = 1800;
+
 export function generateStaticParams() {
   return competitions.map((c) => ({ slug: c.slug }));
 }

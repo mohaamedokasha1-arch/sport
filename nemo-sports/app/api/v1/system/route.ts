@@ -9,9 +9,16 @@ export const runtime = "nodejs";
  * Provider health, cost ledger, cache hit rates, open conflicts and the
  * polling/in-flight state. Consumed by the admin dashboard (§10).
  *
- * In production this must sit behind the admin role check and MFA (§12.2);
- * the guard is applied by the middleware that owns the /admin and /api/v1/system
- * namespaces, not here, so the route stays testable.
+ * GUARDED BY middleware.ts, which owns the /admin and /api/v1/system
+ * namespaces — the route itself stays unauthenticated so it remains testable.
+ *
+ * This comment used to promise a middleware that did not exist, so the route
+ * answered 200 to anyone and published Postgres/Redis configuration state, the
+ * unconfigured-provider list, live health/failover state, the cost ledger and
+ * internal log lines. Anonymous requests now get 401; with no
+ * ADMIN_ACCESS_TOKEN configured at all they get 503 (fail-closed).
+ *
+ * Still to come (§12.2): per-user roles and MFA, replacing the shared secret.
  */
 export async function GET() {
   const d = await diagnostics();

@@ -1,13 +1,15 @@
-import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
+import { AdminHead, Btn, NotConnected, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 
-const users = [
-  { name: "مدير المنصة", email: "owner@nemo-sports.example", role: "Owner", joined: "2025-01-12", last: "قبل دقيقتين", status: "نشط" },
-  { name: "سارة منير", email: "sara@nemo-sports.example", role: "Super Admin", joined: "2025-03-04", last: "قبل 20 دقيقة", status: "نشط" },
-  { name: "كريم عبد الله", email: "karim@nemo-sports.example", role: "Editor", joined: "2025-06-19", last: "قبل ساعة", status: "نشط" },
-  { name: "أحمد فؤاد", email: "ahmed@nemo-sports.example", role: "Sports Editor", joined: "2025-08-02", last: "قبل 3 ساعات", status: "نشط" },
-  { name: "ليلى حسن", email: "laila@nemo-sports.example", role: "Editor", joined: "2026-01-15", last: "أمس", status: "نشط" },
-  { name: "معتز سامي", email: "moataz@nemo-sports.example", role: "Moderator", joined: "2026-04-22", last: "قبل 5 أيام", status: "موقوف" },
-];
+/**
+ * There is no user system yet — no `users`/`roles`/`sessions` tables in
+ * db/schema.sql, no password hashing, no session handling. This page used to
+ * render a six-person roster of invented accounts (with email addresses, join
+ * dates and "last active" times) plus an invented activity log naming them, on
+ * a URL that was publicly reachable. It now renders the real state: zero
+ * accounts, and the role model as the specification it actually is.
+ */
+type Account = { name: string; email: string; role: string; joined: string; last: string; status: string };
+const users: Account[] = [];
 
 const roles = [
   { role: "Owner", perms: "وصول كامل · إدارة المستخدمين والأدوار · إعدادات الموقع الحساسة" },
@@ -23,11 +25,18 @@ export default function AdminUsers() {
     <div>
       <AdminHead
         title="المستخدمون والصلاحيات"
-        subtitle={`${users.length} حساب · مبدأ أقل صلاحية + 2FA إلزامي للأدوار الإدارية`}
+        subtitle={`${users.length} حساب · نظام المصادقة غير موصول بعد — المبدأ المستهدف: أقل صلاحية + 2FA إلزامي للأدوار الإدارية`}
         action={<Btn>+ مستخدم جديد</Btn>}
       />
 
       <Panel title="الحسابات">
+        {users.length === 0 ? (
+          <NotConnected
+            title="لا توجد حسابات"
+            message="لم يُنفَّذ نظام المصادقة بعد: لا جداول users/roles/sessions في المخطط، ولا تجزئة لكلمات المرور، ولا إدارة جلسات. الوصول إلى لوحة التحكم محمي حاليًا برمز مشترك في middleware.ts كحل مؤقت حتى تُنفَّذ الحسابات الحقيقية."
+            requires="Auth.js + جداول users/roles/sessions + argon2id + 2FA"
+          />
+        ) : (
         <Table
           head={["الاسم", "البريد", "الدور", "الانضمام", "آخر نشاط", "الحالة", "إجراءات"]}
           rows={users.map((u) => [
@@ -47,10 +56,11 @@ export default function AdminUsers() {
             </span>,
           ])}
         />
+        )}
       </Panel>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Panel title="مصفوفة الأدوار">
+        <Panel title="مصفوفة الأدوار" aside={<Pill tone="warn">نموذج مستهدف — غير مُنفَّذ</Pill>}>
           <ul className="space-y-2">
             {roles.map((r) => (
               <li key={r.role} className="rounded-[3px] border border-navy-800 p-3">
@@ -90,21 +100,11 @@ export default function AdminUsers() {
 
       <div className="mt-5">
         <Panel title="سجل النشاطات (آخر 6)">
-          <ul className="space-y-1.5 text-[12px] text-white/60">
-            {[
-              "سارة منير حدّثت نتيجة مباراة مانشستر سيتي × ليفربول",
-              "كريم عبد الله نشر مقالًا: ديربي القاهرة",
-              "أحمد فؤاد أضاف مصدر بث جديد (قيد المراجعة)",
-              "مدير المنصة عدّل صلاحيات معتز سامي",
-              "ليلى حسن جدولت مقالًا للنشر غدًا 09:00",
-              "سارة منير أعادت بناء sitemap.xml",
-            ].map((x) => (
-              <li key={x} className="flex items-start gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gold-500" aria-hidden />
-                {x}
-              </li>
-            ))}
-          </ul>
+          <NotConnected
+            title="لا يوجد سجل نشاطات"
+            message="كان هذا الموضع يعرض ست وقائع مُختلَعة منسوبة إلى حسابات غير موجودة. السجل الحقيقي سيُكتب في جدول audit_log الموجود فعلًا في db/schema.sql بمجرد تنفيذ نظام الحسابات وأول مسار كتابة."
+            requires="جدول audit_log + نظام حسابات + مسارات كتابة"
+          />
         </Panel>
       </div>
     </div>

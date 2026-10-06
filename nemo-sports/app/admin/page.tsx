@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { AdminHead, Btn, Panel, Stat, Table, Pill } from "@/components/admin/ui";
+import { AdminHead, Btn, NotConnected, Panel, Stat, Table, Pill } from "@/components/admin/ui";
 import { articles, allMatches, broadcastPartners, liveMatches } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
 import { compact, dateAr, timeOf } from "@/lib/format";
-
-const traffic = [42, 55, 48, 61, 73, 68, 88, 96, 84, 100, 92, 78];
 
 export default function AdminDashboard() {
   const needsUpdate = allMatches.filter((m) => m.status === "LIVE" || m.status === "UPCOMING").slice(0, 6);
@@ -28,41 +26,22 @@ export default function AdminDashboard() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="زيارات اليوم" value="184,320" delta="+12.4% عن أمس" />
-        <Stat label="مستخدمون جدد" value="2,431" delta="+6.1%" />
+        {/* Analytics is not wired to anything. These two used to read
+            "184,320" and "2,431" — invented literals on a public URL. They now
+            say plainly that no measurement is connected. */}
+        <Stat label="زيارات اليوم" value="—" hint="غير موصول — لا توجد خدمة تحليلات" />
+        <Stat label="مستخدمون جدد" value="—" hint="غير موصول — لا يوجد نظام حسابات بعد" />
         <Stat label="مقالات منشورة" value={String(articles.length)} hint={`${articles.filter((a) => a.breaking).length} خبر عاجل نشط`} />
         <Stat label="مباريات مجدولة" value={String(allMatches.length)} hint={`${liveMatches.length} جارية الآن`} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <Panel
-          title="الزيارات — آخر 12 ساعة"
-          aside={<span className="num text-[11px] text-white/40">ذروة: 96K · 21:00</span>}
-        >
-          <div className="flex h-40 items-end gap-2" dir="ltr">
-            {traffic.map((v, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                <span
-                  className={`w-full rounded-t-[2px] ${i === 9 ? "bg-gold-500" : "bg-navy-600"}`}
-                  style={{ height: `${v}%` }}
-                  title={`${v}K`}
-                />
-                <span className="num text-[9px] text-white/35">{i + 10}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {[
-              { k: "أفضل الصفحات", v: "/matches · 38%" },
-              { k: "مصادر الزيارات", v: "بحث عضوي 54%" },
-              { k: "الأجهزة", v: "موبايل 71%" },
-            ].map((x) => (
-              <div key={x.k} className="rounded-[3px] border border-navy-800 bg-navy-950/60 px-3 py-2">
-                <p className="text-[10px] text-white/40">{x.k}</p>
-                <p className="mt-0.5 text-[12px] font-bold">{x.v}</p>
-              </div>
-            ))}
-          </div>
+        <Panel title="الزيارات — آخر 12 ساعة">
+          <NotConnected
+            title="لا توجد بيانات زيارات"
+            message="لم تُربط أي خدمة تحليلات بالمنصة بعد، لذلك لا يوجد مخطط زيارات ولا أرقام «أفضل الصفحات» أو «مصادر الزيارات» أو «الأجهزة». لن نعرض أرقامًا مُخترعة في لوحة التحكم."
+            requires="ربط خدمة تحليلات (Plausible / GA4 / PostHog)"
+          />
         </Panel>
 
         <div className="space-y-4">
@@ -84,26 +63,41 @@ export default function AdminDashboard() {
           </Panel>
 
           <Panel title="أكثر الأخبار قراءة">
-            <ol className="space-y-2 text-[12px]">
-              {[...articles]
-                .sort((a, b) => b.views - a.views)
-                .slice(0, 5)
-                .map((a, i) => (
-                  <li key={a.slug} className="flex items-start gap-2">
-                    <span className="num w-4 shrink-0 font-extrabold text-gold-400">{i + 1}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate">{a.title}</span>
-                      <span className="num block text-[10px] text-white/40">{compact(a.views)} مشاهدة</span>
-                    </span>
-                  </li>
-                ))}
-            </ol>
+            {articles.length === 0 ? (
+              <NotConnected
+                title="لا توجد أخبار لقياسها"
+                message="عدادات المشاهدات تحتاج نظام أخبار موصولًا بقاعدة البيانات. الأرقام المعروضة هنا ستكون من المقالات المنشورة فعلًا فقط."
+                requires="خط أنابيب الأخبار + جدول articles"
+              />
+            ) : (
+              <ol className="space-y-2 text-[12px]">
+                {[...articles]
+                  .sort((a, b) => b.views - a.views)
+                  .slice(0, 5)
+                  .map((a, i) => (
+                    <li key={a.slug} className="flex items-start gap-2">
+                      <span className="num w-4 shrink-0 font-extrabold text-gold-400">{i + 1}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{a.title}</span>
+                        <span className="num block text-[10px] text-white/40">{compact(a.views)} مشاهدة</span>
+                      </span>
+                    </li>
+                  ))}
+              </ol>
+            )}
           </Panel>
         </div>
       </div>
 
       <div className="mt-5">
         <Panel title="مباريات تحتاج متابعة" aside={<Link href="/admin/matches" className="text-[11px] font-bold text-gold-400">كل المباريات ←</Link>}>
+          {needsUpdate.length === 0 ? (
+            <NotConnected
+              title="لا توجد مباريات تحتاج متابعة"
+              message="إدارة النتائج تحتاج ربط صفحة المباريات بطبقة البيانات وبالمخزن الكنزي في Postgres. لا توجد مباريات مجدولة في المخزن حاليًا."
+              requires="Postgres + ربط /matches بطبقة البيانات"
+            />
+          ) : (
           <Table
             head={["المباراة", "البطولة", "الموعد", "الحالة", "إجراء"]}
             rows={needsUpdate.map((m) => [
@@ -120,6 +114,7 @@ export default function AdminDashboard() {
               </button>,
             ])}
           />
+          )}
         </Panel>
       </div>
     </div>

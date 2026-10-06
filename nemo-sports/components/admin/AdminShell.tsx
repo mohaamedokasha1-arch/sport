@@ -64,13 +64,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Link href="/" className="text-[11px] font-bold text-white/60 transition hover:text-gold-400">
             عرض الموقع ↗
           </Link>
+          {/* Was a hardcoded "مدير المنصة / Super Admin" identity badge shown to
+              every anonymous visitor. There is no user system, so nothing here
+              may claim an identity or a role it has not verified. */}
           <span className="hidden items-center gap-2 rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] sm:flex">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-gold-500 text-[10px] font-extrabold text-navy-900">
-              م
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-navy-700 text-[10px] font-extrabold text-white/70" aria-hidden>
+              ؟
             </span>
             <span>
-              <span className="block font-bold leading-none">مدير المنصة</span>
-              <span className="block text-[10px] text-white/45">Super Admin</span>
+              <span className="block font-bold leading-none">جلسة مؤقّتة</span>
+              <span className="block text-[10px] text-white/45">نظام الحسابات غير موصول</span>
             </span>
           </span>
         </span>
