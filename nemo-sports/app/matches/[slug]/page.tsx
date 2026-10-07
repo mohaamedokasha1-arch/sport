@@ -7,6 +7,7 @@ import PoweredBy from "@/components/ui/PoweredBy";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
+import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
 import { teamBySlug } from "@/lib/core-data";
@@ -151,11 +152,14 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
-    const [eventsRes, lineupsRes, statsRes, stream] = await Promise.all([
+    const [eventsRes, lineupsRes, statsRes, stream, override] = await Promise.all([
       matchEvents(slug),
       matchLineups("football", slug),
       matchStats("football", slug),
       streamForMatch({ slug, home, away }),
+      // The fixture itself is already corrected centrally in the gateway;
+      // this read only decides whether the "corrected by admin" badge shows.
+      getOverride(slug),
     ]);
     const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data : [];
     const lineups: NormalizedLineup[] = lineupsRes.ok ? lineupsRes.data : [];
@@ -246,6 +250,13 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               {" · "}
               {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا من المصدر" : "بيانات حقيقية من طبقة البيانات"}
             </p>
+            {override ? (
+              <p className="mt-2 text-center text-[11px]">
+                <span className="inline-block rounded-[3px] bg-gold-500/15 px-2 py-0.5 font-bold text-gold-600 dark:text-gold-400">
+                  مصحّحة من الإدارة{override.note ? ` — ${override.note}` : ""}
+                </span>
+              </p>
+            ) : null}
           </header>
 
           {/* live stream — rendered only when a source is registered for THIS match */}
@@ -366,8 +377,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
 /* The original demo view, kept for development/preview design QA. */
 async function DemoMatchView({ slug }: { slug: string }) {
-  const match = matchBySlug(slug);
-  if (!match) notFound();
+  const raw = matchBySlug(slug);
+  if (!raw) notFound();
+  // Admin corrections apply to demo fixtures too (same override table).
+  const override = await getOverride(raw.slug);
+  const match = applyDemoOverride(raw, override);
 
   const home = homeTeam(match);
   const away = awayTeam(match);

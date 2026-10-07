@@ -14,6 +14,7 @@ import {
   updateSource,
 } from "@/lib/news/store";
 import { runSource, ingestAllSources } from "@/lib/news/pipeline";
+import { logActivity } from "@/lib/activity";
 import { relative } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ async function addSourceAction(form: FormData): Promise<void> {
   "use server";
   const query = String(form.get("query") ?? "").trim();
   if (!query) return;
-  await createSource({
+  const created = await createSource({
     query,
     language: form.get("language") === "ar" ? "ar" : "en",
     country: String(form.get("country") ?? "US"),
@@ -32,7 +33,9 @@ async function addSourceAction(form: FormData): Promise<void> {
     priority: Number(form.get("priority") ?? 3),
     refreshInterval: Number(form.get("refreshInterval") ?? 30),
   });
+  await logActivity({ action: "news.source.create", entityType: "rss_source", entityId: created.id, after: { query } });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function toggleSourceAction(form: FormData): Promise<void> {
@@ -41,13 +44,18 @@ async function toggleSourceAction(form: FormData): Promise<void> {
   const s = await getSource(id);
   if (!s) return;
   await updateSource(id, { enabled: !s.enabled });
+  await logActivity({ action: "news.source.toggle", entityType: "rss_source", entityId: id, after: { enabled: !s.enabled } });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function deleteSourceAction(form: FormData): Promise<void> {
   "use server";
-  await deleteSource(String(form.get("id") ?? ""));
+  const id = String(form.get("id") ?? "");
+  await deleteSource(id);
+  await logActivity({ action: "news.source.delete", entityType: "rss_source", entityId: id });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function testFetchAction(form: FormData): Promise<void> {
@@ -56,33 +64,44 @@ async function testFetchAction(form: FormData): Promise<void> {
   const s = await getSource(id);
   if (!s) return;
   await runSource(s, { force: true });
+  await logActivity({ action: "news.source.fetch", entityType: "rss_source", entityId: id });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function fetchAllAction(): Promise<void> {
   "use server";
   await ingestAllSources();
+  await logActivity({ action: "news.ingest.run" });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function hideArticleAction(form: FormData): Promise<void> {
   "use server";
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "hidden");
+  await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "hidden" } });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function publishArticleAction(form: FormData): Promise<void> {
   "use server";
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "published");
+  await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "published" } });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 async function removeArticleAction(form: FormData): Promise<void> {
   "use server";
-  await deleteArticle(String(form.get("id") ?? ""));
+  const id = String(form.get("id") ?? "");
+  await deleteArticle(id);
+  await logActivity({ action: "news.article.delete", entityType: "news_article", entityId: id });
   revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
 }
 
 /* ── page ───────────────────────────────────────────────────── */

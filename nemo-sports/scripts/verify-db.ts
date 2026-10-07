@@ -117,7 +117,7 @@ const NEWS_TABLES = ["rss_sources", "news_articles", "news_fetch_log"];
 
 // Created by the runtime DDL in lib/*.ts on first boot when absent, so a
 // missing table here is informational — NOT a provisioning failure.
-const RUNTIME_TABLES = ["broadcasts", "match_streams"];
+const RUNTIME_TABLES = ["broadcasts", "match_streams", "match_overrides"];
 
 const SEED_CHECKS: { table: string; expectMin: number; hint: string }[] = [
   { table: "sports", expectMin: 1, hint: "db/seed.sql" },

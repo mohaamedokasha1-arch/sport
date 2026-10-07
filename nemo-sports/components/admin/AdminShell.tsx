@@ -26,6 +26,7 @@ const GROUPS = [
     title: "المنصة",
     items: [
       { href: "/admin/providers", label: "مزوّدو البيانات" },
+      { href: "/admin/activity", label: "سجل النشاط" },
       { href: "/admin/users", label: "المستخدمون والصلاحيات" },
       { href: "/admin/ads", label: "الإعلانات" },
       { href: "/admin/seo", label: "SEO والبيانات" },
@@ -145,7 +146,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           {!collapsed ? (
             <p className="mt-6 rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
-              النسخة التجريبية للوحة التحكم: الواجهات كاملة، والحفظ غير موصول بقاعدة بيانات.
+              الحفظ يعمل في المباريات والبث والأخبار: دائم مع قاعدة البيانات، ومؤقت بدونها.
             </p>
           ) : null}
         </aside>

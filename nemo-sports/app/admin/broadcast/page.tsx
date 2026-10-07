@@ -16,6 +16,7 @@ import {
   setMatchStreamEnabled,
   upsertMatchStream,
 } from "@/lib/match-streams";
+import { logActivity } from "@/lib/activity";
 import { competitions } from "@/lib/core-data";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,11 @@ async function addBroadcasterAction(form: FormData): Promise<void> {
   "use server";
   const competitionId = String(form.get("competitionId") ?? "").trim();
   const comp = competitions.find((c) => c.slug === competitionId);
-  await createBroadcaster({
+  const broadcasterName = String(form.get("broadcasterName") ?? "").trim();
+  const created = await createBroadcaster({
     competitionId,
     competitionName: comp?.name ?? competitionId,
-    broadcasterName: String(form.get("broadcasterName") ?? "").trim(),
+    broadcasterName,
     platform: (String(form.get("platform") ?? "TV") as "TV" | "Website" | "Mobile App" | "Streaming" | "Other"),
     regions: String(form.get("regions") ?? "")
       .split(/[،,]/)
@@ -41,19 +43,35 @@ async function addBroadcasterAction(form: FormData): Promise<void> {
     freeAccess: form.get("freeAccess") === "on",
     notes: String(form.get("notes") ?? "").trim() || undefined,
   });
+  if (created.ok) {
+    await logActivity({
+      action: "broadcaster.create",
+      entityType: "broadcaster",
+      entityId: created.entry.id,
+      after: { competitionId, broadcasterName },
+    });
+  }
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
 }
 
 async function setStatusAction(form: FormData): Promise<void> {
   "use server";
-  await setBroadcasterStatus(String(form.get("id") ?? ""), String(form.get("status") ?? "pending") as BroadcastStatus);
+  const id = String(form.get("id") ?? "");
+  const status = String(form.get("status") ?? "pending") as BroadcastStatus;
+  await setBroadcasterStatus(id, status);
+  await logActivity({ action: "broadcaster.status", entityType: "broadcaster", entityId: id, after: { status } });
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
 }
 
 async function removeAction(form: FormData): Promise<void> {
   "use server";
-  await deleteBroadcaster(String(form.get("id") ?? ""));
+  const id = String(form.get("id") ?? "");
+  await deleteBroadcaster(id);
+  await logActivity({ action: "broadcaster.delete", entityType: "broadcaster", entityId: id });
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
 }
 
 async function saveMatchStreamAction(form: FormData): Promise<void> {
@@ -72,19 +90,36 @@ async function saveMatchStreamAction(form: FormData): Promise<void> {
     // actionable in the browser address bar.
     redirect(`/admin/broadcast?streamError=${encodeURIComponent(result.error.slice(0, 180))}`);
   }
+  await logActivity({
+    action: "stream.upsert",
+    entityType: "match_stream",
+    entityId: id,
+    after: { slugs: result.entry.slugs, enabled: result.entry.enabled },
+  });
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
+  revalidatePath("/watch");
 }
 
 async function toggleMatchStreamAction(form: FormData): Promise<void> {
   "use server";
-  await setMatchStreamEnabled(String(form.get("id") ?? ""), form.get("enabled") === "true");
+  const id = String(form.get("id") ?? "");
+  const enabled = form.get("enabled") === "true";
+  await setMatchStreamEnabled(id, enabled);
+  await logActivity({ action: "stream.toggle", entityType: "match_stream", entityId: id, after: { enabled } });
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
+  revalidatePath("/watch");
 }
 
 async function deleteMatchStreamAction(form: FormData): Promise<void> {
   "use server";
-  await deleteMatchStream(String(form.get("id") ?? ""));
+  const id = String(form.get("id") ?? "");
+  await deleteMatchStream(id);
+  await logActivity({ action: "stream.delete", entityType: "match_stream", entityId: id });
   revalidatePath("/admin/broadcast");
+  revalidatePath("/admin/activity");
+  revalidatePath("/watch");
 }
 
 const tone = { approved: "ok", pending: "warn", rejected: "bad" } as const;

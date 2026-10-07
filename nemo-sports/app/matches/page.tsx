@@ -7,6 +7,7 @@ import { filterMatches, matchCounts } from "@/lib/filters";
 import { sports } from "@/lib/core-data";
 import { fixtures as sdlFixtures } from "@/lib/sdl-gateway";
 import DataSourceNote from "@/components/data/DataSourceNote";
+import { applyDemoOverrides } from "@/lib/match-overrides";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -29,7 +30,8 @@ export default async function MatchesPage({
     team: typeof sp.team === "string" ? sp.team : "",
   };
 
-  const matches = filterMatches(q);
+  // Demo fallback list; real lists are corrected centrally in the gateway.
+  const matches = await applyDemoOverrides(filterMatches(q));
   const counts = matchCounts();
   const sportName = sports.find((s) => s.slug === q.sport)?.name;
 

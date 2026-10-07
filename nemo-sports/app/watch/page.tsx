@@ -6,6 +6,10 @@ import SectionHead from "@/components/ui/SectionHead";
 import { allMatches, broadcastPartners } from "@/lib/data";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { dateAr, timeOf } from "@/lib/format";
+import { listBroadcasters } from "@/lib/broadcasts";
+import { listMatchStreams, streamPhase, type MatchStreamSource } from "@/lib/match-streams";
+import { hasMatchIdentity, matchDetail as sdlMatchDetail } from "@/lib/sdl-gateway";
+import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "البث المباشر — جدول النواقل الرسميين",
@@ -14,7 +18,231 @@ export const metadata: Metadata = {
   alternates: { canonical: "/watch" },
 };
 
-export default function WatchPage() {
+export const revalidate = 60;
+
+/* ── live registry → schedule rows ────────────────────────────── */
+
+type StreamRow = {
+  key: string;
+  slug: string | null;
+  home: string;
+  away: string;
+  competition: string | null;
+  kickoff: string | null;
+  phase: "live" | "upcoming" | "inactive" | "unlinked";
+};
+
+/**
+ * Join ONE admin-registered stream with its match (best-effort, never throws).
+ * Streams are admin-curated so N is small; each lookup rides the SDL cache.
+ * Unresolvable streams still render — with alias names and a link to the
+ * match page when a slug exists — instead of silently disappearing.
+ */
+async function resolveStreamRow(s: MatchStreamSource): Promise<StreamRow> {
+  const slug = s.slugs[0] ?? null;
+  const aliasHome = s.homeAliases[0] ?? null;
+  const aliasAway = s.awayAliases[0] ?? null;
+  if (slug) {
+    try {
+      const res = await sdlMatchDetail("football", slug);
+      if (res.ok && hasMatchIdentity(res.data)) {
+        const f = res.data;
+        return {
+          key: s.id,
+          slug,
+          home: f.homeName ?? aliasHome ?? "—",
+          away: f.awayName ?? aliasAway ?? "—",
+          competition: f.competitionName ?? null,
+          kickoff: f.scheduledAt,
+          phase: streamPhase(f.status),
+        };
+      }
+    } catch {
+      // fall through to the alias fallback below
+    }
+  }
+  return {
+    key: s.id,
+    slug,
+    home: aliasHome ?? slug ?? "—",
+    away: aliasAway ?? "—",
+    competition: null,
+    kickoff: null,
+    phase: "unlinked",
+  };
+}
+
+/* ── page ─────────────────────────────────────────────────────── */
+
+export default async function WatchPage() {
+  const [broadcasters, streams] = await Promise.all([listBroadcasters(false), listMatchStreams(false)]);
+
+  // Dev/preview only: the legacy static schedule renders when the live
+  // registry is empty. Production never takes this branch with real data.
+  if (demoContentVisible() && broadcasters.length === 0 && streams.length === 0) {
+    return <LegacyDemoWatch />;
+  }
+
+  const rows = await Promise.all(streams.map(resolveStreamRow));
+  const live = rows.filter((r) => r.phase === "live");
+  const soon = rows.filter((r) => r.phase === "upcoming");
+  const done = rows.filter((r) => r.phase === "inactive");
+  const unlinked = rows.filter((r) => r.phase === "unlinked");
+
+  return (
+    <div className="mx-auto max-w-[1280px] px-4 py-6">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
+        <div>
+          <p className="eyebrow mb-1">Legal Broadcasts</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">البث المباشر</h1>
+        </div>
+        <p className="text-[12px] text-muted">
+          <span className="num font-bold">{rows.length}</span> مباراة مربوطة ببث رسمي ·{" "}
+          <span className="num font-bold">{broadcasters.length}</span> ناقل موثّق
+        </p>
+      </header>
+
+      {rows.length === 0 ? (
+        <DataUnavailable
+          title="لا توجد مباريات مربوطة ببث الآن"
+          message="نعرض هنا فقط المباريات التي سجّلت لها الإدارة مصدر بث رسميًا موثّقًا. جدول النواقل المعتمدين أدناه."
+        />
+      ) : null}
+
+      <div className="mb-8 grid gap-4 md:grid-cols-3">
+        {[
+          { icon: "✅", title: "روابط رسمية فقط", text: "لا نعرض إلا مصادر تأكدنا من امتلاكها حقوق البث في منطقتها." },
+          { icon: "🚫", title: "لا إعادة بث", text: "لا نخزّن ولا نعيد بث أي إشارة، ولا نستخدم روابط غير مرخّصة إطلاقًا." },
+          { icon: "🌍", title: "إفصاح جغرافي", text: "نوضّح اسم الناقل والمناطق المسموح بها قبل الضغط على أي رابط." },
+        ].map((c) => (
+          <div key={c.title} className="card p-4">
+            <p className="text-lg" aria-hidden>{c.icon}</p>
+            <h2 className="mt-1 text-[13px] font-extrabold">{c.title}</h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">{c.text}</p>
+          </div>
+        ))}
+      </div>
+
+      {live.length > 0 ? <StreamSchedule title="يبث الآن" list={live} tone="live" /> : null}
+      {soon.length > 0 ? <StreamSchedule title="يبدأ قريبًا" list={soon} tone="soon" /> : null}
+      {unlinked.length > 0 ? <StreamSchedule title="بث مسجّل" list={unlinked} tone="unlinked" /> : null}
+      {done.length > 0 ? <StreamSchedule title="انتهى بثها" list={done} tone="done" /> : null}
+
+      <section className="mt-10">
+        <SectionHead eyebrow="Licensed partners" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
+        {broadcasters.length === 0 ? (
+          <DataUnavailable
+            title="لا نواقل موثّقين بعد"
+            message="يُدار سجل النواقل الرسميين من لوحة التحكم (/admin/broadcast) ولا يُنشر أي ناقل قبل توثيقه."
+          />
+        ) : (
+          <div className="card overflow-hidden">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
+                  <th className="px-3 py-2.5 text-start font-semibold">الناقل</th>
+                  <th className="px-3 py-2.5 text-start font-semibold">المنصة</th>
+                  <th className="px-3 py-2.5 text-start font-semibold">البطولة</th>
+                  <th className="px-3 py-2.5 text-start font-semibold">المناطق</th>
+                  <th className="px-3 py-2.5 text-start font-semibold">الوصول</th>
+                  <th className="num px-3 py-2.5 font-semibold">آخر تحديث</th>
+                </tr>
+              </thead>
+              <tbody>
+                {broadcasters.map((p) => (
+                  <tr key={p.id} className="border-b border-line last:border-0 hover:bg-navy-850/[0.03] dark:hover:bg-white/[0.04]">
+                    <td className="px-3 py-2.5 font-bold">{p.broadcasterName}</td>
+                    <td className="px-3 py-2.5 text-muted">{p.platform}</td>
+                    <td className="px-3 py-2.5 text-muted">{p.competitionName}</td>
+                    <td className="px-3 py-2.5 text-muted">{p.regions.length > 0 ? p.regions.join("، ") : "—"}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`rounded-[3px] px-2 py-0.5 text-[10px] font-extrabold ${p.freeAccess ? "bg-win/15 text-win" : "bg-gold-500/15 text-gold-600 dark:text-gold-400"}`}>
+                        {p.freeAccess ? "مجاني" : p.requiresSubscription ? "اشتراك" : "—"}
+                      </span>
+                    </td>
+                    <td className="num px-3 py-2.5 text-center text-muted">{dateAr(p.updatedAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          لا يُنشر أي رابط بث قبل توثيق الترخيص في لوحة التحكم (اسم المصدر، نوع الترخيص،
+          المناطق، مصدر التحقق، حالة الموافقة). الناقلون قيد المراجعة لا يظهرون للزوار.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function StreamSchedule({
+  title,
+  list,
+  tone,
+}: {
+  title: string;
+  list: StreamRow[];
+  tone: "live" | "soon" | "done" | "unlinked";
+}) {
+  const badge =
+    tone === "live"
+      ? "bg-live text-white"
+      : tone === "soon"
+        ? "bg-gold-500 text-navy-900"
+        : "bg-navy-850/10 text-muted";
+
+  return (
+    <section className="mb-8">
+      <SectionHead
+        eyebrow={tone === "live" ? "On air" : tone === "soon" ? "Upcoming" : tone === "unlinked" ? "Registered" : "Replay"}
+        title={title}
+      />
+      <ul className="space-y-2">
+        {list.map((r) => {
+          const inner = (
+            <>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span className="truncate text-[13px] font-bold">{r.home}</span>
+                <span className="text-[11px] text-muted">×</span>
+                <span className="truncate text-[13px] font-bold">{r.away}</span>
+              </span>
+
+              <span className="hidden text-[11px] text-muted sm:block">
+                {r.competition ?? "—"}
+                {r.kickoff ? ` · ${dateAr(r.kickoff)}` : ""}
+              </span>
+
+              <span className="flex items-center justify-end gap-2">
+                {r.kickoff ? <span className="num text-[12px] font-extrabold">{timeOf(r.kickoff)}</span> : null}
+                <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`}>
+                  {tone === "live" ? "LIVE" : tone === "soon" ? "قريبًا" : tone === "unlinked" ? "مسجّل" : "انتهى"}
+                </span>
+              </span>
+            </>
+          );
+          const cls =
+            "card grid grid-cols-[1fr_auto] items-center gap-3 p-3 transition hover:border-gold-500/50 sm:grid-cols-[1fr_220px_auto]";
+          return (
+            <li key={r.key}>
+              {r.slug ? (
+                <Link href={`/matches/${r.slug}#live-stream`} className={cls}>
+                  {inner}
+                </Link>
+              ) : (
+                <div className={cls}>{inner}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/* ── legacy static schedule: dev/preview design QA only ───────────── */
+
+function LegacyDemoWatch() {
   const broadcastable = allMatches
     .filter((m) => m.broadcast)
     .sort((a, b) => +new Date(a.kickoff) - +new Date(b.kickoff));
