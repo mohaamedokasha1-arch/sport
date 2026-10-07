@@ -109,12 +109,14 @@ export default async function AdminMatches({
   return (
     <div>
       <AdminHead
-        title="المباريات والنتائج"
-        subtitle={`${overrides.length} تجاوز إداري · ${realList.length > 0 ? `${realList.length} مباراة حيّة` : `${allMatches.length} مباراة تجريبية`} · التصحيح يظهر على الموقع فورًا`}
+        title="تصحيح النتائج والحالات"
+        subtitle={`${overrides.length} تجاوز إداري · ${realList.length > 0 ? `${realList.length} مباراة من المزوّد` : `${allMatches.length} سجل تجريبي`} · التصحيح يظهر على أسطح المباراة فورًا`}
         action={
-          <Link href="/admin/activity">
-            <Btn tone="ghost">سجل النشاط</Btn>
-          </Link>
+          <span className="flex flex-wrap gap-2">
+            <Link href="/admin/live-matches"><Btn tone="ghost">المباشرة</Btn></Link>
+            <Link href="/admin/upcoming-matches"><Btn tone="ghost">القادمة</Btn></Link>
+            <Link href="/admin/activity"><Btn tone="ghost">سجل النشاط</Btn></Link>
+          </span>
         }
       />
 

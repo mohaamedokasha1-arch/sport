@@ -15,7 +15,9 @@ import {
   listMatchStreams,
   setMatchStreamEnabled,
   upsertMatchStream,
+  validateEmbedUrl,
 } from "@/lib/match-streams";
+import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
 import { logActivity } from "@/lib/activity";
 import { competitions } from "@/lib/core-data";
 
@@ -137,6 +139,13 @@ export default async function AdminBroadcast({
   const testUrl = typeof sp.test === "string" ? sp.test : "";
   const testResult = testUrl ? validateBroadcastLink(testUrl) : null;
   const streamError = typeof sp.streamError === "string" ? sp.streamError : "";
+  // Upcoming-match actions can prefill the exact provider match identity and
+  // both team aliases. The operator must still supply an authorized HTTPS
+  // embed URL; the public stream registry validates its official domain.
+  const matchId = typeof sp.match === "string" ? sp.match.trim().slice(0, 160) : "";
+  const homeName = typeof sp.home === "string" ? sp.home.trim().slice(0, 120) : "";
+  const awayName = typeof sp.away === "string" ? sp.away.trim().slice(0, 120) : "";
+  const streamIdPrefill = matchId ? `ms_${matchId}`.slice(0, 120) : "";
 
   const [entries, stats, streams] = await Promise.all([
     listBroadcasters(true),
@@ -189,6 +198,9 @@ export default async function AdminBroadcast({
               <a key="url" href={stream.embedUrl} target="_blank" rel="noopener noreferrer nofollow" className="num block max-w-[180px] truncate text-gold-400 hover:underline" dir="ltr">{stream.embedUrl}</a>,
               <Pill key="status" tone={stream.enabled ? "ok" : "idle"}>{stream.enabled ? "مفعّل" : "موقوف"}</Pill>,
               <span key="actions" className="flex flex-wrap gap-1.5">
+                {validateEmbedUrl(stream.embedUrl).ok ? (
+                  <StreamPreviewModal title={stream.label} url={stream.embedUrl} />
+                ) : null}
                 <form action={toggleMatchStreamAction}>
                   <input type="hidden" name="id" value={stream.id} />
                   <input type="hidden" name="enabled" value={String(!stream.enabled)} />
@@ -207,9 +219,14 @@ export default async function AdminBroadcast({
           </p>
         )}
 
-        <form action={saveMatchStreamAction} className="mt-5 grid gap-3 border-t border-navy-800 pt-4 sm:grid-cols-2">
+        <form id="match-stream-form" action={saveMatchStreamAction} className="mt-5 grid gap-3 border-t border-navy-800 pt-4 sm:grid-cols-2">
+          {matchId ? (
+            <p className="rounded-[3px] border border-gold-500/30 bg-gold-500/5 px-3 py-2 text-[11px] leading-relaxed text-gold-300 sm:col-span-2">
+              ربط مصدر المباراة <span className="num font-bold" dir="ltr">{matchId}</span> — تأكد من امتلاك حق التضمين لهذا اللقاء والمنطقة قبل الحفظ.
+            </p>
+          ) : null}
           <Field label="معرّف ثابت لمباراة واحدة">
-            <input name="id" className={inputCls} placeholder="ms_provider-match-id" required maxLength={120} dir="ltr" />
+            <input name="id" defaultValue={streamIdPrefill} className={inputCls} placeholder="ms_provider-match-id" required maxLength={120} dir="ltr" />
           </Field>
           <Field label="اسم المصدر">
             <input name="label" className={inputCls} placeholder="الناقل الرسمي" required maxLength={160} />
@@ -218,13 +235,13 @@ export default async function AdminBroadcast({
             <input name="embedUrl" className={inputCls} placeholder="https://official.example/player" required maxLength={1000} dir="ltr" />
           </Field>
           <Field label="Slugs المباراة (افصل بفاصلة)">
-            <input name="slugs" className={inputCls} placeholder="home-vs-away-2026-10-07" dir="ltr" />
+            <input name="slugs" defaultValue={matchId} className={inputCls} placeholder="provider-match-id" dir="ltr" />
           </Field>
           <Field label="أسماء الفريق المضيف (اختياري)">
-            <input name="homeAliases" className={inputCls} placeholder="Home FC، Home" />
+            <input name="homeAliases" defaultValue={homeName} className={inputCls} placeholder="Home FC، Home" />
           </Field>
           <Field label="أسماء الفريق الضيف (اختياري)">
-            <input name="awayAliases" className={inputCls} placeholder="Away FC، Away" />
+            <input name="awayAliases" defaultValue={awayName} className={inputCls} placeholder="Away FC، Away" />
           </Field>
           <label className="flex items-center gap-2 text-[12px] text-white/70 sm:col-span-2">
             <input type="checkbox" name="enabled" defaultChecked className="h-4 w-4 accent-[#D4AF37]" />
