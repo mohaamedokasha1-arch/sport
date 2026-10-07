@@ -1,12 +1,27 @@
 import Link from "next/link";
 import { AdminHead, Btn, NotConnected, Panel, Stat, Table, Pill } from "@/components/admin/ui";
-import { articles, allMatches, broadcastPartners, liveMatches } from "@/lib/data";
+import { articles, allMatches, liveMatches } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
 import { compact, dateAr, timeOf } from "@/lib/format";
+import { listArticles } from "@/lib/news/store";
+import { listMatchStreams } from "@/lib/match-streams";
+import { listBroadcasters } from "@/lib/broadcasts";
+import { demoContentVisible } from "@/lib/site";
 
-export default function AdminDashboard() {
+export const dynamic = "force-dynamic";
+
+export default async function AdminDashboard() {
+  const [{ items: storedArticles, total: storedArticleCount }, streams, broadcasters] = await Promise.all([
+    listArticles({ status: "published", limit: 5 }),
+    listMatchStreams(true),
+    listBroadcasters(true),
+  ]);
+  const demo = demoContentVisible();
+  const dashboardArticles = storedArticles.length > 0 ? storedArticles : demo ? articles : [];
+  const articleCount = storedArticleCount > 0 ? storedArticleCount : demo ? articles.length : 0;
   const needsUpdate = allMatches.filter((m) => m.status === "LIVE" || m.status === "UPCOMING").slice(0, 6);
-  const pendingPartners = broadcastPartners.filter((p) => p.status === "pending");
+  const pendingPartners = broadcasters.filter((broadcaster) => broadcaster.status === "pending");
+  const activeStreams = streams.filter((stream) => stream.enabled).length;
 
   return (
     <div>
@@ -31,8 +46,9 @@ export default function AdminDashboard() {
             say plainly that no measurement is connected. */}
         <Stat label="زيارات اليوم" value="—" hint="غير موصول — لا توجد خدمة تحليلات" />
         <Stat label="مستخدمون جدد" value="—" hint="غير موصول — لا يوجد نظام حسابات بعد" />
-        <Stat label="مقالات منشورة" value={String(articles.length)} hint={`${articles.filter((a) => a.breaking).length} خبر عاجل نشط`} />
+        <Stat label="مقالات منشورة" value={String(articleCount)} hint="من مخزن الأخبار الموصّل" />
         <Stat label="مباريات مجدولة" value={String(allMatches.length)} hint={`${liveMatches.length} جارية الآن`} />
+        <Stat label="مصادر بث مفعّلة" value={String(activeStreams)} hint="ربط رسمي لكل مباراة" />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -62,27 +78,36 @@ export default function AdminDashboard() {
             </ul>
           </Panel>
 
-          <Panel title="أكثر الأخبار قراءة">
-            {articles.length === 0 ? (
+          <Panel title="آخر الأخبار المنشورة">
+            {dashboardArticles.length === 0 ? (
               <NotConnected
-                title="لا توجد أخبار لقياسها"
-                message="عدادات المشاهدات تحتاج نظام أخبار موصولًا بقاعدة البيانات. الأرقام المعروضة هنا ستكون من المقالات المنشورة فعلًا فقط."
-                requires="خط أنابيب الأخبار + جدول articles"
+                title="لا توجد أخبار منشورة"
+                message="لا توجد مقالات حقيقية في مخزن الأخبار حاليًا. لن نعرض أرقام قراءة أو عناوين مُختلَقة في لوحة التحكم."
+                requires="خط أنابيب الأخبار + قاعدة بيانات اختيارية"
               />
+            ) : storedArticles.length > 0 ? (
+              <ol className="space-y-2 text-[12px]">
+                {storedArticles.map((article, i) => (
+                  <li key={article.id} className="flex items-start gap-2">
+                    <span className="num w-4 shrink-0 font-extrabold text-gold-400">{i + 1}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate">{article.title}</span>
+                      <span className="block truncate text-[10px] text-white/40">{article.sourceName} · {dateAr(article.publicationDate)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
             ) : (
               <ol className="space-y-2 text-[12px]">
-                {[...articles]
-                  .sort((a, b) => b.views - a.views)
-                  .slice(0, 5)
-                  .map((a, i) => (
-                    <li key={a.slug} className="flex items-start gap-2">
-                      <span className="num w-4 shrink-0 font-extrabold text-gold-400">{i + 1}</span>
-                      <span className="min-w-0">
-                        <span className="block truncate">{a.title}</span>
-                        <span className="num block text-[10px] text-white/40">{compact(a.views)} مشاهدة</span>
-                      </span>
-                    </li>
-                  ))}
+                {articles.slice(0, 5).map((article, i) => (
+                  <li key={article.slug} className="flex items-start gap-2">
+                    <span className="num w-4 shrink-0 font-extrabold text-gold-400">{i + 1}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate">{article.title}</span>
+                      <span className="num block text-[10px] text-white/40">{compact(article.views)} مشاهدة · وضع العرض</span>
+                    </span>
+                  </li>
+                ))}
               </ol>
             )}
           </Panel>

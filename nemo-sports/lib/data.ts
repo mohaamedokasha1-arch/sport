@@ -307,9 +307,9 @@ const liveMatches_RAW: Match[] = [
     kickoff: rel(-67), status: "LIVE", homeScore: 2, awayScore: 0, clock: "67'", minute: 67,
     featured: true, viewers: 486_320, referee: "حكم دولي", attendance: 42_150, round: "ودية دولية",
     venue: "استاد العاصمة",
-    // The live player for THIS match comes from lib/match-streams.ts
-    // (the per-match registry) — this entry only feeds the broadcast panel.
-    broadcast: { provider: "المشغل المباشر", license: "external", regions: ["العالم"], status: "LIVE_NOW", url: "https://912acsss8af382.yasirtv.com/playerv5.php?match=4856705&key=9f39972b67d6ce22189507d008acwc26", geoBlocked: false, note: "بث المباراة الودية بين الأرجنتين وبنين." },
+    // The live player for this match is resolved only through the authenticated
+    // per-match registry in lib/match-streams.ts; no stream URL is embedded in
+    // the demo fixture itself.
     events: [
       { id: "ab1", minute: 12, type: "goal", side: "home", player: "لاوتارو مارتينيز", detail: "تسديدة من داخل المنطقة" },
       { id: "ab2", minute: 38, type: "yellow", side: "away", player: "لاعب بنين ٤", detail: "تدخل متأخر" },

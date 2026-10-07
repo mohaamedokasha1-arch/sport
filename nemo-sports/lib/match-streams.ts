@@ -13,13 +13,13 @@
  *   · A match with NO registered source renders NO player and NO section:
  *     the page keeps exactly its current look, nothing is replaced.
  *   · Storage: Postgres (`match_streams`) when DATABASE_URL is configured,
- *     an in-memory seeded registry otherwise — the same driver pattern as
- *     lib/broadcasts.ts. The write helpers at the bottom are the extension
- *     point for the admin panel or a data-source ingest: adding a stream
- *     for another match later requires no page change.
- *   · No paid API, no re-hosting: the iframe loads the provider's own
- *     player page directly in the visitor's browser; no signal passes
- *     through our servers.
+ *     an in-memory registry otherwise — the same driver pattern as
+ *     lib/broadcasts.ts. The write helpers at the bottom are used by the
+ *     authenticated admin panel: adding a stream for another match later
+ *     requires no page change.
+ *   · Only official domains from lib/broadcasts.ts can be registered. There
+ *     is no paid API or re-hosting: the iframe loads the verified provider's
+ *     own player page directly in the visitor's browser.
  *
  * UI contract (components/match/MatchStreamPlayer.tsx):
  *   · "live"/"upcoming" + a source → the player renders.
@@ -29,6 +29,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { validateBroadcastLink } from "@/lib/broadcasts";
 
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
 
@@ -69,13 +70,10 @@ function splitList(value: string | null | undefined): string[] {
 /* ── validation (shared with future admin/data-source writes) ─────── */
 
 export function validateEmbedUrl(raw: string): { ok: boolean; reason: string } {
-  try {
-    const u = new URL(raw.trim());
-    if (u.protocol !== "https:") return { ok: false, reason: "رابط المشغّل يجب أن يكون https" };
-    return { ok: true, reason: "ok" };
-  } catch {
-    return { ok: false, reason: "رابط غير صالح" };
-  }
+  const check = validateBroadcastLink(raw);
+  return check.ok
+    ? { ok: true, reason: "نطاق رسمي معتمد" }
+    : { ok: false, reason: `لا يمكن تسجيل مشغّل غير رسمي: ${check.reason}` };
 }
 
 /* ── seed: match-specific sources (each one belongs to ONE match) ─── */
@@ -83,23 +81,10 @@ export function validateEmbedUrl(raw: string): { ok: boolean; reason: string } {
 const now = () => new Date().toISOString();
 
 function seed(): MatchStreamSource[] {
-  const t = now();
-  return [
-    {
-      id: "ms_argentina_vs_benin",
-      // ⚠️ This source is EXCLUSIVE to Argentina × Benin. It must never be
-      //    reused for any other match — matching below is per-match only.
-      label: "بث مباراة الأرجنتين × بنين",
-      embedUrl:
-        "https://912acsss8af382.yasirtv.com/playerv5.php?match=4856705&key=9f39972b67d6ce22189507d008acwc26",
-      slugs: ["argentina-vs-benin", "benin-vs-argentina"],
-      homeAliases: ["الأرجنتين", "الارجنتين", "Argentina", "ARG"],
-      awayAliases: ["بنين", "Benin", "BEN"],
-      enabled: true,
-      createdAt: t,
-      updatedAt: t,
-    },
-  ];
+  // No stream is published by default. A source is displayed only after an
+  // operator registers an official, verified embed for one concrete match;
+  // in particular, never seed a third-party IPTV/pirate URL in source code.
+  return [];
 }
 
 /* ── storage (Postgres → memory), same pattern as lib/broadcasts.ts ─ */
@@ -185,19 +170,19 @@ export async function listMatchStreams(admin = false): Promise<MatchStreamSource
   const db = await pg();
   if (db) {
     try {
-      const rows = await db.select<Row>(
-        admin
-          ? "SELECT * FROM match_streams ORDER BY created_at"
-          : "SELECT * FROM match_streams WHERE enabled = true ORDER BY created_at",
-        [],
-      );
-      return rows.map(fromRow);
+      const rows = await db.select<Row>("SELECT * FROM match_streams ORDER BY created_at", []);
+      const entries = rows.map(fromRow);
+      // Existing rows are treated as untrusted too; a legacy or manually
+      // inserted URL must not bypass the official-domain rule on public pages.
+      return admin
+        ? entries
+        : entries.filter((entry) => entry.enabled && validateEmbedUrl(entry.embedUrl).ok);
     } catch {
       // fall through
     }
   }
   const all = memory();
-  return admin ? [...all] : all.filter((s) => s.enabled);
+  return admin ? [...all] : all.filter((s) => s.enabled && validateEmbedUrl(s.embedUrl).ok);
 }
 
 /**
@@ -331,6 +316,9 @@ export async function upsertMatchStream(
     updatedAt: t,
   };
   if (!entry.id) return { ok: false, error: "معرّف المباراة مطلوب" };
+  if (entry.slugs.length === 0 && (entry.homeAliases.length === 0 || entry.awayAliases.length === 0)) {
+    return { ok: false, error: "يجب ربط المصدر بـ slug المباراة أو اسمي الفريقين" };
+  }
 
   const db = await pg();
   if (db) {

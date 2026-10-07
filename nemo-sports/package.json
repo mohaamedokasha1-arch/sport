@@ -12,9 +12,11 @@
     "test": "npm run sdl:test",
     "ingest": "tsx scripts/ingest.ts",
     "db:setup": "psql \"$DATABASE_URL\" -f db/schema.sql && psql \"$DATABASE_URL\" -f db/seed.sql && psql \"$DATABASE_URL\" -f db/migration-0002-news.sql",
-    "news:test": "tsx scripts/verify-news.ts"
+    "news:test": "tsx scripts/verify-news.ts",
+    "admin:hash": "node scripts/hash-admin-password.mjs"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "ioredis": "^5.4.2",
     "next": "15.5.25",
     "pg": "^8.13.1",
