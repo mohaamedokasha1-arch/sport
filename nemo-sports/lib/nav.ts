@@ -1,4 +1,5 @@
 export const NAV = [
+  { href: "/today", label: "مباريات اليوم" },
   { href: "/matches", label: "المباريات" },
   { href: "/live", label: "مباشر" },
   { href: "/results", label: "النتائج" },

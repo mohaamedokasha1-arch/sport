@@ -10,6 +10,7 @@ const groups = [
   {
     title: "الأقسام",
     links: [
+      { href: "/today", label: "مباريات اليوم" },
       { href: "/matches", label: "المباريات" },
       { href: "/live", label: "النتائج المباشرة" },
       { href: "/results", label: "النتائج" },
