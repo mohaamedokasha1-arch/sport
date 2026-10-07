@@ -1,12 +1,10 @@
 import { AdminHead, Btn, NotConnected, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 
 /**
- * There is no user system yet — no `users`/`roles`/`sessions` tables in
- * db/schema.sql, no password hashing, no session handling. This page used to
- * render a six-person roster of invented accounts (with email addresses, join
- * dates and "last active" times) plus an invented activity log naming them, on
- * a URL that was publicly reachable. It now renders the real state: zero
- * accounts, and the role model as the specification it actually is.
+ * The panel now has a real, fail-closed operator login. Per-user accounts,
+ * roles and 2FA are intentionally still a separate phase: the canonical
+ * schema has no users/sessions tables, so this screen must not invent an
+ * account roster or claim that a role matrix is enforced.
  */
 type Account = { name: string; email: string; role: string; joined: string; last: string; status: string };
 const users: Account[] = [];
@@ -25,7 +23,7 @@ export default function AdminUsers() {
     <div>
       <AdminHead
         title="المستخدمون والصلاحيات"
-        subtitle={`${users.length} حساب · نظام المصادقة غير موصول بعد — المبدأ المستهدف: أقل صلاحية + 2FA إلزامي للأدوار الإدارية`}
+        subtitle={`${users.length} حساب محلي · دخول المشغّل موصول — الحسابات متعددة المستخدمين والأدوار التفصيلية مرحلة لاحقة`}
         action={<Btn>+ مستخدم جديد</Btn>}
       />
 
@@ -33,8 +31,8 @@ export default function AdminUsers() {
         {users.length === 0 ? (
           <NotConnected
             title="لا توجد حسابات"
-            message="لم يُنفَّذ نظام المصادقة بعد: لا جداول users/roles/sessions في المخطط، ولا تجزئة لكلمات المرور، ولا إدارة جلسات. الوصول إلى لوحة التحكم محمي حاليًا برمز مشترك في middleware.ts كحل مؤقت حتى تُنفَّذ الحسابات الحقيقية."
-            requires="Auth.js + جداول users/roles/sessions + argon2id + 2FA"
+            message="دخول المشغّل الحالي موصول وآمن عبر ADMIN_USERNAME وADMIN_PASSWORD_HASH، مع كوكي جلسة موقّعة ومدة صلاحية 12 ساعة. لا توجد بعد إدارة حسابات متعددة أو صلاحيات مختلفة، لذلك لا نعرض حسابات مُختلَقة ولا ندّعي تطبيق مصفوفة الأدوار."
+            requires="نظام users/roles/sessions + 2FA للأدوار المتعددة"
           />
         ) : (
         <Table

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { NemoMark } from "@/components/brand/Logo";
 
@@ -35,10 +35,28 @@ const GROUPS = [
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/admin/login");
+      router.refresh();
+    }
+  }
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
+
+  // Keep the credential form outside the authenticated navigation chrome. The
+  // middleware still owns the route guard; this branch is only presentation.
+  if (pathname === "/admin/login") {
+    return <div className="min-h-screen bg-[#070e1a] text-white">{children}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#070e1a] text-white">
@@ -65,18 +83,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Link href="/" className="text-[11px] font-bold text-white/60 transition hover:text-gold-400">
             عرض الموقع ↗
           </Link>
-          {/* Was a hardcoded "مدير المنصة / Super Admin" identity badge shown to
-              every anonymous visitor. There is no user system, so nothing here
-              may claim an identity or a role it has not verified. */}
+          {/* The middleware has already verified this request. We still avoid
+              claiming a person or role because the current deployment has one
+              operator account, not a per-user RBAC directory. */}
           <span className="hidden items-center gap-2 rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] sm:flex">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-navy-700 text-[10px] font-extrabold text-white/70" aria-hidden>
-              ؟
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-win/20 text-[10px] font-extrabold text-win" aria-hidden>
+              ✓
             </span>
             <span>
-              <span className="block font-bold leading-none">جلسة مؤقّتة</span>
-              <span className="block text-[10px] text-white/45">نظام الحسابات غير موصول</span>
+              <span className="block font-bold leading-none">جلسة موثّقة</span>
+              <span className="block text-[10px] text-white/45">تنتهي تلقائيًا خلال 12 ساعة</span>
             </span>
           </span>
+          <button
+            type="button"
+            onClick={logout}
+            disabled={loggingOut}
+            className="rounded-[3px] border border-navy-700 px-2.5 py-1.5 text-[11px] font-bold text-white/65 transition hover:border-live hover:text-live disabled:opacity-50"
+          >
+            {loggingOut ? "…" : "خروج"}
+          </button>
         </span>
       </header>
 

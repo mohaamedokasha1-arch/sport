@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { AdminHead, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 import {
   coverageStats,
@@ -9,6 +10,12 @@ import {
   validateBroadcastLink,
   type BroadcastStatus,
 } from "@/lib/broadcasts";
+import {
+  deleteMatchStream,
+  listMatchStreams,
+  setMatchStreamEnabled,
+  upsertMatchStream,
+} from "@/lib/match-streams";
 import { competitions } from "@/lib/core-data";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +56,37 @@ async function removeAction(form: FormData): Promise<void> {
   revalidatePath("/admin/broadcast");
 }
 
+async function saveMatchStreamAction(form: FormData): Promise<void> {
+  "use server";
+  const id = String(form.get("id") ?? "").trim();
+  const result = await upsertMatchStream(id, {
+    label: String(form.get("label") ?? "").trim(),
+    embedUrl: String(form.get("embedUrl") ?? "").trim(),
+    slugs: String(form.get("slugs") ?? "").split(/[|,،]/).map((v) => v.trim()).filter(Boolean),
+    homeAliases: String(form.get("homeAliases") ?? "").split(/[|,،]/).map((v) => v.trim()).filter(Boolean),
+    awayAliases: String(form.get("awayAliases") ?? "").split(/[|,،]/).map((v) => v.trim()).filter(Boolean),
+    enabled: form.get("enabled") === "on",
+  });
+  if (!result.ok) {
+    // Keep the response free from URL contents while making validation errors
+    // actionable in the browser address bar.
+    redirect(`/admin/broadcast?streamError=${encodeURIComponent(result.error.slice(0, 180))}`);
+  }
+  revalidatePath("/admin/broadcast");
+}
+
+async function toggleMatchStreamAction(form: FormData): Promise<void> {
+  "use server";
+  await setMatchStreamEnabled(String(form.get("id") ?? ""), form.get("enabled") === "true");
+  revalidatePath("/admin/broadcast");
+}
+
+async function deleteMatchStreamAction(form: FormData): Promise<void> {
+  "use server";
+  await deleteMatchStream(String(form.get("id") ?? ""));
+  revalidatePath("/admin/broadcast");
+}
+
 const tone = { approved: "ok", pending: "warn", rejected: "bad" } as const;
 const label = { approved: "موثّق", pending: "قيد المراجعة", rejected: "مرفوض" };
 
@@ -63,8 +101,13 @@ export default async function AdminBroadcast({
   const sp = await searchParams;
   const testUrl = typeof sp.test === "string" ? sp.test : "";
   const testResult = testUrl ? validateBroadcastLink(testUrl) : null;
+  const streamError = typeof sp.streamError === "string" ? sp.streamError : "";
 
-  const [entries, stats] = await Promise.all([listBroadcasters(true), coverageStats()]);
+  const [entries, stats, streams] = await Promise.all([
+    listBroadcasters(true),
+    coverageStats(),
+    listMatchStreams(true),
+  ]);
 
   return (
     <div>
@@ -91,6 +134,74 @@ export default async function AdminBroadcast({
         يُرفض تلقائيًا ولا يمكن نشره — لا بث مقرصن، لا IPTV، لا إضافات غير مرخّصة.
       </p>
 
+      <Panel title="مصادر بث المباريات (ربط لكل مباراة)" aside={<Pill tone={streams.length ? "warn" : "idle"}>{streams.length} مصدر</Pill>}>
+        <p className="mb-4 text-[11px] leading-relaxed text-white/50">
+          يُربط كل مشغّل بمعرّف مباراة أو slug محدد ولا يمكن أن يظهر على مباراة أخرى. لا يُقبل
+          إلا نطاق رسمي موثّق عبر قائمة النواقل المعتمدة؛ لا روابط IPTV أو مصادر مجهولة.
+        </p>
+        {streamError ? (
+          <p role="alert" className="mb-4 rounded-[3px] border border-live/40 bg-live/10 px-3 py-2 text-[12px] font-bold text-red-200">
+            تعذر حفظ مصدر البث: {streamError}
+          </p>
+        ) : null}
+        {streams.length ? (
+          <Table
+            head={["المعرّف/المباراة", "المصدر", "الـ slug", "الرابط", "الحالة", "إجراءات"]}
+            rows={streams.map((stream) => [
+              <span key="id" className="num max-w-[150px] truncate font-bold" dir="ltr">{stream.id}</span>,
+              <span key="label" className="text-white/70">{stream.label}</span>,
+              <span key="slugs" className="num max-w-[180px] truncate text-white/55" dir="ltr">{stream.slugs.join(", ") || "—"}</span>,
+              <a key="url" href={stream.embedUrl} target="_blank" rel="noopener noreferrer nofollow" className="num block max-w-[180px] truncate text-gold-400 hover:underline" dir="ltr">{stream.embedUrl}</a>,
+              <Pill key="status" tone={stream.enabled ? "ok" : "idle"}>{stream.enabled ? "مفعّل" : "موقوف"}</Pill>,
+              <span key="actions" className="flex flex-wrap gap-1.5">
+                <form action={toggleMatchStreamAction}>
+                  <input type="hidden" name="id" value={stream.id} />
+                  <input type="hidden" name="enabled" value={String(!stream.enabled)} />
+                  <button type="submit" className={btnGhost}>{stream.enabled ? "إيقاف" : "تفعيل"}</button>
+                </form>
+                <form action={deleteMatchStreamAction}>
+                  <input type="hidden" name="id" value={stream.id} />
+                  <button type="submit" className="rounded-[3px] border border-live/50 px-2 py-1 text-[11px] font-bold text-live transition hover:bg-live hover:text-white">حذف</button>
+                </form>
+              </span>,
+            ])}
+          />
+        ) : (
+          <p className="rounded-[3px] border border-dashed border-navy-700 px-3 py-5 text-center text-[12px] text-white/45">
+            لا توجد مصادر مباراة منشورة. هذا هو الوضع الآمن الافتراضي.
+          </p>
+        )}
+
+        <form action={saveMatchStreamAction} className="mt-5 grid gap-3 border-t border-navy-800 pt-4 sm:grid-cols-2">
+          <Field label="معرّف ثابت لمباراة واحدة">
+            <input name="id" className={inputCls} placeholder="ms_provider-match-id" required maxLength={120} dir="ltr" />
+          </Field>
+          <Field label="اسم المصدر">
+            <input name="label" className={inputCls} placeholder="الناقل الرسمي" required maxLength={160} />
+          </Field>
+          <Field label="رابط المشغّل الرسمي (https فقط)">
+            <input name="embedUrl" className={inputCls} placeholder="https://official.example/player" required maxLength={1000} dir="ltr" />
+          </Field>
+          <Field label="Slugs المباراة (افصل بفاصلة)">
+            <input name="slugs" className={inputCls} placeholder="home-vs-away-2026-10-07" dir="ltr" />
+          </Field>
+          <Field label="أسماء الفريق المضيف (اختياري)">
+            <input name="homeAliases" className={inputCls} placeholder="Home FC، Home" />
+          </Field>
+          <Field label="أسماء الفريق الضيف (اختياري)">
+            <input name="awayAliases" className={inputCls} placeholder="Away FC، Away" />
+          </Field>
+          <label className="flex items-center gap-2 text-[12px] text-white/70 sm:col-span-2">
+            <input type="checkbox" name="enabled" defaultChecked className="h-4 w-4 accent-[#D4AF37]" />
+            تفعيل المصدر بعد حفظه (لا يظهر إلا للمباراة المطابقة)
+          </label>
+          <div className="sm:col-span-2">
+            <button type="submit" className="rounded-[3px] bg-gold-500 px-4 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400">حفظ مصدر المباراة</button>
+          </div>
+        </form>
+      </Panel>
+
+      <div className="mt-5">
       <Panel title="سجل النواقل">
         {entries.length === 0 ? (
           <p className="text-[12px] text-white/50">لا توجد إدخالات بعد.</p>
@@ -137,6 +248,7 @@ export default async function AdminBroadcast({
           />
         )}
       </Panel>
+      </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel title="إضافة ناقل بث (يُحفظ قيد المراجعة)">
