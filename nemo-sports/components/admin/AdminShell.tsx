@@ -7,12 +7,19 @@ import { NemoMark } from "@/components/brand/Logo";
 
 const GROUPS = [
   {
-    title: "المحتوى",
+    title: "المباريات",
     items: [
       { href: "/admin", label: "لوحة البيانات", exact: true },
+      { href: "/admin/live-matches", label: "المباريات المباشرة" },
+      { href: "/admin/upcoming-matches", label: "المباريات القادمة" },
+      { href: "/admin/matches", label: "تصحيح النتائج" },
+    ],
+  },
+  {
+    title: "المحتوى",
+    items: [
       { href: "/admin/articles", label: "المقالات والأخبار" },
       { href: "/admin/news", label: "الأخبار التلقائية (RSS)" },
-      { href: "/admin/matches", label: "المباريات والنتائج" },
     ],
   },
   {
@@ -38,6 +45,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function logout() {
@@ -61,32 +69,40 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="min-h-screen bg-[#070e1a] text-white">
-      {/* top bar */}
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-navy-800 bg-navy-950/95 px-4 py-3 backdrop-blur">
-        <Link href="/admin" className="flex items-center gap-2.5">
+      <header className="sticky top-0 z-40 flex h-[57px] items-center gap-3 border-b border-navy-800 bg-navy-950/95 px-3 backdrop-blur sm:px-4">
+        <button
+          type="button"
+          onClick={() => setMobileOpen((open) => !open)}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[3px] border border-navy-700 text-lg text-white/75 transition hover:border-gold-500 hover:text-gold-400 sm:hidden"
+          aria-label={mobileOpen ? "إغلاق القائمة" : "فتح القائمة"}
+          aria-expanded={mobileOpen}
+          aria-controls="admin-sidebar"
+        >
+          <span aria-hidden>{mobileOpen ? "×" : "☰"}</span>
+        </button>
+
+        <Link href="/admin" className="flex shrink-0 items-center gap-2.5" onClick={() => setMobileOpen(false)}>
           <NemoMark size={26} tone="light" />
           <span className="font-display text-[15px] font-bold tracking-[0.16em] uppercase">
             NEMO <span className="text-gold-500">Admin</span>
           </span>
         </Link>
 
-        <span className="mx-2 hidden h-5 w-px bg-navy-800 sm:block" aria-hidden />
+        <span className="mx-1 hidden h-5 w-px bg-navy-800 sm:block" aria-hidden />
 
         <button
           type="button"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={() => setCollapsed((value) => !value)}
           className="hidden rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] font-bold text-white/70 transition hover:border-gold-500 hover:text-gold-400 sm:block"
+          aria-label={collapsed ? "توسيع القائمة الجانبية" : "تصغير القائمة الجانبية"}
         >
           {collapsed ? "توسيع القائمة" : "تصغير القائمة"}
         </button>
 
-        <span className="ms-auto flex items-center gap-3">
-          <Link href="/" className="text-[11px] font-bold text-white/60 transition hover:text-gold-400">
+        <span className="ms-auto flex min-w-0 items-center gap-2 sm:gap-3">
+          <Link href="/" className="whitespace-nowrap text-[11px] font-bold text-white/60 transition hover:text-gold-400">
             عرض الموقع ↗
           </Link>
-          {/* The middleware has already verified this request. We still avoid
-              claiming a person or role because the current deployment has one
-              operator account, not a per-user RBAC directory. */}
           <span className="hidden items-center gap-2 rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] sm:flex">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-win/20 text-[10px] font-extrabold text-win" aria-hidden>
               ✓
@@ -100,58 +116,72 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             type="button"
             onClick={logout}
             disabled={loggingOut}
-            className="rounded-[3px] border border-navy-700 px-2.5 py-1.5 text-[11px] font-bold text-white/65 transition hover:border-live hover:text-live disabled:opacity-50"
+            className="whitespace-nowrap rounded-[3px] border border-navy-700 px-2.5 py-1.5 text-[11px] font-bold text-white/65 transition hover:border-live hover:text-live disabled:opacity-50"
           >
-            {loggingOut ? "…" : "خروج"}
+            {loggingOut ? "جارٍ الخروج…" : "خروج"}
           </button>
         </span>
       </header>
 
+      {mobileOpen ? (
+        <button
+          type="button"
+          className="fixed inset-x-0 bottom-0 top-[57px] z-30 bg-black/60 sm:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-label="إغلاق القائمة"
+        />
+      ) : null}
+
       <div className="flex">
-        {/* sidebar */}
         <aside
-          className={`sticky top-[57px] hidden h-[calc(100vh-57px)] shrink-0 overflow-y-auto border-e border-navy-800 bg-navy-950 p-3 sm:block ${
-            collapsed ? "w-14" : "w-60"
-          }`}
+          id="admin-sidebar"
+          className={`fixed inset-y-[57px] end-0 z-50 flex ${collapsed ? "w-14" : "w-64"} flex-col overflow-y-auto border-s border-navy-800 bg-navy-950 p-3 transition-transform duration-200 sm:sticky sm:top-[57px] sm:z-auto sm:h-[calc(100vh-57px)] sm:translate-x-0 ${
+            mobileOpen ? "translate-x-0" : "translate-x-full"
+          } ${collapsed ? "sm:w-14" : "sm:w-60"}`}
+          aria-label="التنقل الإداري"
         >
-          {GROUPS.map((g) => (
-            <nav key={g.title} className="mb-4" aria-label={g.title}>
-              {!collapsed ? (
-                <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
-                  {g.title}
-                </p>
-              ) : null}
-              <ul className="space-y-0.5">
-                {g.items.map((item) => {
-                  const active = isActive(item.href, item.exact);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        className={`flex items-center gap-2 rounded-[3px] px-2.5 py-2 text-[12px] font-bold transition ${
-                          active
-                            ? "bg-gold-500 text-navy-900"
-                            : "text-white/70 hover:bg-white/[0.06] hover:text-white"
-                        }`}
-                      >
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" aria-hidden />
-                        {!collapsed ? item.label : null}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          ))}
+          <div className="flex-1">
+            {GROUPS.map((group) => (
+              <nav key={group.title} className="mb-4" aria-label={group.title}>
+                {!collapsed ? (
+                  <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
+                    {group.title}
+                  </p>
+                ) : null}
+                <ul className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const active = isActive(item.href, item.exact);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setMobileOpen(false)}
+                          title={collapsed ? item.label : undefined}
+                          aria-current={active ? "page" : undefined}
+                          className={`flex items-center gap-2 rounded-[3px] px-2.5 py-2 text-[12px] font-bold transition ${
+                            active
+                              ? "bg-gold-500 text-navy-900"
+                              : "text-white/70 hover:bg-white/[0.06] hover:text-white"
+                          }`}
+                        >
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-60" aria-hidden />
+                          {!collapsed ? <span className="min-w-0 truncate">{item.label}</span> : null}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+            ))}
+          </div>
 
           {!collapsed ? (
-            <p className="mt-6 rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
-              الحفظ يعمل في المباريات والبث والأخبار: دائم مع قاعدة البيانات، ومؤقت بدونها.
+            <p className="mt-2 rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
+              النتائج تُقرأ من مزوّدي البيانات؛ التصحيحات الإدارية والبث الموثّق يُسجلان مع قاعدة البيانات، ومؤقتًا بدونها.
             </p>
           ) : null}
         </aside>
 
-        {/* content */}
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>

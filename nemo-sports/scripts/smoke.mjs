@@ -52,6 +52,8 @@ const adminRoutes = [
   "/admin",
   "/admin/articles",
   "/admin/news",
+  "/admin/live-matches",
+  "/admin/upcoming-matches",
   "/admin/matches",
   "/admin/competitions",
   "/admin/broadcast",
@@ -538,12 +540,22 @@ async function main() {
     if (teamOk) ok.push(`/teams/${teamHref[1]} (real view)`); else failures++;
   }
 
-  // Guarded namespace — only assert the rendered panel when a token is set.
+  // Guarded namespace — only assert the rendered panels when a token is set.
   if (ADMIN_TOKEN) {
     const adminPage = await (await fetch(`${BASE}/admin/providers`, { headers: adminAuth })).text();
     const adminOk = adminPage.includes("البنية التحتية للبيانات") && adminPage.includes("PostgreSQL");
     console.log(`  ${adminOk ? "✓" : "✗"} /admin/providers → infrastructure table rendered`);
     if (!adminOk) failures++;
+
+    for (const [path, marker] of [
+      ["/admin/live-matches", "لوحة المباريات الجارية"],
+      ["/admin/upcoming-matches", "جدول المباريات القادمة"],
+    ]) {
+      const page = await (await fetch(`${BASE}${path}`, { headers: adminAuth })).text();
+      const pageOk = page.includes(marker);
+      console.log(`  ${pageOk ? "✓" : "✗"} ${path} → admin match board rendered`);
+      if (!pageOk) failures++;
+    }
   }
 
   console.log(`\n${failures === 0 ? "✅ ALL GREEN" : `❌ ${failures} FAILURE(S)`} — ${ok.length + details.length} routes checked\n`);
