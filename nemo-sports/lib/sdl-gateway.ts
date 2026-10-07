@@ -13,6 +13,7 @@
 import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats, type NormalizedTeam, type NormalizedCompetition } from "@/packages/sdl/src";
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
+import { applyFixtureOverrides } from "@/lib/match-overrides";
 
 export type DataSource = "provider" | "demo";
 
@@ -118,17 +119,29 @@ function wrap<T>(result: { ok: true; value: FetchReport<T> } | { ok: false; erro
   };
 }
 
+/**
+ * Layer admin corrections (lib/match-overrides.ts) over provider fixtures.
+ * Runs AFTER wrap() so provider accounting (cost, cache, health) is untouched;
+ * when no override exists the input is returned untouched (same references).
+ */
+async function corrected(res: GatewayResult<NormalizedFixture[]>): Promise<GatewayResult<NormalizedFixture[]>> {
+  if (!res.ok) return res;
+  return { ...res, data: await applyFixtureOverrides(res.data) };
+}
+
 /** In-play matches across every supported sport. */
 export async function liveMatches(sport = "football"): Promise<GatewayResult<NormalizedFixture[]>> {
   const { sdl } = await sdlContext();
-  return wrap(
-    await sdl.fetch<NormalizedFixture[]>({
-      sport,
-      dataType: "live_matches",
-      endpoint: "live",
-      params: { sport },
-      call: (p) => p.getLiveMatches({ sport }),
-    }),
+  return corrected(
+    wrap(
+      await sdl.fetch<NormalizedFixture[]>({
+        sport,
+        dataType: "live_matches",
+        endpoint: "live",
+        params: { sport },
+        call: (p) => p.getLiveMatches({ sport }),
+      }),
+    ),
   );
 }
 
@@ -136,14 +149,16 @@ export async function liveMatches(sport = "football"): Promise<GatewayResult<Nor
 export async function fixtures(input: { sport?: string; date?: string; competitionProviderId?: string }): Promise<GatewayResult<NormalizedFixture[]>> {
   const sport = input.sport ?? "football";
   const { sdl } = await sdlContext();
-  return wrap(
-    await sdl.fetch<NormalizedFixture[]>({
-      sport,
-      dataType: "fixtures",
-      endpoint: "fixtures",
-      params: { sport, date: input.date, competition: input.competitionProviderId },
-      call: (p) => p.getFixtures({ sport, date: input.date, competitionProviderId: input.competitionProviderId }),
-    }),
+  return corrected(
+    wrap(
+      await sdl.fetch<NormalizedFixture[]>({
+        sport,
+        dataType: "fixtures",
+        endpoint: "fixtures",
+        params: { sport, date: input.date, competition: input.competitionProviderId },
+        call: (p) => p.getFixtures({ sport, date: input.date, competitionProviderId: input.competitionProviderId }),
+      }),
+    ),
   );
 }
 
@@ -167,7 +182,7 @@ export async function matchEvents(providerMatchId: string): Promise<GatewayResul
  */
 export async function matchDetail(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedFixture>> {
   const { sdl } = await sdlContext();
-  return wrap(
+  const res = wrap(
     await sdl.fetch<NormalizedFixture>({
       sport,
       dataType: "match_detail",
@@ -176,6 +191,9 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
       call: (p) => p.getMatchDetail({ providerMatchId, sport }),
     }),
   );
+  if (!res.ok) return res;
+  const patched = await applyFixtureOverrides([res.data]);
+  return { ...res, data: patched[0] ?? res.data };
 }
 
 /** Timeline of one match, in canonical event vocabulary. */

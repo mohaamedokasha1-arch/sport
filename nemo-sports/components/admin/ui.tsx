@@ -23,9 +23,11 @@ export function AdminHead({
 export function Btn({
   children,
   tone = "gold",
+  type = "button",
 }: {
   children: ReactNode;
   tone?: "gold" | "ghost" | "danger";
+  type?: "button" | "submit";
 }) {
   const styles =
     tone === "gold"
@@ -35,7 +37,7 @@ export function Btn({
         : "border border-navy-700 text-white/75 hover:border-gold-500 hover:text-gold-400";
   return (
     <button
-      type="button"
+      type={type}
       className={`rounded-[3px] px-3.5 py-2 text-[12px] font-extrabold transition ${styles}`}
     >
       {children}

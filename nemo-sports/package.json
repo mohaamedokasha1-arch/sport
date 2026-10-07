@@ -12,6 +12,7 @@
     "test": "npm run sdl:test",
     "ingest": "tsx scripts/ingest.ts",
     "db:setup": "psql \"$DATABASE_URL\" -f db/schema.sql && psql \"$DATABASE_URL\" -f db/seed.sql && psql \"$DATABASE_URL\" -f db/migration-0002-news.sql",
+    "db:verify": "tsx scripts/verify-db.ts",
     "news:test": "tsx scripts/verify-news.ts",
     "admin:hash": "node scripts/hash-admin-password.mjs"
   },
