@@ -46,6 +46,7 @@ function refreshStreamSurfaces(matchSlug?: string): void {
 
 const statusTone: Record<LiveStreamStatus, "ok" | "warn" | "bad" | "idle"> = {
   draft: "idle",
+  scheduled: "ok",
   published: "ok",
   live: "bad",
   ended: "warn",
@@ -79,7 +80,15 @@ async function saveStreamAction(form: FormData): Promise<void> {
     redirect(`/admin/live?err=${encodeURIComponent("نشر البث موقوف مؤقتًا من إعدادات الموقع")}`);
   }
 
-  const status: LiveStreamStatus = intent === "publish" ? "published" : "draft";
+  const rawFormStatus = String(form.get("status") ?? "").trim() as LiveStreamStatus;
+  let status: LiveStreamStatus;
+  if (intent === "draft") {
+    status = "draft";
+  } else if (rawFormStatus && (LIVE_STREAM_STATUSES as string[]).includes(rawFormStatus)) {
+    status = rawFormStatus === "draft" ? "scheduled" : rawFormStatus;
+  } else {
+    status = "scheduled";
+  }
 
   const result = id
     ? await updateLiveStream(id, { ...input, status })
@@ -110,7 +119,7 @@ async function setStreamStatusAction(form: FormData): Promise<void> {
     redirect(`/admin/live?err=${encodeURIComponent("حالة غير صالحة")}`);
   }
   const settings = await getSiteSettings();
-  if ((status === "published" || status === "live") && !settings.live.publishingEnabled) {
+  if ((status === "published" || status === "scheduled" || status === "live") && !settings.live.publishingEnabled) {
     redirect(`/admin/live?err=${encodeURIComponent("نشر البث موقوف مؤقتًا من إعدادات الموقع")}`);
   }
   const result = await setLiveStreamStatus(id, status);
@@ -119,6 +128,7 @@ async function setStreamStatusAction(form: FormData): Promise<void> {
   }
   const actionName: Record<LiveStreamStatus, string> = {
     draft: "stream.status",
+    scheduled: "stream.schedule",
     published: "stream.publish",
     live: "stream.live",
     ended: "stream.end",
@@ -298,16 +308,16 @@ export default async function AdminLive({
               </span>,
               <span key="a" className="flex flex-wrap gap-1.5">
                 {validateEmbedUrl(s.embedUrl).ok ? <StreamPreviewModal title={s.label} url={s.embedUrl} /> : null}
-                {s.status !== "published" && s.status !== "live" ? (
+                {s.status === "draft" || s.status === "disabled" ? (
                   <form action={setStreamStatusAction}>
                     <input type="hidden" name="id" value={s.id} />
-                    <input type="hidden" name="status" value="published" />
+                    <input type="hidden" name="status" value="scheduled" />
                     <button type="submit" className={btnGhost} disabled={!settings.live.publishingEnabled}>
                       نشر
                     </button>
                   </form>
                 ) : null}
-                {s.status === "published" ? (
+                {s.status === "published" || s.status === "scheduled" ? (
                   <form action={setStreamStatusAction}>
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="status" value="live" />
@@ -316,7 +326,7 @@ export default async function AdminLive({
                     </button>
                   </form>
                 ) : null}
-                {s.status === "published" || s.status === "live" ? (
+                {s.status === "published" || s.status === "scheduled" || s.status === "live" ? (
                   <form action={setStreamStatusAction}>
                     <input type="hidden" name="id" value={s.id} />
                     <input type="hidden" name="status" value="disabled" />

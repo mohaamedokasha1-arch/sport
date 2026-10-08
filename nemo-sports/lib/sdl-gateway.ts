@@ -150,8 +150,19 @@ function wrap<T>(
  * Runs AFTER wrap() so provider accounting (cost, cache, health) is untouched;
  * when no override exists the input is returned untouched (same references).
  */
-async function corrected(res: GatewayResult<NormalizedFixture[]>, sport: string): Promise<GatewayResult<NormalizedFixture[]>> {
-  const adminFixtures = (await publishedAdminFixtures().catch(() => [])).filter((f) => f.sport === sport);
+async function corrected(
+  res: GatewayResult<NormalizedFixture[]>,
+  sport: string,
+  onlyLive = false,
+): Promise<GatewayResult<NormalizedFixture[]>> {
+  const allAdmin = await publishedAdminFixtures().catch(() => []);
+  const adminFixtures = allAdmin.filter((f) => {
+    if (f.sport !== sport) return false;
+    if (onlyLive) {
+      return ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+    }
+    return true;
+  });
   if (!res.ok) {
     // Operator-entered matches stay visible even when every provider is down.
     if (adminFixtures.length === 0) return res;
@@ -188,6 +199,7 @@ export async function liveMatches(sport = "football"): Promise<GatewayResult<Nor
       "live_matches",
     ),
     sport,
+    true,
   );
 }
 

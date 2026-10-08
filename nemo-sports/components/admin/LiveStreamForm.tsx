@@ -103,8 +103,19 @@ export default function LiveStreamForm({
           ))}
         </select>
       </Field>
-      <Field label="اسم المصدر (يظهر للزوار)">
-        <input name="label" defaultValue={editing?.label ?? defaultLabel} maxLength={160} className={inputCls} placeholder="البث المباشر" />
+
+      <Field label="حالة البث">
+        <select name="status" defaultValue={editing?.status ?? "draft"} className={inputCls}>
+          <option value="draft">مسودة (Draft)</option>
+          <option value="scheduled">مجدول (Scheduled)</option>
+          <option value="live">مباشر (Live)</option>
+          <option value="ended">منتهٍ (Ended)</option>
+          <option value="disabled">موقوف / معطل (Disabled)</option>
+        </select>
+      </Field>
+
+      <Field label="اسم وصفي للبث (يظهر للزوار)">
+        <input name="label" defaultValue={editing?.label ?? defaultLabel} maxLength={160} className={inputCls} placeholder="مثال: البث المباشر — القناة الرسمية" />
       </Field>
 
       <div className="sm:col-span-2">

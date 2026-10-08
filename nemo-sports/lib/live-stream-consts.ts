@@ -18,18 +18,19 @@ export const LIVE_STREAM_TYPE_AR: Record<LiveStreamType, string> = {
   external_link: "رابط رسمي خارجي",
 };
 
-/** Lifecycle statuses (admin spec §8). */
-export type LiveStreamStatus = "draft" | "published" | "live" | "ended" | "disabled";
+/** Lifecycle statuses: Draft, Scheduled, Live, Ended, Disabled (and legacy Published). */
+export type LiveStreamStatus = "draft" | "scheduled" | "live" | "ended" | "disabled" | "published";
 
-export const LIVE_STREAM_STATUSES: LiveStreamStatus[] = ["draft", "published", "live", "ended", "disabled"];
+export const LIVE_STREAM_STATUSES: LiveStreamStatus[] = ["draft", "scheduled", "live", "ended", "disabled", "published"];
 
 export const LIVE_STREAM_STATUS_AR: Record<LiveStreamStatus, string> = {
   draft: "مسودة",
-  published: "منشور",
-  live: "بث حي",
+  scheduled: "مجدول",
+  live: "مباشر",
   ended: "منتهٍ",
   disabled: "موقوف",
+  published: "منشور",
 };
 
 /** Statuses that make a stream visible on public pages. */
-export const PUBLIC_STREAM_STATUSES: ReadonlySet<LiveStreamStatus> = new Set(["published", "live"]);
+export const PUBLIC_STREAM_STATUSES: ReadonlySet<LiveStreamStatus> = new Set(["published", "scheduled", "live"]);

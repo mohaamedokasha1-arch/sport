@@ -11,7 +11,11 @@ import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
 import { decodeSlug } from "@/lib/slug";
-import { teamBySlug } from "@/lib/core-data";
+import { competitionBySlug, teamBySlug } from "@/lib/core-data";
+import { competitionByPath } from "@/lib/competition-catalog";
+import { getAdminMatchBySlug, adminMatchToFixture } from "@/lib/admin-matches";
+import { isPubliclyVisible } from "@/lib/match-streams";
+import ProviderCrest from "@/components/ui/ProviderCrest";
 import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
@@ -204,6 +208,23 @@ export async function generateMetadata({
     };
   }
 
+  // ── admin match fallback ──
+  const adminM = await getAdminMatchBySlug(slug).catch(() => null);
+  if (adminM && adminM.isPublished) {
+    const home = adminM.homeName || "—";
+    const away = adminM.awayName || "—";
+    const comp = adminM.competitionName || "مباراة";
+    const date = dateAr(adminM.scheduledAt);
+    const title = `${home} ضد ${away} | ${comp} | ${date}`;
+    const description = `موعد وتفاصيل وبث مباراة ${home} ضد ${away} في ${comp}.`;
+    return {
+      title,
+      description,
+      alternates: { canonical: `/matches/${adminM.slug}` },
+      openGraph: { title, description, type: "article" },
+    };
+  }
+
   // ── dev/demo fallback ──
   if (demoContentVisible()) {
     const m = matchBySlug(slug);
@@ -239,20 +260,31 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
   // match, stream registry, overrides, provider) uses the real slug.
   const slug = decodeSlug((await params).slug);
 
-  /* ══ 1) real provider match (SportScore via the SDL) ══════════════════ */
+  /* ══ 1) real match (SportScore via SDL or admin-managed fixture) ══════ */
+  let f: NormalizedFixture | null = null;
+  let providerName = "provider";
+  let fromCache = false;
+  let stale = false;
+  let fetchedAt = new Date().toISOString();
+
   const real = await sdlMatchDetail("football", slug);
-  if (!real.ok && !PERMANENT_FAILURE_KINDS.has(real.error.kind)) {
-    // Transient provider/cache outage: abort this render so ISR keeps the
-    // last good page (a failed background revalidation retains the previous
-    // version). First-time renders hit the branded error boundary. Throwing
-    // here also prevents an outage from writing a permanent 404 into the
-    // ISR cache — 404 is reserved for a match that truly cannot exist, which
-    // includes a deployment with no detail provider configured at all
-    // (retrying can never change that answer, so a stable 404 is honest).
-    throw new Error(`match_detail_unavailable:${real.error.kind}`);
+  if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
+    f = real.data;
+    providerName = real.provider;
+    fromCache = real.fromCache;
+    stale = real.stale;
+    fetchedAt = real.fetchedAt;
+  } else {
+    const adminM = await getAdminMatchBySlug(slug).catch(() => null);
+    if (adminM && adminM.isPublished) {
+      f = adminMatchToFixture(adminM);
+      providerName = "admin";
+    } else if (!real.ok && !PERMANENT_FAILURE_KINDS.has(real.error.kind)) {
+      throw new Error(`match_detail_unavailable:${real.error.kind}`);
+    }
   }
-  if (real.ok && real.source === "provider") {
-    const f = real.data;
+
+  if (f) {
     // A successful call can still yield a contentless shell. Rendering it
     // would publish an indexable "— ضد —" page for an unbounded slug space,
     // so it is a 404 instead. See hasMatchIdentity().
@@ -299,6 +331,14 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
     const ht = f.periods.find((p) => p.label === "HT");
 
+    const homeTeamObj = teamBySlug(f.homeProviderId || home);
+    const awayTeamObj = teamBySlug(f.awayProviderId || away);
+    const compRef = (f.competitionProviderId || f.competitionName)
+      ? competitionByPath(f.competitionProviderId || f.competitionName || "")
+      : undefined;
+    const compSlug = compRef?.canonicalSlug ?? (competitionBySlug(f.competitionProviderId ?? "") ? f.competitionProviderId : null);
+    const compUrl = compSlug ? `/competitions/${compSlug}` : null;
+
     const ld = {
       "@context": "https://schema.org",
       "@type": "SportsEvent",
@@ -330,20 +370,38 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             <span aria-hidden>/</span>
             <Link href="/matches" className="hover:text-gold-600 dark:hover:text-gold-400">المباريات</Link>
             <span aria-hidden>/</span>
+            <Link href="/live" className="hover:text-gold-600 dark:hover:text-gold-400">البث المباشر</Link>
+            <span aria-hidden>/</span>
             <span className="font-semibold text-ink">{home} × {away}</span>
           </nav>
+
+          {/* H1 Title */}
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-ink text-center mb-3 tracking-tight">
+            {home} ضد {away}
+          </h1>
 
           {/* scoreboard */}
           <header className={`card relative overflow-hidden px-4 py-6 ${live ? "border-live-red/40" : ""}`}>
             {live ? <span className="absolute inset-x-0 top-0 h-0.5 bg-live-red" aria-hidden /> : null}
-            <p className="mb-4 text-center text-[11px] text-muted">{f.competitionName ?? ""}</p>
+            {compUrl ? (
+              <p className="mb-4 text-center text-[12px]">
+                <Link href={compUrl} className="font-bold text-gold-600 dark:text-gold-400 hover:underline">
+                  {f.competitionName ?? ""}
+                </Link>
+              </p>
+            ) : (
+              <p className="mb-4 text-center text-[12px] font-bold text-muted">{f.competitionName ?? ""}</p>
+            )}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="flex flex-col items-center gap-2 text-center">
-                {f.homeLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={f.homeLogoUrl} alt="" width={44} height={44} className="h-11 w-11 object-contain" />
-                ) : null}
-                <span className="text-[13px] font-extrabold">{home}</span>
+                <ProviderCrest name={home} logoUrl={f.homeLogoUrl} size={48} />
+                {homeTeamObj ? (
+                  <Link href={`/teams/${homeTeamObj.slug}`} className="text-[13px] font-extrabold hover:text-gold-500 transition">
+                    {home}
+                  </Link>
+                ) : (
+                  <span className="text-[13px] font-extrabold">{home}</span>
+                )}
               </div>
               <div className="flex flex-col items-center gap-1">
                 {played ? (
@@ -363,17 +421,21 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
                 ) : null}
               </div>
               <div className="flex flex-col items-center gap-2 text-center">
-                {f.awayLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={f.awayLogoUrl} alt="" width={44} height={44} className="h-11 w-11 object-contain" />
-                ) : null}
-                <span className="text-[13px] font-extrabold">{away}</span>
+                <ProviderCrest name={away} logoUrl={f.awayLogoUrl} size={48} />
+                {awayTeamObj ? (
+                  <Link href={`/teams/${awayTeamObj.slug}`} className="text-[13px] font-extrabold hover:text-gold-500 transition">
+                    {away}
+                  </Link>
+                ) : (
+                  <span className="text-[13px] font-extrabold">{away}</span>
+                )}
               </div>
             </div>
-            <p className="mt-4 text-center text-[11px] text-muted">
+            <p className="mt-4 text-center text-[11.5px] text-muted">
               {dateAr(f.scheduledAt)} · {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ })}
+              {f.venueName ? ` · ${f.venueName}` : ""}
               {" · "}
-              {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا من المصدر" : "بيانات حقيقية من طبقة البيانات"}
+              {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا" : "موعد معتمد"}
             </p>
             {override ? (
               <p className="mt-2 text-center text-[11px]">
@@ -384,14 +446,30 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             ) : null}
           </header>
 
-          {/* live stream — rendered only when a source is registered for THIS match */}
-          <MatchStreamPlayer
-            stream={stream}
-            phase={streamPhase(f.status)}
-            home={home}
-            away={away}
-            inactiveNote={inactiveStreamNote(f.status)}
-          />
+          {/* live stream — dedicated stream section */}
+          {stream && isPubliclyVisible(stream) ? (
+            <MatchStreamPlayer
+              stream={stream}
+              phase={streamPhase(f.status)}
+              home={home}
+              away={away}
+              inactiveNote={inactiveStreamNote(f.status)}
+            />
+          ) : (
+            <section id="live-stream" className="mt-8">
+              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold flex items-center justify-between">
+                <span>البث المباشر</span>
+                <span className="text-[11px] font-normal text-muted">مشغّل البث</span>
+              </h2>
+              <div className="card border-dashed px-4 py-8 text-center bg-navy-900/30">
+                <span className="text-3xl block mb-2" aria-hidden>📺</span>
+                <p className="text-[14px] font-extrabold text-ink">سيتم إتاحة البث عند توفره</p>
+                <p className="mt-1.5 text-[12px] text-muted max-w-md mx-auto leading-relaxed">
+                  لم يتم تفعيل رابط البث المباشر لهذه المباراة بعد. سيظهر المشغّل الرسمي تلقائيًا فور توفر بث رسمي مرخّص قبل انطلاق المباراة.
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* events timeline */}
           <section className="mt-8">
@@ -491,7 +569,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             </section>
           ) : null}
 
-          <DataSourceNote className="mt-8 border-t border-line pt-4" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
+          <DataSourceNote className="mt-8 border-t border-line pt-4" provider={providerName} fromCache={fromCache} stale={stale} fetchedAt={fetchedAt} />
         </div>
       </>
     );

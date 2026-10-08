@@ -15,14 +15,31 @@ const SLUG_BY_CODE: Record<string, string> = {
   BL1: "bundesliga",
   FL1: "ligue-1",
   CL: "champions-league",
+  SPL: "saudi-pro-league",
 };
 
+const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
+  {
+    code: "SPL",
+    slug: "saudi-professional-league",
+    name: "Saudi Pro League",
+    nameAr: "دوري روشن السعودي",
+    countryAr: "السعودية",
+    featured: true,
+    canonicalSlug: "saudi-pro-league",
+    providerId: "saudi-pro-league",
+  },
+];
+
 /** One canonical catalogue for the football competitions currently covered. */
-export const canonicalCompetitions: CanonicalCompetition[] = footballDataCompetitions(true).map((competition) => ({
-  ...competition,
-  canonicalSlug: SLUG_BY_CODE[competition.code] ?? competition.code.toLowerCase(),
-  providerId: competition.slug ?? competition.code,
-}));
+export const canonicalCompetitions: CanonicalCompetition[] = [
+  ...footballDataCompetitions(true).map((competition) => ({
+    ...competition,
+    canonicalSlug: SLUG_BY_CODE[competition.code] ?? competition.code.toLowerCase(),
+    providerId: competition.slug ?? competition.code,
+  })),
+  ...EXTRA_COMPETITIONS,
+];
 
 export function competitionByPath(path: string): CanonicalCompetition | undefined {
   const value = decodeURIComponent(path).trim();

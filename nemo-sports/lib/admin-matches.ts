@@ -16,9 +16,12 @@
  *     otherwise (same driver pattern as the rest of the platform).
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { SITE_TZ } from "@/lib/tz";
+import { decodeSlug } from "@/lib/slug";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 export type AdminMatchStatus = "upcoming" | "live" | "finished" | "postponed" | "cancelled";
@@ -66,6 +69,138 @@ export interface AdminMatch {
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * The 5 verified fixtures (October 9, 2026).
+ * Kickoff timestamps are stored in UTC; wall-clock times in Cairo/Mecca (UTC+3):
+ *  1. الفتح × الأهلي: 17:55 (5:55 PM) → 14:55 UTC
+ *  2. النصر × الدرعية: 21:00 (9:00 PM) → 18:00 UTC
+ *  3. بوروسيا دورتموند × فيردر بريمن: 21:30 (9:30 PM) → 18:30 UTC
+ *  4. لانس × أولمبيك ليون: 21:45 (9:45 PM) → 18:45 UTC
+ *  5. مالقا × إسبانيول: 22:00 (10:00 PM) → 19:00 UTC
+ */
+export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
+  {
+    id: "adm_match_fateh_ahli_20261009",
+    slug: "al-fateh-vs-al-ahli",
+    sport: "football",
+    competitionSlug: "saudi-pro-league",
+    competitionName: "دوري روشن السعودي",
+    season: "2026/2027",
+    homeName: "الفتح",
+    homeNameEn: "Al-Fateh",
+    homeLogo: "https://media.api-sports.io/football/teams/2939.png",
+    awayName: "الأهلي",
+    awayNameEn: "Al-Ahli",
+    awayLogo: "https://media.api-sports.io/football/teams/2932.png",
+    scheduledAt: "2026-10-09T14:55:00.000Z",
+    status: "upcoming",
+    homeScore: null,
+    awayScore: null,
+    venue: "ملعب الأمير عبد الله بن جلوي (الأحساء)",
+    referee: "",
+    isPublished: true,
+    createdBy: "editorial",
+    createdAt: "2026-10-08T12:00:00.000Z",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+  },
+  {
+    id: "adm_match_nassr_diriyah_20261009",
+    slug: "al-nassr-vs-al-diriyah",
+    sport: "football",
+    competitionSlug: "saudi-pro-league",
+    competitionName: "دوري روشن السعودي",
+    season: "2026/2027",
+    homeName: "النصر",
+    homeNameEn: "Al-Nassr",
+    homeLogo: "https://media.api-sports.io/football/teams/2934.png",
+    awayName: "الدرعية",
+    awayNameEn: "Al-Diriyah",
+    awayLogo: "https://media.api-sports.io/football/teams/10204.png",
+    scheduledAt: "2026-10-09T18:00:00.000Z",
+    status: "upcoming",
+    homeScore: null,
+    awayScore: null,
+    venue: "الأول بارك (الرياض)",
+    referee: "",
+    isPublished: true,
+    createdBy: "editorial",
+    createdAt: "2026-10-08T12:00:00.000Z",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+  },
+  {
+    id: "adm_match_dortmund_bremen_20261009",
+    slug: "borussia-dortmund-vs-werder-bremen",
+    sport: "football",
+    competitionSlug: "bundesliga",
+    competitionName: "الدوري الألماني",
+    season: "2026/2027",
+    homeName: "بوروسيا دورتموند",
+    homeNameEn: "Borussia Dortmund",
+    homeLogo: "https://crests.football-data.org/4.png",
+    awayName: "فيردر بريمن",
+    awayNameEn: "Werder Bremen",
+    awayLogo: "https://crests.football-data.org/12.png",
+    scheduledAt: "2026-10-09T18:30:00.000Z",
+    status: "upcoming",
+    homeScore: null,
+    awayScore: null,
+    venue: "سيغنال إيدونا بارك (دورتموند)",
+    referee: "",
+    isPublished: true,
+    createdBy: "editorial",
+    createdAt: "2026-10-08T12:00:00.000Z",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+  },
+  {
+    id: "adm_match_lens_lyon_20261009",
+    slug: "lens-vs-lyon",
+    sport: "football",
+    competitionSlug: "ligue-1",
+    competitionName: "الدوري الفرنسي",
+    season: "2026/2027",
+    homeName: "لانس",
+    homeNameEn: "RC Lens",
+    homeLogo: "https://crests.football-data.org/546.png",
+    awayName: "أولمبيك ليون",
+    awayNameEn: "Olympique Lyonnais",
+    awayLogo: "https://crests.football-data.org/523.png",
+    scheduledAt: "2026-10-09T18:45:00.000Z",
+    status: "upcoming",
+    homeScore: null,
+    awayScore: null,
+    venue: "ملعب بولار ديلولي (لانس)",
+    referee: "",
+    isPublished: true,
+    createdBy: "editorial",
+    createdAt: "2026-10-08T12:00:00.000Z",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+  },
+  {
+    id: "adm_match_malaga_espanyol_20261009",
+    slug: "malaga-vs-espanyol",
+    sport: "football",
+    competitionSlug: "la-liga",
+    competitionName: "الدوري الإسباني",
+    season: "2026/2027",
+    homeName: "مالقا",
+    homeNameEn: "Málaga CF",
+    homeLogo: "https://crests.football-data.org/84.png",
+    awayName: "إسبانيول",
+    awayNameEn: "RCD Espanyol",
+    awayLogo: "https://crests.football-data.org/80.png",
+    scheduledAt: "2026-10-09T19:00:00.000Z",
+    status: "upcoming",
+    homeScore: null,
+    awayScore: null,
+    venue: "ملعب لا روزاليدا (مالقة)",
+    referee: "",
+    isPublished: true,
+    createdBy: "editorial",
+    createdAt: "2026-10-08T12:00:00.000Z",
+    updatedAt: "2026-10-08T12:00:00.000Z",
+  },
+];
 
 /* ── validation ───────────────────────────────────────────────── */
 
@@ -229,6 +364,40 @@ CREATE INDEX IF NOT EXISTS idx_admin_matches_published ON admin_matches(is_publi
 
 const mem = new Map<string, AdminMatch>();
 let ddlDone = false;
+let memInitialized = false;
+
+const MATCHES_FILE = path.join(process.cwd(), "db", "admin-matches.json");
+
+function loadDiskMatches(): AdminMatch[] {
+  try {
+    if (fs.existsSync(MATCHES_FILE)) {
+      const raw = fs.readFileSync(MATCHES_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // fall through
+  }
+  return INITIAL_ADMIN_MATCHES;
+}
+
+function saveDiskMatches(list: AdminMatch[]): void {
+  try {
+    const dir = path.dirname(MATCHES_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(MATCHES_FILE, JSON.stringify(list, null, 2), "utf-8");
+  } catch {
+    // safe ignore in environments with read-only root
+  }
+}
+
+function initMem(): void {
+  if (memInitialized && mem.size > 0) return;
+  memInitialized = true;
+  const initial = loadDiskMatches();
+  for (const m of initial) mem.set(m.id, m);
+  saveDiskMatches(initial);
+}
 
 const now = () => new Date().toISOString();
 
@@ -245,6 +414,20 @@ async function pg() {
       ddlDone = true;
       try {
         for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) await db.run(stmt, []);
+        const existing = await db.select<{ c: string }>("SELECT COUNT(*)::text AS c FROM admin_matches", []);
+        if (existing[0]?.c === "0") {
+          for (const m of INITIAL_ADMIN_MATCHES) {
+            await db.run(
+              `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, is_published, created_by)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (slug) DO NOTHING`,
+              [
+                m.id, m.slug, m.sport, m.competitionSlug, m.competitionName, m.season,
+                m.homeName, m.homeNameEn, m.homeLogo, m.awayName, m.awayNameEn, m.awayLogo,
+                m.scheduledAt, m.status, m.homeScore, m.awayScore, m.venue, m.referee, m.isPublished, m.createdBy,
+              ],
+            );
+          }
+        }
       } catch {
         return null;
       }
@@ -299,6 +482,7 @@ async function allMatches(): Promise<AdminMatch[]> {
       // fall through
     }
   }
+  initMem();
   return [...mem.values()].sort(
     (a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt) || b.createdAt.localeCompare(a.createdAt),
   );
@@ -349,7 +533,15 @@ export async function listAdminMatches(filter: AdminMatchFilter = {}): Promise<A
 
 export async function getAdminMatchBySlug(slug: string): Promise<AdminMatch | null> {
   const list = await allMatches();
-  return list.find((m) => m.slug === slug) ?? null;
+  const target = decodeSlug(slug).trim().toLowerCase();
+  const targetBase = target.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
+  return (
+    list.find((m) => {
+      const s = m.slug.toLowerCase();
+      const sBase = s.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
+      return s === target || sBase === targetBase || m.id === target;
+    }) ?? null
+  );
 }
 
 export async function getAdminMatchById(id: string): Promise<AdminMatch | null> {
@@ -471,7 +663,10 @@ export async function createAdminMatch(
         ],
       ),
     );
-    if (!inDb) mem.set(match.id, match);
+    if (!inDb) {
+      mem.set(match.id, match);
+      saveDiskMatches([...mem.values()]);
+    }
   } catch (e) {
     return { ok: false, error: storeErrorMessage(e) };
   }
@@ -550,7 +745,10 @@ export async function updateAdminMatch(
         ],
       ),
     );
-    if (!inDb) mem.set(found.id, found);
+    if (!inDb) {
+      mem.set(found.id, found);
+      saveDiskMatches([...mem.values()]);
+    }
   } catch (e) {
     return { ok: false, error: storeErrorMessage(e) };
   }
@@ -565,7 +763,10 @@ export async function setAdminMatchPublished(id: string, isPublished: boolean): 
   found.updatedAt = now();
   const db = await pg();
   const inDb = await persistOrThrow(db, (d) => d.run("UPDATE admin_matches SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]));
-  if (!inDb) mem.set(id, found);
+  if (!inDb) {
+    mem.set(id, found);
+    saveDiskMatches([...mem.values()]);
+  }
   return true;
 }
 
@@ -576,6 +777,9 @@ export async function deleteAdminMatch(id: string): Promise<boolean> {
   if (!found) return false;
   const db = await pg();
   const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM admin_matches WHERE id = $1", [id]));
-  if (!inDb) mem.delete(id);
+  if (!inDb) {
+    mem.delete(id);
+    saveDiskMatches([...mem.values()]);
+  }
   return true;
 }
