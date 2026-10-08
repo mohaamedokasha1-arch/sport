@@ -3,11 +3,17 @@ import { AdminHead, Btn, NotConnected, Panel, Pill, Stat, Table } from "@/compon
 import { actionLabel, listActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
 import { listArticles } from "@/lib/news/store";
-import { listMatchStreams } from "@/lib/match-streams";
+import { liveStreamStats, listMatchStreams } from "@/lib/match-streams";
+import { adminMatchCounts } from "@/lib/admin-matches";
+import { adminTeamCounts } from "@/lib/admin-teams";
+import { adminPlayerCounts } from "@/lib/admin-players";
+import { adminCompetitionCounts } from "@/lib/admin-competitions";
+import { manualNewsCounts } from "@/lib/manual-news";
 import { listOverrides } from "@/lib/match-overrides";
 import { listBroadcasters } from "@/lib/broadcasts";
 import { fixtures as loadFixtures, liveMatches as loadLiveMatches } from "@/lib/sdl-gateway";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { requireUser } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -90,7 +96,8 @@ function LiveMatchCard({ match }: { match: NormalizedFixture }) {
 }
 
 export default async function AdminDashboard() {
-  const [liveResult, fixturesResult, streams, overrides, broadcasters, articleResult, activityResult] = await Promise.all([
+  await requireUser();
+  const [liveResult, fixturesResult, streams, overrides, broadcasters, articleResult, activityResult, matchCounts, teamCounts, playerCounts, competitionCounts, newsCounts, streamStats] = await Promise.all([
     loadLiveMatches("football"),
     loadFixtures({ sport: "football" }),
     listMatchStreams(false),
@@ -98,7 +105,14 @@ export default async function AdminDashboard() {
     listBroadcasters(true),
     listArticles({ status: "published", limit: 5 }),
     listActivity(5),
+    adminMatchCounts(),
+    adminTeamCounts(),
+    adminPlayerCounts(),
+    adminCompetitionCounts(),
+    manualNewsCounts(),
+    liveStreamStats(),
   ]);
+  const rssTotal = articleResult.items.length;
 
   const live = liveResult.ok ? liveResult.data.filter((match) =>
     ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(match.status),
@@ -129,19 +143,17 @@ export default async function AdminDashboard() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="مباريات مباشرة"
-          value={liveCount}
-          hint={liveResult.ok ? `كرة القدم · ${liveResult.source === "demo" ? "مصدر تجريبي" : "مزوّد بيانات"}${liveResult.stale ? " · آخر قيمة محفوظة" : ""}` : "تعذّر جلب بيانات المباريات"}
-        />
-        <Stat
-          label="مباريات قادمة"
-          value={upcomingCount}
-          hint={fixturesResult.ok ? `ضمن نافذة التغطية · ${fixturesResult.source === "demo" ? "مصدر تجريبي" : "مزوّد بيانات"}` : "تعذّر جلب جدول المباريات"}
-        />
-        <Stat label="مشاهدون الآن" value="—" hint="غير متاح — لا توجد تحليلات للمشغّلات" />
-        <Stat label="مصادر بث مرخّصة مفعّلة" value={String(streams.length)} hint="تُعرض بعد التحقق من النطاق الرسمي" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <Stat label="عدد المباريات" value={String(matchCounts.total + (fixturesResult.ok ? fixturesResult.data.length : 0))} hint={`${matchCounts.total} من الإدارة`} />
+        <Stat label="مباريات اليوم" value={String(matchCounts.today)} hint="بتوقيت القاهرة (الإدارة)" />
+        <Stat label="مباريات مباشرة" value={liveCount} hint={liveResult.ok ? `${matchCounts.live} من الإدارة` : "تعذّر جلب المزوّد"} />
+        <Stat label="مباريات قادمة" value={upcomingCount} hint={`${matchCounts.upcoming} من الإدارة`} />
+        <Stat label="عدد الفرق" value={String(teamCounts.total)} hint={`${teamCounts.published} منشور`} />
+        <Stat label="عدد اللاعبين" value={String(playerCounts.total)} hint={`${playerCounts.published} منشور`} />
+        <Stat label="عدد البطولات" value={String(competitionCounts.total)} hint={`${competitionCounts.published} منشورة`} />
+        <Stat label="عدد الأخبار" value={String(newsCounts.published + rssTotal)} hint={`${newsCounts.published} يدوي · ${newsCounts.draft} مسودة`} />
+        <Stat label="بثوث منشورة" value={String(streamStats.published + streamStats.live)} hint="تظهر للزوار" />
+        <Stat label="بثوث نشطة الآن" value={String(streamStats.live)} hint={`${streamStats.draft} مسودة · ${streamStats.disabled} موقوف`} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">

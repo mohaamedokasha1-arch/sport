@@ -9,6 +9,7 @@ import { getNewsFeed } from "@/lib/news/service";
 import { categoryMeta } from "@/lib/news/categorize";
 import { demoContentVisible } from "@/lib/site";
 import { relative } from "@/lib/format";
+import { ManualNewsSection } from "@/components/public/AdminPublished";
 
 export const metadata: Metadata = {
   title: "الأخبار — كل الأخبار الرياضية",
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 /** Feed refreshes often; keep it fresh without hammering the store. */
 export const revalidate = 120;
 
-export default async function NewsPage({
+async function NewsPageBody({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -216,5 +217,17 @@ export default async function NewsPage({
         </div>
       )}
     </div>
+  );
+}
+
+export default async function NewsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await props.searchParams;
+  return (
+    <>
+      <ManualNewsSection category={typeof sp.category === "string" ? sp.category : undefined} />
+      <NewsPageBody {...props} />
+    </>
   );
 }

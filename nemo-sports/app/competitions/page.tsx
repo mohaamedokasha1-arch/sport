@@ -5,6 +5,7 @@ import SectionHead from "@/components/ui/SectionHead";
 import { competitions, sports } from "@/lib/core-data";
 import { footballDataCompetitions } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
+import { AdminCompetitionsSection } from "@/components/public/AdminPublished";
 
 export const metadata: Metadata = {
   title: "البطولات — المسابقات ضمن نطاق التغطية",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/competitions" },
 };
 
-export default function CompetitionsPage() {
+function CompetitionsPageBody() {
   if (!demoContentVisible()) {
     const supported = footballDataCompetitions(true);
     return (
@@ -65,5 +66,14 @@ export default function CompetitionsPage() {
         ) : null)}
       </div>
     </div>
+  );
+}
+
+export default async function CompetitionsPage() {
+  return (
+    <>
+      <AdminCompetitionsSection />
+      <CompetitionsPageBody />
+    </>
   );
 }

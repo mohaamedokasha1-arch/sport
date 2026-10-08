@@ -10,6 +10,7 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import { allMatches, liveMatches } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { competitionBySlug, sports } from "@/lib/core-data";
+import LiveStreams from "@/components/public/LiveStreams";
 
 export const metadata: Metadata = {
   title: "المباشر — المباريات الجارية الآن",
@@ -50,6 +51,8 @@ export default async function LivePage() {
           {realData || !showDemo ? <LiveAutoRefresh intervalSeconds={60} /> : null}
         </div>
       </header>
+
+      <LiveStreams />
 
       {realData ? (
         realLive.length > 0 ? (

@@ -39,19 +39,25 @@ export default function MatchStreamPlayer({
   home,
   away,
   inactiveNote,
+  sectionId = "live-stream",
+  headingLevel = "h2",
 }: {
   stream: MatchStreamInfo | null | undefined;
   phase: MatchStreamPhase;
   home: string;
   away: string;
   inactiveNote?: string;
+  /** unique id when several players share one page (e.g. /live) */
+  sectionId?: string;
+  headingLevel?: "h2" | "h3";
 }) {
   // Nothing registered for this match → no section at all.
   if (!stream) return null;
+  const Heading = headingLevel;
 
   return (
-    <section id="live-stream" className="mt-8">
-      <h2 className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-2 border-line pb-2 text-[15px] font-extrabold">
+    <section id={sectionId} className="mt-8">
+      <Heading className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-2 border-line pb-2 text-[15px] font-extrabold">
         <span>البث المباشر</span>
         {phase === "live" ? (
           <span className="flex items-center gap-1.5 rounded-[3px] bg-live px-2 py-1 text-[10px] font-extrabold tracking-widest text-white">
@@ -59,7 +65,7 @@ export default function MatchStreamPlayer({
             مباشر الآن
           </span>
         ) : null}
-      </h2>
+      </Heading>
 
       {phase === "inactive" ? (
         <div className="card border-dashed px-4 py-6 text-center">

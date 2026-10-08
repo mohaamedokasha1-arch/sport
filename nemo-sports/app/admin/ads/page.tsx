@@ -1,4 +1,5 @@
 import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
+import { requireUser } from "@/lib/admin-session";
 
 const slots = [
   { name: "أعلى الصفحة (Leaderboard)", size: "728×90", fill: "AdSense — برنامجي", status: "نشط" },
@@ -15,7 +16,8 @@ const campaigns = [
   { name: "حملة تطبيق الهاتف", type: "Banner", from: "2026-05-01", to: "2026-06-30", status: "منتهٍ" },
 ];
 
-export default function AdminAds() {
+export default async function AdminAds() {
+  await requireUser();
   return (
     <div>
       <AdminHead

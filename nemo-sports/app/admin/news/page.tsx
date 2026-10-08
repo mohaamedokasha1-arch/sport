@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { AdminHead, Panel, Pill, Table } from "@/components/admin/ui";
 import {
@@ -17,6 +18,7 @@ import { runSource, ingestAllSources } from "@/lib/news/pipeline";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
+import { requireUser } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +125,7 @@ export default async function AdminNews({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireUser();
   const sp = await searchParams;
   const catFilter = typeof sp.category === "string" ? sp.category : "";
 
@@ -153,14 +156,19 @@ export default async function AdminNews({
         title="الأخبار التلقائية"
         subtitle={`مصادر RSS · الاستيعاب · الإشراف — المخزن: ${backend === "postgres" ? "PostgreSQL" : "ذاكرة مؤقتة"}`}
         action={
-          <form action={fetchAllAction}>
-            <button
-              type="submit"
-              className="rounded-[3px] bg-gold-500 px-3 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400"
-            >
-              جلب الكل الآن
-            </button>
-          </form>
+          <span className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/news/manual" className="rounded-[3px] border border-navy-700 px-3 py-2 text-[12px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400">
+              + خبر يدوي
+            </Link>
+            <form action={fetchAllAction}>
+              <button
+                type="submit"
+                className="rounded-[3px] bg-gold-500 px-3 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400"
+              >
+                جلب الكل الآن
+              </button>
+            </form>
+          </span>
         }
       />
 

@@ -11,9 +11,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   ADMIN_COOKIE,
+  ENV_OPERATOR_ID,
   adminAuthConfigured,
   adminCookieOptions,
   createAdminSession,
+  isSuperAdminOnlyPath,
   verifyAdminSession,
 } from "@/lib/admin-auth-shared";
 
@@ -116,7 +118,14 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   const cookie = request.cookies.get(ADMIN_COOKIE)?.value;
-  if (await verifyAdminSession(cookie)) {
+  const session = await verifyAdminSession(cookie);
+  if (session) {
+    // Route-level RBAC: users & settings are super_admin-only. The role in
+    // the cookie is only a coarse gate — pages and server actions re-verify
+    // against the live directory (lib/admin-session.ts).
+    if (isSuperAdminOnlyPath(request.nextUrl.pathname) && session.role !== "super_admin") {
+      return deny(request);
+    }
     return NextResponse.next({ headers: new Headers(securityHeaders()) });
   }
 
@@ -126,7 +135,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   const accessToken = process.env.ADMIN_ACCESS_TOKEN?.trim();
   const credentials = credentialsFrom(request);
   if (accessToken && credentials && sameSecret(credentials.pass, accessToken)) {
-    const value = await createAdminSession();
+    const value = await createAdminSession({ id: ENV_OPERATOR_ID, role: "super_admin" });
     if (value) {
       const response = NextResponse.next({ headers: new Headers(securityHeaders()) });
       response.cookies.set(ADMIN_COOKIE, value, adminCookieOptions(request.nextUrl.protocol === "https:"));

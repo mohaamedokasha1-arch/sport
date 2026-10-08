@@ -9,6 +9,7 @@ import { competitions, sports, teams } from "@/lib/core-data";
 import { footballDataCompetitions } from "@/lib/football-data";
 import { teamsDirectory, type DirectoryTeam } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
+import { AdminTeamsSection } from "@/components/public/AdminPublished";
 
 export const metadata: Metadata = {
   title: "الفرق — دليل الفرق حسب الرياضة",
@@ -32,7 +33,7 @@ function groupByCompetition(rows: DirectoryTeam[]) {
   return groups;
 }
 
-export default async function TeamsPage() {
+async function TeamsPageBody() {
   /* ══ 1) real directory, derived from the league tables we already fetch ══
    * No provider in the chain exposes "list every team", and inventing a roster
    * is exactly what this platform refuses to do. A standings row already
@@ -195,5 +196,14 @@ export default async function TeamsPage() {
         hint="يُشتق الدليل من جداول الترتيب الحقيقية — سيتوفر تلقائيًا بمجرد استجابة مصدر البيانات."
       />
     </div>
+  );
+}
+
+export default async function TeamsPage() {
+  return (
+    <>
+      <AdminTeamsSection />
+      <TeamsPageBody />
+    </>
   );
 }

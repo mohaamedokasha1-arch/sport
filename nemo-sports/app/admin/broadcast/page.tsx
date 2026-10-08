@@ -20,6 +20,7 @@ import {
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
 import { logActivity } from "@/lib/activity";
 import { competitions } from "@/lib/core-data";
+import { requireUser } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,7 @@ export default async function AdminBroadcast({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requireUser();
   const sp = await searchParams;
   const testUrl = typeof sp.test === "string" ? sp.test : "";
   const testResult = testUrl ? validateBroadcastLink(testUrl) : null;

@@ -7,8 +7,9 @@
  *   · Storage: the canonical `audit_log` table (db/schema.sql) when Postgres
  *     is configured — created here with an identical definition if db:setup
  *     was never run — otherwise an in-process ring (last 300 entries).
- *   · actor_role is always "admin": the panel has one operator account, not a
- *     per-user RBAC directory, so the log never invents a person.
+ *   · Every entry records WHO (actor username), their role, WHAT (action),
+ *     the entity and an after-snapshot. Passwords and secrets are never
+ *     written here.
  *   · logActivity() NEVER throws: a logging failure must not break the admin
  *     action it annotates. On Postgres failure the entry falls back to memory
  *     so it is still visible this boot.
@@ -19,6 +20,10 @@ import { getDb } from "@/lib/db/pg";
 export interface ActivityEntry {
   id: string;
   action: string;
+  /** username of the operator who performed the action (never a password) */
+  actor: string | null;
+  /** role of the operator at the time of the action */
+  role: string | null;
   entityType: string | null;
   entityId: string | null;
   after: Record<string, unknown> | null;
@@ -30,6 +35,10 @@ export interface ActivityInput {
   entityType?: string;
   entityId?: string;
   after?: Record<string, unknown>;
+  /** operator username — recorded for audit, never a secret */
+  actor?: string;
+  /** operator role at the time of the action */
+  role?: string;
 }
 
 /** Arabic labels for known actions; unknown actions render raw. */
@@ -42,6 +51,34 @@ export const ACTION_AR: Record<string, string> = {
   "stream.upsert": "حفظ بث مباراة",
   "stream.toggle": "تفعيل/إيقاف بث",
   "stream.delete": "حذف بث مباراة",
+  "stream.create": "إنشاء بث مباشر",
+  "stream.update": "تعديل بث مباشر",
+  "stream.publish": "نشر بث مباشر",
+  "stream.live": "تحديد بث كبث حي",
+  "stream.stop": "إيقاف بث مباشر",
+  "stream.end": "إنهاء بث مباشر",
+  "stream.status": "تغيير حالة بث",
+  "match.create": "إنشاء مباراة",
+  "match.update": "تعديل مباراة",
+  "match.delete": "حذف مباراة",
+  "match.publish": "نشر مباراة",
+  "match.hide": "إخفاء مباراة",
+  "team.create": "إنشاء فريق",
+  "team.update": "تعديل فريق",
+  "team.delete": "حذف فريق",
+  "team.publish": "نشر/إخفاء فريق",
+  "player.create": "إنشاء لاعب",
+  "player.update": "تعديل لاعب",
+  "player.delete": "حذف لاعب",
+  "player.publish": "نشر/إخفاء لاعب",
+  "competition.create": "إنشاء بطولة",
+  "competition.update": "تعديل بطولة",
+  "competition.delete": "حذف بطولة",
+  "competition.publish": "نشر/إخفاء بطولة",
+  "news.manual.create": "إنشاء خبر يدوي",
+  "news.manual.update": "تعديل خبر يدوي",
+  "news.manual.delete": "حذف خبر يدوي",
+  "news.manual.status": "تغيير حالة خبر يدوي",
   "news.source.create": "إضافة مصدر أخبار",
   "news.source.toggle": "تفعيل/إيقاف مصدر أخبار",
   "news.source.delete": "حذف مصدر أخبار",
@@ -49,6 +86,13 @@ export const ACTION_AR: Record<string, string> = {
   "news.ingest.run": "تشغيل جلب الأخبار",
   "news.article.status": "تغيير حالة خبر",
   "news.article.delete": "حذف خبر",
+  "settings.update": "تحديث إعدادات الموقع",
+  "user.create": "إنشاء مستخدم",
+  "user.update": "تعديل مستخدم",
+  "user.password": "تغيير كلمة مرور مستخدم",
+  "user.delete": "حذف مستخدم",
+  "auth.login": "تسجيل دخول",
+  "auth.logout": "تسجيل خروج",
 };
 
 export function actionLabel(action: string): string {
@@ -124,9 +168,12 @@ function fromRow(r: Row): ActivityEntry {
       after = null;
     }
   }
+  const actor = after && typeof after.actor === "string" ? after.actor : null;
   return {
     id: String(r.id),
     action: String(r.action),
+    actor,
+    role: r.actor_role ? String(r.actor_role) : null,
     entityType: r.entity_type ? String(r.entity_type) : null,
     entityId: r.entity_id ? String(r.entity_id) : null,
     after,
@@ -134,16 +181,25 @@ function fromRow(r: Row): ActivityEntry {
   };
 }
 
-/** Record one admin action. Never throws. */
+/** Record one admin action. Never throws. Never logs secrets. */
 export async function logActivity(input: ActivityInput): Promise<void> {
   const action = input.action.trim().slice(0, 120);
   if (!action) return;
+  // The actor is folded into the `after` snapshot so the append-only row
+  // keeps its shape while still naming who did it.
+  const after: Record<string, unknown> | null = input.after
+    ? { ...(input.actor ? { actor: input.actor.slice(0, 80) } : {}), ...input.after }
+    : input.actor
+      ? { actor: input.actor.slice(0, 80) }
+      : null;
   const entry: ActivityEntry = {
     id: `mem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
     action,
+    actor: input.actor?.slice(0, 80) ?? null,
+    role: input.role?.slice(0, 40) ?? null,
     entityType: input.entityType?.trim().slice(0, 80) || null,
     entityId: input.entityId?.trim().slice(0, 160) || null,
-    after: input.after ?? null,
+    after,
     createdAt: new Date().toISOString(),
   };
 
@@ -152,8 +208,8 @@ export async function logActivity(input: ActivityInput): Promise<void> {
     try {
       await db.run(
         `INSERT INTO audit_log (actor_role, action, entity_type, entity_id, after)
-         VALUES ('admin', $1, $2, $3, $4)`,
-        [entry.action, entry.entityType, entry.entityId, entry.after ? JSON.stringify(entry.after) : null],
+         VALUES ($1, $2, $3, $4, $5)`,
+        [entry.role ?? "admin", entry.action, entry.entityType, entry.entityId, after ? JSON.stringify(after) : null],
       );
       return;
     } catch {
@@ -170,7 +226,7 @@ export async function listActivity(limit = 100): Promise<{ items: ActivityEntry[
   if (db) {
     try {
       const rows = await db.select<Row>(
-        "SELECT id, action, entity_type, entity_id, after, created_at FROM audit_log ORDER BY created_at DESC, id DESC LIMIT $1",
+        "SELECT id, action, actor_role, entity_type, entity_id, after, created_at FROM audit_log ORDER BY created_at DESC, id DESC LIMIT $1",
         [n],
       );
       return { items: rows.map(fromRow), source: "postgres" };

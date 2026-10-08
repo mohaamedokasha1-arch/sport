@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
 import { liveMatches, fixtures, dataServable, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { listAdminTeams } from "@/lib/admin-teams";
+import { listAdminPlayers } from "@/lib/admin-players";
+import { listAdminCompetitions } from "@/lib/admin-competitions";
+import { listManualNews } from "@/lib/manual-news";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
@@ -70,6 +74,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }))
       : []),
   ];
+
+  // Admin-published content (real, operator-entered; only published items).
+  try {
+    const [teams, players, comps, news] = await Promise.all([
+      listAdminTeams({ publishedOnly: true, limit: 500 }),
+      listAdminPlayers({ publishedOnly: true, limit: 500 }),
+      listAdminCompetitions({ publishedOnly: true, limit: 200 }),
+      listManualNews({ publishedOnly: true, limit: 500 }),
+    ]);
+    for (const t of teams) entries.push({ url: `${SITE_URL}/teams/${t.slug}`, lastModified: new Date(t.updatedAt), changeFrequency: "weekly", priority: 0.6 });
+    for (const p of players) entries.push({ url: `${SITE_URL}/players/${p.slug}`, lastModified: new Date(p.updatedAt), changeFrequency: "weekly", priority: 0.5 });
+    for (const c of comps) entries.push({ url: `${SITE_URL}/competitions/${c.slug}`, lastModified: new Date(c.updatedAt), changeFrequency: "weekly", priority: 0.6 });
+    for (const n of news) entries.push({ url: `${SITE_URL}/news/${n.slug}`, lastModified: new Date(n.updatedAt), changeFrequency: "weekly", priority: 0.6 });
+  } catch {
+    // never fail the sitemap because of admin content
+  }
 
   // Real match pages (provider slugs) — live matches first, then the rest of
   // the feed. Capped to keep the file meaningful (real pages only).
