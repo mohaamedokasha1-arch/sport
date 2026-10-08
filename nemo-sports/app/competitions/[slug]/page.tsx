@@ -6,6 +6,15 @@ import MatchCard from "@/components/match/MatchCard";
 import StandingsTable from "@/components/competition/StandingsTable";
 import NewsCard from "@/components/news/NewsCard";
 import Crest from "@/components/ui/Crest";
+import DataSourceNote from "@/components/data/DataSourceNote";
+import DataUnavailable from "@/components/ui/DataUnavailable";
+import ProviderMatchList from "@/components/data/ProviderMatchList";
+import SectionHead from "@/components/ui/SectionHead";
+import { footballMatches, footballStandings, footballTopScorers, type FootballDataCompetitionRef } from "@/lib/football-data";
+import { demoContentVisible } from "@/lib/site";
+import { hasMatchIdentity, supportsPlayerStats } from "@/lib/sdl-gateway";
+import { competitionByPath } from "@/lib/competition-catalog";
+import type { NormalizedFixture, NormalizedStandingRow, NormalizedTopScorer } from "@/packages/sdl/src";
 import {
   articles,
   competitionMatches,
@@ -26,7 +35,7 @@ import { playerBySlug, sportBySlug, teamBySlug, teamsByCompetition } from "@/lib
 export const revalidate = 1800;
 
 export function generateStaticParams() {
-  return competitions.map((c) => ({ slug: c.slug }));
+  return demoContentVisible() ? competitions.map((c) => ({ slug: c.slug })) : [];
 }
 
 export async function generateMetadata({
@@ -35,18 +44,31 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const c = competitions.find((x) => x.slug === slug);
-  if (!c) return { title: "البطولة غير موجودة" };
+  const providerCompetition = competitionByPath(slug);
+  if (providerCompetition) {
+    const title = `${providerCompetition.nameAr} | الترتيب والمباريات`;
+    return {
+      title,
+      description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`,
+      alternates: { canonical: `/competitions/${slug}` },
+    };
+  }
+  const c = demoContentVisible() ? competitions.find((x) => x.slug === slug) : undefined;
+  if (!c) return { title: "البطولة غير موجودة", robots: { index: false, follow: true } };
   return {
-    title: `${c.name} | الترتيب والنتائج ${c.season}`,
-    description: `ترتيب ${c.name}، المباريات، النتائج، الهدافون وإحصائيات الفرق لموسم ${c.season}.`,
+    title: `${c.name} | معاينة البطولة`,
+    description: `معلومات تجريبية عن ${c.name} لأغراض التطوير فقط.`,
     alternates: { canonical: `/competitions/${c.slug}` },
+    robots: { index: false, follow: true },
   };
 }
 
 export default async function CompetitionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const comp = competitions.find((c) => c.slug === slug);
+  const providerCompetition = competitionByPath(slug);
+  if (providerCompetition) return <ProviderCompetitionPage competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
+
+  const comp = demoContentVisible() ? competitions.find((c) => c.slug === slug) : undefined;
   if (!comp) notFound();
 
   const sport = sportBySlug(comp.sport);
@@ -62,6 +84,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ sl
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات بطولة توضيحية للتطوير فقط — لا تمثل جدولًا أو نتائج حقيقية.</p>
       <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
         <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
         <span aria-hidden>/</span>
@@ -77,7 +100,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ sl
               {comp.code}
             </span>
             <div>
-              <p className="eyebrow !text-white/50">{sport?.nameEn}</p>
+              <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{comp.name}</h1>
               <p className="mt-1 text-[12px] text-white/60">
                 {comp.country} · موسم {comp.season} · {comp.format} · {comp.rounds} جولة
@@ -102,6 +125,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ sl
       </header>
 
       <Tabs
+        label="أقسام البطولة"
         items={[
           {
             id: "standings",
@@ -228,6 +252,127 @@ export default async function CompetitionPage({ params }: { params: Promise<{ sl
           },
         ]}
       />
+    </div>
+  );
+}
+
+async function ProviderCompetitionPage({ competition, id }: { competition: FootballDataCompetitionRef; id: string }) {
+  const [tableResult, matchesResult] = await Promise.all([
+    footballStandings(id),
+    footballMatches({ competitionId: id }),
+  ]);
+  const tableData = tableResult.ok && tableResult.source.provider !== "demo" ? tableResult : null;
+  const matchesData = matchesResult.ok && matchesResult.source.provider !== "demo" ? matchesResult : null;
+  const rows: NormalizedStandingRow[] = tableData?.data ?? [];
+  const fixtures: NormalizedFixture[] = (matchesData?.data ?? []).filter(hasMatchIdentity);
+  const scorerResult = rows.length > 0 ? await footballTopScorers(id) : null;
+  const scorerData = scorerResult?.ok && scorerResult.source.provider !== "demo" ? scorerResult : null;
+  const scorers: NormalizedTopScorer[] = scorerData?.data ?? [];
+  const live = fixtures.filter((fixture) => ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(fixture.status));
+  const upcoming = fixtures.filter((fixture) => fixture.status === "scheduled").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)).slice(0, 9);
+  const results = fixtures.filter((fixture) => fixture.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)).slice(0, 9);
+  const tableGroups = new Map<string, NormalizedStandingRow[]>();
+  for (const row of rows) {
+    const group = row.group ?? "";
+    const list = tableGroups.get(group) ?? [];
+    list.push(row);
+    tableGroups.set(group, list);
+  }
+
+  return (
+    <div className="mx-auto max-w-[1280px] space-y-9 px-4 py-6">
+      <nav aria-label="مسار التنقل" className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link><span aria-hidden>/</span>
+        <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">البطولات</Link><span aria-hidden>/</span>
+        <span className="font-semibold text-ink">{competition.nameAr}</span>
+      </nav>
+      <header className="stripes overflow-hidden rounded-[8px] border border-navy-700 bg-navy-850 text-white">
+        <div className="flex flex-wrap items-center gap-4 px-5 py-5">
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-gold-500 font-display text-sm font-extrabold text-navy-900">{competition.code}</span>
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow !text-white/50">{competition.countryAr} · تغطية كرة القدم</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{competition.nameAr}</h1>
+          </div>
+          <Link href={`/matches?competition=${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center rounded-[3px] bg-white/10 px-3 text-[12px] font-bold transition hover:bg-gold-500 hover:text-navy-900 focus-ring">مباريات البطولة</Link>
+        </div>
+      </header>
+
+      <section>
+        <SectionHead eyebrow="بيانات مزوّد المباريات" title="جدول الترتيب" />
+        {rows.length > 0 ? (
+          <div className="space-y-4">
+            {[...tableGroups.entries()].map(([group, groupRows]) => (
+              <div key={group || "main"} className="card overflow-x-auto">
+                {group ? <h3 className="border-b border-line px-3 py-2 text-[12px] font-bold">{group.replaceAll("_", " ")}</h3> : null}
+                <table className="w-full min-w-[580px] text-[12px]">
+                  <thead><tr className="border-b border-line text-muted">
+                    <th scope="col" className="px-2 py-2 text-start">#</th><th scope="col" className="px-2 py-2 text-start">الفريق</th>
+                    <th scope="col" className="px-2 py-2 text-center">لعب</th><th scope="col" className="px-2 py-2 text-center">ف</th>
+                    <th scope="col" className="px-2 py-2 text-center">ت</th><th scope="col" className="px-2 py-2 text-center">خ</th>
+                    <th scope="col" className="px-2 py-2 text-center">له/عليه</th><th scope="col" className="px-2 py-2 text-center">نقاط</th><th scope="col" className="px-2 py-2 text-center">آخر 5</th>
+                  </tr></thead>
+                  <tbody>{groupRows.map((row) => (
+                    <tr key={`${row.position}-${row.teamProviderId}`} className="border-b border-line/60 last:border-0">
+                      <td className="num px-2 py-2 font-extrabold text-muted">{row.position}</td>
+                      <td className="px-2 py-2 font-bold"><Link href={`/teams/${encodeURIComponent(row.teamProviderId)}`} className="flex min-h-8 items-center gap-2 hover:text-gold-600 dark:hover:text-gold-400">
+                        {row.teamLogoUrl ? <img src={row.teamLogoUrl} alt="" width={20} height={20} loading="lazy" className="h-5 w-5 shrink-0 object-contain" /> : null}
+                        <span className="truncate">{row.teamName ?? row.teamShortName ?? row.teamProviderId}</span>
+                      </Link></td>
+                      <td className="num px-2 py-2 text-center">{row.played}</td><td className="num px-2 py-2 text-center">{row.won}</td>
+                      <td className="num px-2 py-2 text-center">{row.drawn}</td><td className="num px-2 py-2 text-center">{row.lost}</td>
+                      <td className="num px-2 py-2 text-center text-muted">{row.goalsFor}:{row.goalsAgainst}</td><td className="num px-2 py-2 text-center font-extrabold">{row.points}</td>
+                      <td className="px-2 py-2 text-center"><span className="inline-flex gap-0.5" aria-label="آخر النتائج">{row.form.slice(-5).map((value, index) => <span key={`${value}-${index}`} className={`inline-grid h-4 w-4 place-items-center rounded-[2px] text-[9px] font-extrabold ${value === "W" ? "bg-win-green/20 text-win-green" : value === "D" ? "bg-line text-muted" : "bg-live-red/15 text-live-red"}`}>{value}</span>)}</span></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            ))}
+            {tableData ? <DataSourceNote className="mt-3" provider={tableData.source.provider} fromCache={tableData.source.fromCache} stale={tableData.source.stale} fetchedAt={tableData.source.fetchedAt} ttlSeconds={tableData.source.ttlSeconds} /> : null}
+          </div>
+        ) : <DataUnavailable title="جدول الترتيب غير متاح من المصدر" message="لا تتوفر بيانات مؤكدة لهذا الجدول الآن. لن نستبدلها بترتيب تجريبي." actionHref="/standings" actionLabel="عرض الجداول المتاحة" />}
+      </section>
+
+      <section>
+        <SectionHead eyebrow="المباريات والنتائج" title="مباريات البطولة" href={`/matches?competition=${encodeURIComponent(id)}`} />
+        {fixtures.length === 0 ? (
+          <DataUnavailable title={matchesData ? "لا توجد مباريات في البيانات المسترجعة" : "مباريات البطولة غير متاحة"} message={matchesData ? "لم يتضمن آخر تحديث مباريات لهذه البطولة." : "لم يصل جدول مؤكد من مصدر البيانات."} actionHref="/matches" actionLabel="تصفّح المباريات" />
+        ) : (
+          <div className="space-y-7">
+            {live.length ? <div><SectionHead eyebrow="الآن" title="مباشر" /><ProviderMatchList fixtures={live} /></div> : null}
+            {upcoming.length ? <div><SectionHead eyebrow="المواعيد" title="قادمة" /><ProviderMatchList fixtures={upcoming} /></div> : null}
+            {results.length ? <div><SectionHead eyebrow="النتائج" title="اكتملت" /><ProviderMatchList fixtures={results} /></div> : null}
+            {matchesData ? <DataSourceNote className="mt-3" provider={matchesData.source.provider} fromCache={matchesData.source.fromCache} stale={matchesData.source.stale} fetchedAt={matchesData.source.fetchedAt} ttlSeconds={matchesData.source.ttlSeconds} /> : null}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <SectionHead eyebrow="إحصاءات البطولة" title="الهدافون" />
+        {scorers.length > 0 ? (
+          <div className="card divide-y divide-line overflow-hidden">
+            {scorers.slice(0, 10).map((scorer) => {
+              const playerId = scorer.playerProviderId.trim();
+              const name = scorer.playerName?.trim() ?? "";
+              const canOpenProfile = Boolean(
+                playerId && name && scorer.profileAvailable === true && scorerData && supportsPlayerStats(scorerData.source.provider),
+              );
+              return (
+                <div key={playerId || `${competition.code}-${scorer.goals}`} className="flex min-h-12 items-center gap-3 px-3 py-2.5">
+                  <span className="num w-6 shrink-0 text-center text-[13px] font-extrabold text-gold-600 dark:text-gold-400">{scorer.goals}</span>
+                  {canOpenProfile ? (
+                    <Link href={`/players/${encodeURIComponent(playerId)}`} className="min-w-0 flex-1 truncate text-[12.5px] font-bold hover:text-gold-600 dark:hover:text-gold-400">{name}</Link>
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name || "اسم اللاعب غير متاح"}</span>
+                  )}
+                  <span className="hidden shrink-0 text-[11px] text-muted sm:block">{scorer.teamName ?? ""}</span>
+                  {scorerData ? <span className="num text-[11px] text-muted">{scorer.appearances ?? "—"} مباراة</span> : null}
+                </div>
+              );
+            })}
+            {scorerData ? <div className="px-3 py-2"><DataSourceNote provider={scorerData.source.provider} fromCache={scorerData.source.fromCache} stale={scorerData.source.stale} fetchedAt={scorerData.source.fetchedAt} ttlSeconds={scorerData.source.ttlSeconds} /></div> : null}
+          </div>
+        ) : <DataUnavailable title="قائمة الهدافين غير متاحة" message="لا تتوفر إحصاءات موثوقة للهدافين في آخر تحديث." actionHref="/standings" actionLabel="الترتيب والإحصاءات" />}
+      </section>
     </div>
   );
 }

@@ -3,8 +3,17 @@ import Logo from "@/components/brand/Logo";
 import PoweredBy from "@/components/ui/PoweredBy";
 import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
 import AttributionFooter from "@/components/ui/AttributionFooter";
-import { sports } from "@/lib/core-data";
-import { competitions } from "@/lib/core-data";
+import { PUBLIC_SPORTS, sports, competitions } from "@/lib/core-data";
+import { canonicalCompetitions } from "@/lib/competition-catalog";
+import { demoContentVisible } from "@/lib/site";
+
+const preview = demoContentVisible();
+const sportScoreAttributionEnabled = !preview && process.env.NEMO_SDL_MODE !== "demo" && process.env.NEMO_SPORTSCORE_ENABLED !== "0";
+const footballDataAttributionEnabled = !preview && process.env.NEMO_SDL_MODE !== "demo" && Boolean(process.env.FOOTBALL_DATA_API_KEY);
+const footerSports = preview ? sports : PUBLIC_SPORTS;
+const footerCompetitions = preview
+  ? competitions.slice(0, 8).map((competition) => ({ slug: competition.slug, name: competition.name }))
+  : canonicalCompetitions.map((competition) => ({ slug: competition.canonicalSlug, name: competition.nameAr }));
 
 const groups = [
   {
@@ -12,7 +21,7 @@ const groups = [
     links: [
       { href: "/today", label: "مباريات اليوم" },
       { href: "/matches", label: "المباريات" },
-      { href: "/live", label: "النتائج المباشرة" },
+      { href: "/live", label: "المباشر" },
       { href: "/results", label: "النتائج" },
       { href: "/competitions", label: "البطولات" },
       { href: "/teams", label: "الفرق" },
@@ -51,36 +60,24 @@ export default function Footer() {
         <div>
           <Logo size={40} tone="light" />
           <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-white/60">
-            منصة رياضية شاملة تغطي 8 رياضات: نتائج مباشرة، أخبار موثوقة، إحصائيات تفصيلية،
-            وروابط بث رسمية مرخّصة فقط. لا نعيد بث أي محتوى، ولا ننقل ما لا نملك حقّه.
+            نعرض مواعيد ونتائج المباريات من مصادر البيانات المتاحة، ونوضح حالة التحديث عند توفرها. روابط البث الرسمية الموثّقة فقط، من دون إعادة بث أي محتوى.
           </p>
-          <p className="mt-4 text-[11px] leading-relaxed text-white/40">
-            البيانات الرياضية في هذه النسخة التجريبية بيانات توضيحية مُولّدة محليًا.
-            في بيئة الإنتاج تُجلب من مزوّدين مرخّصين (المصدر الأساسي ثم البديل ثم الإدخال
-            اليدوي) مع عرض اسم المصدر وتوقيت آخر تحديث.
-          </p>
-          <div className="mt-5 flex gap-2">
-            {["فيسبوك", "إكس", "يوتيوب", "إنستغرام"].map((s) => (
-              <span
-                key={s}
-                className="grid h-9 w-9 place-items-center rounded-[3px] border border-white/15 text-[10px] font-bold text-white/60"
-                title={s}
-              >
-                {s.slice(0, 1)}
-              </span>
-            ))}
-          </div>
+          {preview ? (
+            <p className="mt-4 text-[11px] leading-relaxed text-white/45">
+              قد تعرض بيئة المعاينة بيانات توضيحية للتطوير، وتُوسم بوضوح؛ لا تمثل نتائج أو إحصاءات فعلية.
+            </p>
+          ) : null}
         </div>
 
         {groups.map((g) => (
           <nav key={g.title} aria-label={g.title}>
-            <h3 className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.18em] text-gold-500">
+            <p className="mb-3 text-[12px] font-extrabold uppercase tracking-[0.18em] text-gold-500">
               {g.title}
-            </h3>
+            </p>
             <ul className="space-y-2">
               {g.links.map((l) => (
                 <li key={l.href + l.label}>
-                  <Link href={l.href} className="text-[13px] text-white/65 transition hover:text-gold-400">
+                  <Link href={l.href} className="inline-flex min-h-11 items-center text-[13px] text-white/65 transition hover:text-gold-400 focus-ring">
                     {l.label}
                   </Link>
                 </li>
@@ -93,20 +90,20 @@ export default function Footer() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-4 px-4 py-4 text-[11px] text-white/45">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-white/60">الرياضات:</span>
-            {sports.map((s) => (
-              <Link key={s.slug} href={`/matches?sport=${s.slug}`} className="transition hover:text-gold-400">
-                {s.name}
+            <span className="font-bold text-white/60">الرياضات المتاحة:</span>
+            {footerSports.map((sport) => (
+              <Link key={sport.slug} href={`/matches?sport=${sport.slug}`} className="inline-flex min-h-11 items-center transition hover:text-gold-400 focus-ring">
+                {sport.name}
               </Link>
             ))}
           </span>
         </div>
         <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-4 px-4 pb-6 text-[11px] text-white/45">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-white/60">بطولات:</span>
-            {competitions.slice(0, 8).map((c) => (
-              <Link key={c.slug} href={`/competitions/${c.slug}`} className="transition hover:text-gold-400">
-                {c.name}
+            <span className="font-bold text-white/60">البطولات:</span>
+            {footerCompetitions.map((competition) => (
+              <Link key={competition.slug} href={`/competitions/${competition.slug}`} className="inline-flex min-h-11 items-center transition hover:text-gold-400 focus-ring">
+                {competition.name}
               </Link>
             ))}
           </span>
@@ -114,17 +111,16 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-white/10 bg-navy-950">
-        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/40">
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] text-white/65">
           <span>© {new Date().getFullYear()} نيمو سبورتس · NEMO Sports. جميع الحقوق محفوظة.</span>
           <span>
-            شعارات الفرق المعروضة رسوم توضيحية من تصميمنا، ولا نُضمّن أي شعارات أو بثّات مملوكة للغير.
+            تُعرض شعارات الجهات الرياضية عند توفرها من مصدر البيانات، وتبقى مملوكة لأصحابها؛ لا نستضيف بثًا غير مرخّص.
           </span>
-          {/* Data-source attributions (licence requirements: visible dofollow links) */}
           <span className="flex flex-wrap items-center gap-2">
-            <PoweredByFootballData />
-            <PoweredBy />
+            {footballDataAttributionEnabled ? <PoweredByFootballData /> : null}
+            {sportScoreAttributionEnabled ? <PoweredBy /> : null}
           </span>
-          <AttributionFooter className="w-full border-t border-white/10 pt-3" />
+          <AttributionFooter exclude={["SportScore", "Football-Data.org"]} className="w-full border-t border-white/10 pt-3" />
         </div>
       </div>
     </footer>

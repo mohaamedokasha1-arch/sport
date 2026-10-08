@@ -169,6 +169,9 @@ test("getTopScorers: real scorers → normalized (goals, appearances)", async ()
   if (!res.ok) return;
   assert.equal(res.data.length, 4);
   assert.equal(res.data[0].playerProviderId, "ermedin-demirovic");
+  assert.equal(res.data[0].playerName, "Ermedin Demirović");
+  assert.equal(res.data[0].teamName, "VfB Stuttgart");
+  assert.equal(res.data[0].profileAvailable, true);
   assert.equal(res.data[0].goals, 3);
   assert.equal(res.data[0].appearances, 1);
 });
@@ -178,6 +181,7 @@ test("getPlayerStats: real player stats → normalized; rating scale NOT invente
   const res = await adapter(t.impl).getPlayerStats({ providerPlayerId: "erling-haaland", sport: "football" });
   assert.equal(res.ok, true);
   if (!res.ok) return;
+  assert.equal(res.data.playerName, "Erling Haaland");
   assert.equal(res.data.appearances, 4);
   assert.equal(res.data.goals, 4);
   assert.equal(res.data.minutes, 360);

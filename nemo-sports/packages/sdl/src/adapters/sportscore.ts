@@ -469,12 +469,16 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
       const playerName = str(s.player);
       const goals = toInt(s.goals);
       if (!playerName || goals === null) continue;
+      const playerSlug = str(s.player_slug);
       scorers.push({
-        playerProviderId: str(s.player_slug) ?? playerName,
+        playerProviderId: playerSlug ?? playerName,
+        playerName,
         teamProviderId: str(s.team_slug) ?? str(s.team),
+        teamName: str(s.team),
         goals,
         appearances: toInt(s.matches),
         penalties: null,
+        profileAvailable: Boolean(playerSlug),
       });
     }
     return { ok: true, data: scorers, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
@@ -495,6 +499,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
       ok: true,
       data: {
         providerId: str(res.data.player?.slug) ?? input.providerPlayerId,
+        playerName: str(res.data.player?.name) ?? null,
         seasonName: null,
         appearances: toInt(s.matches),
         goals: toInt(s.goals),

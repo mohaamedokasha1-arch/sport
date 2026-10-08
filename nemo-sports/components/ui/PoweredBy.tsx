@@ -12,7 +12,7 @@ export default function PoweredBy({ className = "" }: { className?: string }) {
   return (
     <a
       href="https://sportscore.com/"
-      rel="dofollow"
+      rel="dofollow noopener noreferrer"
       title="Sports data by SportScore"
       target="_blank"
       className={`inline-flex items-center gap-1.5 rounded-[3px] border border-navy-800 bg-navy-900 px-2.5 py-1 text-[10.5px] font-bold text-white/85 transition hover:border-gold-500/60 hover:text-gold-400 dark:border-navy-800 dark:bg-navy-900 ${className}`}

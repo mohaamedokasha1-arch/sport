@@ -15,10 +15,11 @@ import type { NextConfig } from "next";
  * CSP NOTES — read before tightening:
  *   · `script-src`/`style-src` carry 'unsafe-inline' on purpose. Next.js emits
  *     inline bootstrap scripts for hydration and app/layout.tsx inlines a
- *     theme-init script plus JSON-LD blocks. Removing 'unsafe-inline' requires
- *     nonces wired through Next's head — real work, tracked separately. Even
- *     so this policy already blocks framing, plugin embeds, base-URI hijacking
- *     and cross-origin form posts, none of which it could do before.
+ *     theme-init script plus JSON-LD blocks. Development adds 'unsafe-eval'
+ *     for Next's dev runtime only; production never does. Removing
+ *     'unsafe-inline' requires nonces wired through Next's head — real work,
+ *     tracked separately. Even so this policy blocks framing, plugin embeds,
+ *     base-URI hijacking and cross-origin form posts.
  *   · `img-src https: data:` — league crests come from provider CDNs
  *     (e.g. crests.football-data.org) and are rendered as plain <img>; the
  *     domain set is not known ahead of time.
@@ -28,7 +29,9 @@ import type { NextConfig } from "next";
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  process.env.NODE_ENV === "development"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https: data:",
   "font-src 'self' data:",

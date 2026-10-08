@@ -21,7 +21,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FootballDataAdapter, footballDataCode } from "../src/adapters/football-data";
-import { createSdl, PriorityConfig, SportsDataLayer } from "../src/index";
+import { configureSdl, createSdl, getSdl, PriorityConfig, SportsDataLayer } from "../src/index";
 
 // compiled tests run from dist-test/test/ — fixtures live in test/fixtures/
 const here = join(__dirname, "../../test");
@@ -205,6 +205,23 @@ test("composition root: the key registers the provider, raises its budget and le
 
   const paid = createSdl({ FOOTBALL_DATA_API_KEY: "env-token", FOOTBALL_DATA_REQUESTS_PER_MINUTE: "55", NEMO_SPORTSCORE_ENABLED: "0" });
   assert.equal(paid.sdl.rateLimiter.config("football_data")?.perMinute, 55, "a paid plan raises the budget through one env var");
+});
+
+test("runtime composition root honors NEMO_SPORTSCORE_ENABLED=0", () => {
+  const previousSportScore = process.env.NEMO_SPORTSCORE_ENABLED;
+  const previousMode = process.env.NEMO_SDL_MODE;
+  process.env.NEMO_SPORTSCORE_ENABLED = "0";
+  process.env.NEMO_SDL_MODE = "auto";
+  configureSdl({});
+  try {
+    assert.equal(getSdl().sdl.provider("sportscore"), undefined);
+  } finally {
+    if (previousSportScore === undefined) delete process.env.NEMO_SPORTSCORE_ENABLED;
+    else process.env.NEMO_SPORTSCORE_ENABLED = previousSportScore;
+    if (previousMode === undefined) delete process.env.NEMO_SDL_MODE;
+    else process.env.NEMO_SDL_MODE = previousMode;
+    configureSdl({});
+  }
 });
 
 test("through the SDL: repeated requests are served from cache — one upstream call, not two", async () => {

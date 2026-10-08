@@ -5,14 +5,15 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { footballDataCompetitions, footballStandings, footballTopScorers, type FootballDataResult } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
-import type { NormalizedStandingRow, NormalizedTopScorer } from "@/packages/sdl/src";
+import { supportsPlayerStats } from "@/lib/sdl-gateway";
+import type { NormalizedStandingRow, NormalizedTopScorer, ProviderName } from "@/packages/sdl/src";
 import { standings as demoStandings, topScorers as demoTopScorers } from "@/lib/data";
 import { competitionBySlug, playerBySlug, teamBySlug } from "@/lib/core-data";
 import StandingsTable from "@/components/competition/StandingsTable";
 
 export const metadata: Metadata = {
   title: "الترتيب والإحصائيات — جداول الدوري والهدافون",
-  description: "جداول ترتيب الدوريات الكبرى وقوائم الهدافين من Football-Data.org عبر طبقة البيانات مع كاش خلفي — بأسماء الفرق واللاعبين الحقيقية.",
+  description: "جداول ترتيب الدوريات والهدافون عند توفرها من مزودي البيانات، مع توضيح المصدر وحداثة البيانات.",
   alternates: { canonical: "/standings" },
 };
 
@@ -33,6 +34,7 @@ type CompetitionResult = {
   tableError: { message: string; detail: string } | null;
   source: Extract<FootballDataResult<NormalizedStandingRow[]>, { ok: true }>["source"] | null;
   scorers: NormalizedTopScorer[] | null;
+  scorersProvider: ProviderName | null;
   scorersError: string | null;
 };
 
@@ -49,14 +51,16 @@ export default async function StandingsPage() {
   const results: CompetitionResult[] = [];
   for (const c of MAJORS) {
     const table = await footballStandings(c.slug ?? c.code);
+    const providerTable = table.ok && table.source.provider !== "demo" ? table : null;
     results.push({
       code: c.code,
       slug: c.slug,
       nameAr: c.nameAr,
-      table: table.ok ? table.data : null,
+      table: providerTable?.data ?? null,
       tableError: table.ok ? null : { message: table.error.message, detail: table.error.detail },
-      source: table.ok ? table.source : null,
+      source: providerTable?.source ?? null,
       scorers: null,
+      scorersProvider: null,
       scorersError: null,
     });
   }
@@ -64,7 +68,9 @@ export default async function StandingsPage() {
   for (const r of results) {
     if (!r.table || r.table.length === 0) continue; // never spend a scorer call on a league whose table failed
     const scorers = await footballTopScorers(r.slug ?? r.code);
-    r.scorers = scorers.ok ? scorers.data : null;
+    const providerScorers = scorers.ok && scorers.source.provider !== "demo" ? scorers : null;
+    r.scorers = providerScorers?.data ?? null;
+    r.scorersProvider = providerScorers?.source.provider ?? null;
     r.scorersError = scorers.ok ? null : scorers.error.detail;
   }
 
@@ -77,7 +83,7 @@ export default async function StandingsPage() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">Standings &amp; Stats</p>
+            <p className="eyebrow mb-1">جداول الترتيب والإحصاءات</p>
             <h1 className="text-2xl font-extrabold tracking-tight">الترتيب والإحصائيات</h1>
           </div>
           <p className="text-[12px] text-muted">
@@ -103,11 +109,8 @@ export default async function StandingsPage() {
                 <ProviderTable rows={r.table} />
               ) : (
                 <div className="card px-4 py-4 text-[12px] text-muted">
-                  <p className="font-bold text-ink dark:text-white/80">Data temporarily unavailable</p>
-                  <p className="mt-1">
-                    جدول {r.nameAr} غير متاح من المصدر الآن{r.tableError?.detail ? ` (${r.tableError.detail})` : ""} — لن نعرض
-                    جدولًا تجريبيًا بديلًا.
-                  </p>
+                  <p className="font-bold text-ink dark:text-white/80">البيانات غير متاحة مؤقتًا</p>
+                  <p className="mt-1">جدول {r.nameAr} غير متاح من المصدر الآن — لن نعرض جدولًا تجريبيًا بديلًا.</p>
                 </div>
               )}
 
@@ -118,20 +121,21 @@ export default async function StandingsPage() {
                   </header>
                   <ol className="divide-y divide-line">
                     {r.scorers.slice(0, 8).map((s) => {
-                      // Link only when the local catalogue actually has the player:
-                      // provider ids that resolve nowhere must not produce dead links.
-                      const local = playerBySlug(s.playerProviderId);
-                      const name = s.playerName ?? s.playerProviderId.replaceAll("-", " ");
+                      const playerId = s.playerProviderId.trim();
+                      const name = s.playerName?.trim() ?? "";
+                      const canOpenProfile = Boolean(
+                        playerId && name && s.profileAvailable === true && r.scorersProvider && supportsPlayerStats(r.scorersProvider),
+                      );
                       const team = s.teamName ?? (s.teamProviderId ? s.teamProviderId.replaceAll("-", " ") : "");
                       return (
-                        <li key={s.playerProviderId} className="flex items-center gap-3 px-3 py-2.5">
+                        <li key={playerId || `${r.code}-${s.goals}`} className="flex items-center gap-3 px-3 py-2.5">
                           <span className="num w-5 shrink-0 text-[12px] font-extrabold text-gold-600 dark:text-gold-400">{s.goals}</span>
-                          {local ? (
-                            <Link href={`/players/${s.playerProviderId}`} className="min-w-0 flex-1 truncate text-[12.5px] font-bold hover:text-gold-600 dark:hover:text-gold-400">
+                          {canOpenProfile ? (
+                            <Link href={`/players/${encodeURIComponent(playerId)}`} className="min-w-0 flex-1 truncate text-[12.5px] font-bold hover:text-gold-600 dark:hover:text-gold-400">
                               {name}
                             </Link>
                           ) : (
-                            <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name}</span>
+                            <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name || "اسم اللاعب غير متاح"}</span>
                           )}
                           <span className="shrink-0 text-[11px] text-muted">
                             {team} · {s.appearances ?? "—"} مباراة{s.assists !== null && s.assists !== undefined ? ` · ${s.assists} صناعة` : ""}
@@ -143,9 +147,8 @@ export default async function StandingsPage() {
                 </div>
               ) : r.table && r.table.length > 0 ? (
                 <div className="mt-4 card px-4 py-3 text-[11.5px] text-muted">
-                  <span className="font-bold text-ink dark:text-white/80">Data temporarily unavailable</span> — قائمة الهدافين
-                  لهذه البطولة غير متاحة من المصدر الآن{r.scorersError ? ` (${r.scorersError})` : ""}؛ ستُعاد المحاولة
-                  تلقائيًا في التحديث القادم دون أي أسماء مُخترعة.
+                  <span className="font-bold text-ink dark:text-white/80">البيانات غير متاحة مؤقتًا</span> — قائمة الهدافين
+                  لهذه البطولة غير متاحة من المصدر الآن؛ ستُعاد المحاولة تلقائيًا في التحديث القادم دون أي أسماء مُخترعة.
                 </div>
               ) : null}
             </section>
@@ -166,13 +169,15 @@ export default async function StandingsPage() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">Standings &amp; Stats</p>
+            <p className="eyebrow mb-1">جداول الترتيب والإحصاءات</p>
             <h1 className="text-2xl font-extrabold tracking-tight">الترتيب والإحصائيات</h1>
           </div>
           <Link href="/competitions" className="text-[12px] font-bold text-navy-850 hover:text-gold-600 dark:text-gold-400">
             كل البطولات ←
           </Link>
         </header>
+
+        <p className="mb-6 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[12px] font-semibold leading-5 text-muted">بيانات توضيحية للتطوير فقط — لا تمثل جداول أو إحصاءات حقيقية.</p>
 
         <div className="space-y-10">
           {Object.entries(demoStandings).map(([comp, rows]) => {
@@ -222,7 +227,7 @@ export default async function StandingsPage() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">Standings &amp; Stats</p>
+          <p className="eyebrow mb-1">جداول الترتيب والإحصاءات</p>
           <h1 className="text-2xl font-extrabold tracking-tight">الترتيب والإحصائيات</h1>
         </div>
       </header>

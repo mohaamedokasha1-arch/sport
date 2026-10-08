@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { competitions, sports } from "@/lib/core-data";
+
 
 const DATES = [
   { id: "yesterday", label: "أمس" },
@@ -20,6 +20,8 @@ const STATUS = [
 
 export default function MatchesFilters({
   counts,
+  sportsOptions,
+  competitionOptions,
   initialSport,
   initialComp,
   initialDate,
@@ -28,6 +30,8 @@ export default function MatchesFilters({
   initialQuery,
 }: {
   counts: Record<string, number>;
+  sportsOptions: { slug: string; name: string; icon: string }[];
+  competitionOptions: { id: string; name: string; sport: string }[];
   initialSport: string;
   initialComp: string;
   initialDate: string;
@@ -45,7 +49,7 @@ export default function MatchesFilters({
   const status = params.get("status") ?? initialStatus;
   const view = (params.get("view") as "grid" | "list") ?? initialView;
 
-  const visibleComps = competitions.filter((c) => !sport || c.sport === sport);
+  const visibleComps = competitionOptions.filter((c) => !sport || c.sport === sport);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -70,11 +74,14 @@ export default function MatchesFilters({
     router.replace(`/matches?${next.toString()}`, { scroll: false });
   };
 
-  const clear = () => router.replace("/matches", { scroll: false });
+  const clear = () => {
+    setTeam("");
+    router.replace("/matches", { scroll: false });
+  };
   const hasFilters = sport || comp || date !== "today" || status !== "all" || team;
 
   const chip = (active: boolean) =>
-    `rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
+    `inline-flex min-h-11 items-center rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
       active
         ? "bg-navy-850 text-white"
         : "border border-line bg-surface text-muted hover:border-gold-500 hover:text-ink"
@@ -87,7 +94,7 @@ export default function MatchesFilters({
         <button type="button" onClick={() => set("sport", null)} className={chip(!sport)}>
           كل الرياضات
         </button>
-        {sports.map((s) => (
+        {sportsOptions.map((s) => (
           <button key={s.slug} type="button" onClick={() => set("sport", s.slug)} className={chip(sport === s.slug)}>
             <span aria-hidden className="ms-1">{s.icon}</span> {s.name}
           </button>
@@ -99,7 +106,7 @@ export default function MatchesFilters({
         {DATES.map((d) => (
           <button key={d.id} type="button" onClick={() => set("date", d.id)} className={chip(date === d.id)}>
             {d.label}
-            <span className="num ms-1.5 text-[10px] opacity-70">{counts[`date:${d.id}`] ?? 0}</span>
+            <span className="num ms-1.5 text-[10px]">{counts[`date:${d.id}`] ?? 0}</span>
           </button>
         ))}
       </div>
@@ -109,7 +116,7 @@ export default function MatchesFilters({
         {STATUS.map((s) => (
           <button key={s.id} type="button" onClick={() => set("status", s.id)} className={chip(status === s.id)}>
             {s.label}
-            <span className="num ms-1.5 text-[10px] opacity-70">{counts[`status:${s.id}`] ?? 0}</span>
+            <span className="num ms-1.5 text-[10px]">{counts[`status:${s.id}`] ?? 0}</span>
           </button>
         ))}
       </div>
@@ -120,11 +127,11 @@ export default function MatchesFilters({
           <select
             value={comp}
             onChange={(e) => set("competition", e.target.value)}
-            className="rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold outline-none focus:border-gold-500"
+            className="focus-ring min-h-11 w-56 max-w-[calc(100vw-6rem)] rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold outline-none focus:border-gold-500"
           >
             <option value="">كل البطولات</option>
             {visibleComps.map((c) => (
-              <option key={c.slug} value={c.slug}>
+              <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
@@ -137,7 +144,7 @@ export default function MatchesFilters({
             value={team}
             onChange={(e) => setTeam(e.target.value)}
             placeholder="اكتب اسم الفريق…"
-            className="w-full rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-gold-500"
+            className="focus-ring min-h-11 w-full rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-gold-500"
           />
         </label>
 
@@ -149,7 +156,7 @@ export default function MatchesFilters({
                 type="button"
                 onClick={() => set("view", v)}
                 aria-label={v === "grid" ? "عرض شبكي" : "عرض قائمة"}
-                className={`px-2.5 py-1.5 text-[11px] font-bold transition ${
+                className={`focus-ring min-h-11 px-2.5 py-1.5 text-[11px] font-bold transition ${
                   view === v ? "bg-navy-850 text-white" : "bg-surface text-muted hover:text-ink"
                 }`}
               >
@@ -161,7 +168,7 @@ export default function MatchesFilters({
             <button
               type="button"
               onClick={clear}
-              className="rounded-[3px] border border-live/40 px-3 py-1.5 text-[12px] font-bold text-live transition hover:bg-live hover:text-white focus-ring"
+              className="min-h-11 rounded-[3px] border border-live/40 px-3 py-1.5 text-[12px] font-bold text-live transition hover:bg-live hover:text-white focus-ring"
             >
               مسح الفلاتر
             </button>

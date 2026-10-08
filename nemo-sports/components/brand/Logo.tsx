@@ -18,7 +18,7 @@ type MarkProps = SVGProps<SVGSVGElement> & {
 };
 
 export function NemoMark({ size = 32, tone = "brand", ...rest }: MarkProps) {
-  const bar = tone === "mono" ? "currentColor" : "#0F1B2E";
+  const bar = tone === "mono" || tone === "brand" ? "currentColor" : "#0F1B2E";
   const barDark = tone === "light" ? "#0F1B2E" : bar;
   const strike = tone === "brand" ? "#D4AF37" : "currentColor";
 
@@ -53,12 +53,13 @@ export default function Logo({
   tagline = false,
   className = "",
 }: LogoProps) {
-  const wordColor = tone === "brand" ? "text-navy-850" : "text-white";
+  const wordColor = tone === "brand" ? "text-navy-850 dark:text-white" : "text-white";
+  const markColor = tone === "brand" ? "text-navy-850 dark:text-white" : undefined;
   const subColor = tone === "brand" ? "text-muted" : "text-white/55";
 
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`} dir="ltr">
-      <NemoMark size={size} tone={tone} />
+      <NemoMark size={size} tone={tone} className={markColor} />
       <span className="flex flex-col leading-none">
         <span
           className={`font-display text-[1.35rem] font-bold tracking-[0.14em] uppercase ${wordColor}`}
@@ -68,7 +69,7 @@ export default function Logo({
         </span>
         <span
           className={`mt-0.5 font-display text-[0.62rem] font-semibold tracking-[0.34em] uppercase ${
-            tone === "brand" ? "text-gold-600" : "text-gold-500"
+            tone === "brand" ? "text-gold-700 dark:text-gold-600" : "text-gold-500"
           }`}
         >
           Sports

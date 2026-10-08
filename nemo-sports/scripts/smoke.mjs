@@ -175,8 +175,8 @@ async function main() {
      - real:      SDL provider data rendered (marker from the real-variant home)
      - demo:      demo dataset (development/preview only)
      - prod-empty: production without provider data → honest empty states    */
-  const realMode = homeHtml.includes("جميع المباريات والنتائج أعلاه حقيقية");
-  const emptyMode = homeHtml.includes("لوحة المباريات فارغة حاليًا");
+  const realMode = homeHtml.includes("نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط");
+  const emptyMode = homeHtml.includes("بيانات المباريات غير متاحة مؤقتًا");
   const demoOn = !realMode && !emptyMode;
   const modeName = realMode ? "REAL provider data" : demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)";
   console.log(`  · content mode → ${modeName}`);
@@ -205,24 +205,25 @@ async function main() {
   }
 
   const rail = await (await fetch(`${BASE}/api/live?scope=rail`)).json();
-  const railOk = Array.isArray(rail.matches) && rail.matches.every((m) => m.compCode && m.state);
-  console.log(`  ${railOk ? "✓" : "✗"} /api/live?scope=rail → ${rail.matches.length} items`);
+  const railModes = ["live", "upcoming", "empty", "unavailable", "preview"];
+  const railOk = Array.isArray(rail.matches) && railModes.includes(rail.mode) && rail.matches.every((m) => m.id && m.homeName && m.awayName && m.kickoff && typeof m.status === "string");
+  console.log(`  ${railOk ? "✓" : "✗"} /api/live?scope=rail → ${rail.matches.length} items (${rail.mode ?? "invalid"})`);
   if (!railOk) failures++;
 
   const search = await (await fetch(`${BASE}/api/search?q=${encodeURIComponent("الأهلي")}`)).json();
   if (demoOn) {
-    const searchOk = Array.isArray(search) && search.length > 0 && search[0].url.startsWith("/");
-    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits`);
+    const searchOk = search.preview === true && Array.isArray(search.results) && search.results.length > 0 && search.results[0].url.startsWith("/");
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.results?.length ?? 0} hits (preview=true)`);
     if (!searchOk) failures++;
   } else {
-    const searchOk = Array.isArray(search);
-    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.length} hits (production: demo news hidden)`);
+    const searchOk = search.preview === false && Array.isArray(search.results);
+    console.log(`  ${searchOk ? "✓" : "✗"} /api/search (arabic) → ${search.results?.length ?? 0} hits (preview=false; demo news hidden)`);
     if (!searchOk) failures++;
   }
 
   const empty = await (await fetch(`${BASE}/api/search?q=x`)).json();
-  const emptyOk = Array.isArray(empty) && empty.length === 0;
-  console.log(`  ${emptyOk ? "✓" : "✗"} /api/search short query → empty array`);
+  const emptyOk = Array.isArray(empty.results) && empty.results.length === 0 && empty.total === 0;
+  console.log(`  ${emptyOk ? "✓" : "✗"} /api/search short query → empty results`);
   if (!emptyOk) failures++;
 
   // ── Sports Data Layer API (versioned from day one, §19.1) ─────────────
@@ -240,7 +241,7 @@ async function main() {
   const v1liveShape =
     Array.isArray(v1live.data) &&
     (v1live.ok === true
-      ? ["provider", "demo"].includes(v1live.meta?.source) &&
+      ? (demoOn ? ["provider", "demo"] : ["provider"]).includes(v1live.meta?.source) &&
         typeof v1live.meta?.provider === "string" &&
         v1live.data.every((f) => typeof f.providerId === "string" && typeof f.scheduledAt === "string")
       : v1live.ok === false
@@ -257,11 +258,22 @@ async function main() {
   console.log(`  ${leaked ? "✗" : "✓"} /api/v1/live → no credential material in payload`);
   if (leaked) failures++;
 
+  const v1fixtures = await (await fetch(`${BASE}/api/v1/matches?sport=football`)).json();
+  const fixturesShape = Array.isArray(v1fixtures.data) && (
+    v1fixtures.ok === true
+      ? (demoOn ? ["provider", "demo"] : ["provider"]).includes(v1fixtures.meta?.source) &&
+        v1fixtures.data.every((f) => typeof f.providerId === "string" && typeof f.scheduledAt === "string")
+      : v1fixtures.ok === false && typeof v1fixtures.error?.code === "string" && v1fixtures.data.length === 0
+  );
+  const fixturesOk = fixturesShape && (!demoOn || v1fixtures.data.length > 0);
+  console.log(`  ${fixturesOk ? "✓" : "✗"} /api/v1/matches → ${v1fixtures.data?.length ?? 0} fixtures (source=${v1fixtures.meta?.source ?? "none"})`);
+  if (!fixturesOk) failures++;
+
   const v1events = await (await fetch(`${BASE}/api/v1/matches?events=demo-1002`)).json();
   const eventsOk = demoOn
-    ? v1events.ok === true && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string")
-    : v1events.ok === true || v1events.ok === false; // typed response either way
-  console.log(`  ${eventsOk ? "✓" : "✗"} /api/v1/matches?events= → ${v1events.data?.length ?? 0} canonical events`);
+    ? v1events.ok === true && v1events.meta?.source === "demo" && Array.isArray(v1events.data) && v1events.data.length > 0 && v1events.data.every((e) => typeof e.type === "string")
+    : v1events.ok === false || (v1events.ok === true && v1events.meta?.source === "provider");
+  console.log(`  ${eventsOk ? "✓" : "✗"} /api/v1/matches?events= → ${v1events.data?.length ?? 0} canonical events (source=${v1events.meta?.source ?? "none"})`);
   if (!eventsOk) failures++;
 
   /* ── Football-Data.org integration (server-side provider, honest failures) ──
@@ -315,10 +327,13 @@ async function main() {
     failures++;
     console.log(`  ✗ /api/v1/system → ${systemRes.status} with ADMIN_ACCESS_TOKEN (expected 200)`);
   }
+  const systemProvidersOk =
+    Array.isArray(system.providers) &&
+    (system.providers.length > 0 ||
+      (system.mode === "demo" && Array.isArray(system.missingProviders) && system.missingProviders.length > 0));
   const systemOk =
     !systemReachable ||
-    (Array.isArray(system.providers) &&
-      system.providers.length > 0 &&
+    (systemProvidersOk &&
       Array.isArray(system.cache) &&
       system.cache.length === 2 &&
       typeof system.conflicts.open === "number");
@@ -346,8 +361,10 @@ async function main() {
 
   const home = await (await fetch(`${BASE}/`)).text();
   const homeTokens = realMode
-    ? ["مباشر الآن", "مباريات اليوم", "جميع المباريات والنتائج أعلاه حقيقية", 'dir="rtl"', "NEMO"]
-    : ["مباشر الآن", "مباريات اليوم", "أخبار اليوم", "البطولات الرئيسية", 'dir="rtl"', "NEMO"];
+    ? ["مباشر الآن", "مباريات اليوم", "نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط", 'dir="rtl"', "NEMO"]
+    : demoOn
+      ? ["مباشر الآن", "المباريات القادمة", "بيانات توضيحية للتطوير فقط", "البطولات", 'dir="rtl"', "NEMO"]
+      : ["نتائج ومواعيد المباريات", "بيانات المباريات غير متاحة مؤقتًا", 'dir="rtl"', "NEMO"];
   for (const token of homeTokens) {
     const has = home.includes(token);
     console.log(`  ${has ? "✓" : "✗"} home contains "${token}"`);
@@ -402,10 +419,13 @@ async function main() {
   console.log(`  ${newsCronOk ? "✓" : "✗"} /api/cron/fetch-news → ${newsCronRes.status} ${newsCron.error?.code ?? ""} (must refuse anonymous)`);
   if (!newsCronOk) failures++;
 
-  /* ── attribution: the Football-Data.org licence requires a visible dofollow
-        link at the bottom of the site (the API host itself must NOT ship) ── */
-  const attributionOk = home.includes("Powered by Football-Data.org") && home.includes("https://www.football-data.org/");
-  console.log(`  ${attributionOk ? "✓" : "✗"} footer → "Powered by Football-Data.org" visible with its link`);
+  /* Required provider badges appear only for active providers; a no-provider
+     or demo deployment must not claim it is powered by a source it never uses. */
+  const sportScoreBadge = home.includes("Powered by SportScore") && home.includes("https://sportscore.com/");
+  const footballDataBadge = home.includes("Powered by Football-Data.org") && home.includes("https://www.football-data.org/");
+  const anySportsProviderBadge = sportScoreBadge || footballDataBadge;
+  const attributionOk = realMode ? anySportsProviderBadge : !anySportsProviderBadge;
+  console.log(`  ${attributionOk ? "✓" : "✗"} footer → provider attribution ${realMode ? "present for live data" : "not claimed without a configured source"}`);
   if (!attributionOk) failures++;
 
   /* ── the frontend must never call a provider (§2.2) ── */
@@ -445,7 +465,7 @@ async function main() {
      crawlers as indexable content. */
   if (!listsDataSections) {
     const emptyButIndexable = [];
-    for (const p of ["/live", "/matches", "/standings", "/teams", "/news"]) {
+    for (const p of ["/live", "/matches", "/standings", "/teams", "/players", "/news"]) {
       const html = await (await fetch(`${BASE}${p}`)).text();
       const isNoindex = /<meta name="robots" content="noindex/.test(html);
       const empty = html.includes("Data temporarily unavailable") || html.includes("غير متوفر");
@@ -499,8 +519,8 @@ async function main() {
      Three legitimate shapes: provider rows (real data), demo rows (dev), or
      the honest "unavailable" state (production, provider down). */
   const feedOk =
-    livePage.includes("لوحة المزوّد الحيّة") &&
-    (/المصدر:/.test(livePage) || livePage.includes("البيانات المباشرة غير متوفرة حاليًا"));
+    livePage.includes("مباشر الآن") &&
+    (/المصدر:/.test(livePage) || livePage.includes("بيانات معاينة للتطوير فقط") || livePage.includes("البيانات المباشرة غير متاحة حاليًا") || livePage.includes("لا توجد مباريات مباشرة الآن"));
   console.log(`  ${feedOk ? "✓" : "✗"} /live → provider panel rendered`);
   if (!feedOk) failures++;
 

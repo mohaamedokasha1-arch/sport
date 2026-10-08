@@ -176,6 +176,7 @@ export type NormalizedPlayer = {
 
 export type NormalizedPlayerStats = {
   providerId: string;
+  playerName?: string | null;
   seasonName: string | null;
   appearances: number | null;
   goals: number | null;
@@ -236,6 +237,8 @@ export type NormalizedTopScorer = {
   teamName?: string | null;
   playerPhotoUrl?: string | null;
   assists?: number | null;
+  /** True only when this provider's player id is resolvable by player_stats. */
+  profileAvailable?: boolean;
 };
 
 export type NormalizedVenue = {

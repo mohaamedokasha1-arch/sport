@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
 import { relative } from "@/lib/format";
+import { newsEntityHref } from "@/lib/news/entity-links";
 
 /**
  * Card for automatically-ingested RSS articles.
@@ -74,20 +75,20 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
         {article.relatedEntities.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold">
             {article.relatedEntities.slice(0, 4).map((e) => {
-              const href =
-                e.type === "team"
-                  ? `/teams/${e.internalId}`
-                  : e.type === "player"
-                    ? `/players/${e.internalId}`
-                    : `/competitions/${e.internalId}`;
-              return (
+              const href = newsEntityHref(e);
+              const className = "rounded-[3px] border border-line px-1.5 py-0.5 text-muted";
+              return href ? (
                 <Link
                   key={`${e.type}:${e.internalId}`}
                   href={href}
-                  className="rounded-[3px] border border-line px-1.5 py-0.5 text-muted transition hover:border-gold-500 hover:text-gold-600"
+                  className={`${className} transition hover:border-gold-500 hover:text-gold-600`}
                 >
                   {e.displayName}
                 </Link>
+              ) : (
+                <span key={`${e.type}:${e.internalId}`} className={className}>
+                  {e.displayName}
+                </span>
               );
             })}
           </div>

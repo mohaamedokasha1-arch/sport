@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
+  useLayoutEffect(() => {
+    let initialDark = document.documentElement.classList.contains("dark");
+    try {
+      const saved = localStorage.getItem("nemo-theme");
+      initialDark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch {
+      // Keep the class set by the early theme script when storage is unavailable.
+    }
+    document.documentElement.classList.toggle("dark", initialDark);
+    setDark(initialDark);
     setReady(true);
   }, []);
 
@@ -28,7 +36,7 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
       title={dark ? "الوضع الفاتح" : "الوضع الداكن"}
-      className="grid h-9 w-9 place-items-center rounded-[3px] border border-white/15 text-white/80 transition hover:border-gold-500 hover:text-gold-400 focus-ring"
+      className="grid h-11 w-11 place-items-center rounded-[3px] border border-white/15 text-white/80 transition hover:border-gold-500 hover:text-gold-400 focus-ring"
     >
       {ready && dark ? (
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>

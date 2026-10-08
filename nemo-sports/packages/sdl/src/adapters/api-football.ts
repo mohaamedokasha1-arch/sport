@@ -267,10 +267,13 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
     const out: NormalizedStat[] = [];
     for (const block of list.data) {
       for (const s of block.statistics) {
+        // A provider null means the statistic is unavailable, not zero.
+        // Preserve a genuine numeric 0 while omitting missing values entirely.
+        if (s.value === null) continue;
         out.push({
           teamProviderId: String(block.team.id),
           type: s.type.toLowerCase().replace(/\s+/g, "_"),
-          value: s.value === null ? 0 : s.value,
+          value: s.value,
           period: "total",
         });
       }
@@ -340,15 +343,28 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
   override async getPlayerStats(input: { providerPlayerId: string; season?: string }): Promise<ProviderResult<NormalizedPlayerStats>> {
     const params: Record<string, unknown> = { id: input.providerPlayerId };
     if (input.season) params.season = input.season;
-    const res = await this.getJson<Envelope<{ statistics: { league: { season: number }; games: { appearences: number | null; minutes: number | null; position: string | null; rating: string | null }; goals: { total: number | null; penalty: number | null }; cards: { yellow: number | null; red: number | null }; goals_assists?: unknown; passes?: unknown }[] }>>("players", params);
+    const res = await this.getJson<Envelope<{
+      player?: { id?: number; name?: string };
+      statistics: {
+        league: { season: number };
+        games: { appearences: number | null; minutes: number | null; position: string | null; rating: string | null };
+        goals: { total: number | null; penalty: number | null };
+        cards: { yellow: number | null; red: number | null };
+        goals_assists?: unknown;
+        passes?: unknown;
+      }[];
+    }>>("players", params);
     const list = this.unwrap(res);
     if (!list.ok) return list;
     const st = list.data[0]?.statistics?.[0];
     if (!st) return { ok: false, provider: this.name, requestKey: list.requestKey, fromCache: false, error: { code: "not_found", message: `no stats for player ${input.providerPlayerId}` } };
+    const penalties = toInt(st.goals?.penalty);
+    const position = str(st.games?.position);
     return {
       ok: true,
       data: {
         providerId: input.providerPlayerId,
+        playerName: list.data[0]?.player?.name ?? null,
         seasonName: st.league?.season ? String(st.league.season) : null,
         appearances: toInt(st.games?.appearences),
         goals: toInt(st.goals?.total),
@@ -357,7 +373,7 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
         yellowCards: toInt(st.cards?.yellow),
         redCards: toInt(st.cards?.red),
         rating: st.games?.rating ? Number(st.games.rating) : null,
-        extra: { penalties: toInt(st.goals?.penalty) ?? 0, position: st.games?.position ?? "" },
+        extra: { ...(penalties !== null ? { penalties } : {}), ...(position ? { position } : {}) },
       },
       provider: this.name,
       fetchedAt: list.fetchedAt,
@@ -420,19 +436,26 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
 
   override async getTopScorers(input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedTopScorer[]>> {
     const params: Record<string, unknown> = { league: input.providerCompetitionId, season: input.season ?? new Date().getFullYear() };
-    const res = await this.getJson<Envelope<{ player: { id: number; photo: string }; statistics: { team: { id: number }; goals: { total: number | null; penalty: number | null }; games: { appearences: number | null } }[] }>>("players/topscorers", params);
+    const res = await this.getJson<Envelope<{ player: { id: number; name: string; photo: string }; statistics: { team: { id: number; name: string }; goals: { total: number | null; penalty: number | null }; games: { appearences: number | null } }[] }>>("players/topscorers", params);
     const list = this.unwrap(res);
     if (!list.ok) return list;
-    const out: NormalizedTopScorer[] = list.data.map((row) => {
+    const out: NormalizedTopScorer[] = [];
+    for (const row of list.data) {
       const st = row.statistics?.[0];
-      return {
+      const goals = toInt(st?.goals?.total);
+      // Null is unavailable, not a zero-goal result. Keep genuine zeroes.
+      if (row.player?.id == null || !row.player.name || goals === null) continue;
+      out.push({
         playerProviderId: String(row.player.id),
+        playerName: row.player.name,
         teamProviderId: st?.team?.id != null ? String(st.team.id) : null,
-        goals: toInt(st?.goals?.total) ?? 0,
+        teamName: st?.team?.name ?? null,
+        goals,
         appearances: toInt(st?.games?.appearences),
         penalties: toInt(st?.goals?.penalty),
-      };
-    });
+        profileAvailable: true,
+      });
+    }
     return { ok: true, data: out, provider: this.name, fetchedAt: list.fetchedAt, requestKey: list.requestKey, fromCache: false };
   }
 

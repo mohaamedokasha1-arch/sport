@@ -5,15 +5,17 @@
  * import an adapter, never build a provider URL and never see a provider
  * payload: the SDL returns canonical data or a documented failure.
  *
- * When the platform runs without provider keys the SDL falls back to the
- * offline demo adapter, and every response carries `source: "demo"` so the
- * frontend can mark the page non-indexable (Instruction 6).
+ * The offline demo adapter is allowed only when the site explicitly exposes
+ * demo content (development or a marked demo deployment). This gateway rejects
+ * demo results otherwise, including when `NEMO_SDL_MODE=demo` is accidentally
+ * enabled in a production environment.
  */
 
 import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats, type NormalizedTeam, type NormalizedCompetition } from "@/packages/sdl/src";
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
+import { demoContentVisible } from "@/lib/site";
 
 export type DataSource = "provider" | "demo";
 
@@ -104,9 +106,28 @@ export async function sdlContext() {
   return { sdl, mode, missing, infra: i };
 }
 
-function wrap<T>(result: { ok: true; value: FetchReport<T> } | { ok: false; error: SdlFailure }): GatewayResult<T> {
+/** True only when the registered provider can resolve a real player profile. */
+export function supportsPlayerStats(provider: ProviderName): boolean {
+  return getSdl().sdl.provider(provider)?.capabilities.includes("player_stats") ?? false;
+}
+
+function wrap<T>(
+  result: { ok: true; value: FetchReport<T> } | { ok: false; error: SdlFailure },
+  dataType: DataType,
+): GatewayResult<T> {
   if (!result.ok) return result;
   const v = result.value;
+  if (v.provider === "demo" && !demoContentVisible()) {
+    return {
+      ok: false,
+      error: {
+        kind: "no_provider_configured",
+        message: "Demo data is disabled for this deployment.",
+        dataType,
+        attempts: v.attempts,
+      },
+    };
+  }
   return {
     ok: true,
     data: v.data,
@@ -141,6 +162,7 @@ export async function liveMatches(sport = "football"): Promise<GatewayResult<Nor
         params: { sport },
         call: (p) => p.getLiveMatches({ sport }),
       }),
+      "live_matches",
     ),
   );
 }
@@ -158,6 +180,7 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
         params: { sport, date: input.date, competition: input.competitionProviderId },
         call: (p) => p.getFixtures({ sport, date: input.date, competitionProviderId: input.competitionProviderId }),
       }),
+      "fixtures",
     ),
   );
 }
@@ -173,6 +196,7 @@ export async function matchEvents(providerMatchId: string): Promise<GatewayResul
       params: { providerMatchId },
       call: (p) => p.getMatchEvents({ providerMatchId }),
     }),
+    "match_events",
   );
 }
 
@@ -190,6 +214,7 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
       params: { sport, providerMatchId },
       call: (p) => p.getMatchDetail({ providerMatchId, sport }),
     }),
+    "match_detail",
   );
   if (!res.ok) return res;
   const patched = await applyFixtureOverrides([res.data]);
@@ -207,6 +232,7 @@ export async function matchStats(sport: string, providerMatchId: string): Promis
       params: { sport, providerMatchId },
       call: (p) => p.getMatchStats({ providerMatchId, sport }),
     }),
+    "match_stats",
   );
 }
 
@@ -221,6 +247,7 @@ export async function matchLineups(sport: string, providerMatchId: string): Prom
       params: { sport, providerMatchId },
       call: (p) => p.getMatchLineups({ providerMatchId, sport }),
     }),
+    "match_lineups",
   );
 }
 
@@ -235,6 +262,7 @@ export async function standings(sport: string, competitionProviderId: string): P
       params: { sport, competitionProviderId },
       call: (p) => p.getStandings({ providerCompetitionId: competitionProviderId, sport }),
     }),
+    "standings",
   );
 }
 
@@ -249,6 +277,7 @@ export async function topScorers(sport: string, competitionProviderId: string): 
       params: { sport, competitionProviderId },
       call: (p) => p.getTopScorers({ providerCompetitionId: competitionProviderId, sport }),
     }),
+    "top_scorers",
   );
 }
 
@@ -263,6 +292,7 @@ export async function team(sport: string, providerTeamId: string): Promise<Gatew
       params: { sport, providerTeamId },
       call: (p) => p.getTeam({ providerTeamId }),
     }),
+    "team",
   );
 }
 
@@ -277,6 +307,7 @@ export async function competition(sport: string, providerCompetitionId: string):
       params: { sport, providerCompetitionId },
       call: (p) => p.getCompetition({ providerCompetitionId }),
     }),
+    "competition",
   );
 }
 
@@ -351,6 +382,7 @@ export async function playerStats(sport: string, providerPlayerId: string): Prom
       params: { sport, providerPlayerId },
       call: (p) => p.getPlayerStats({ providerPlayerId, sport }),
     }),
+    "player_stats",
   );
 }
 
@@ -463,6 +495,9 @@ async function probeServable(sdl: Awaited<ReturnType<typeof sdlContext>>["sdl"])
 }
 
 export async function dataServable(): Promise<boolean> {
+  // A public demo override can coexist with registered providers, but the
+  // preview entities still are not real data and must never become indexable.
+  if (demoContentVisible()) return false;
   const { mode, sdl } = await sdlContext();
   if (mode !== "live") return false;
 

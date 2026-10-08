@@ -15,6 +15,8 @@
  *  · Google News RSS — metadata + short snippet only, always link original.
  */
 
+import { demoContentVisible } from "./site";
+
 export type ProviderTier = "free" | "paid";
 export type ProviderRole = "primary" | "secondary" | "fallback";
 
@@ -138,5 +140,20 @@ export function providerBySdlName(sdlName: string): ISportDataProvider | undefin
 }
 
 export function requiredAttributions(): ISportDataProvider[] {
-  return PROVIDERS.filter((p) => p.attributionRequired);
+  const demoMode = demoContentVisible() || process.env.NEMO_SDL_MODE === "demo";
+  const enabled = new Set<string>();
+
+  if (!demoMode) {
+    if (process.env.NEMO_SPORTSCORE_ENABLED !== "0") enabled.add("sportscore");
+    if (process.env.FOOTBALL_DATA_API_KEY) enabled.add("football_data");
+    if (process.env.THESPORTSDB_KEY || process.env.THESPORTSDB_API_KEY) enabled.add("thesportsdb");
+  }
+
+  return PROVIDERS.filter((provider) => {
+    if (!provider.attributionRequired) return false;
+    // The Google News RSS feed is a built-in editorial input, independent of
+    // the sports-data-provider mode. SDL sources are listed only when enabled.
+    if (provider.name === "Google News RSS") return true;
+    return provider.sdlName !== null && enabled.has(provider.sdlName);
+  });
 }

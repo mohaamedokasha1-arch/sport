@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "إفصاح حقوق البث",
@@ -21,9 +22,10 @@ const forbidden = [
 ];
 
 export default function BroadcastRightsPage() {
+  const preview = demoContentVisible();
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <p className="eyebrow mb-2">Broadcast Disclosure</p>
+      <p className="eyebrow mb-2">سياسة البث</p>
       <h1 className="text-3xl font-extrabold tracking-tight">إفصاح حقوق البث</h1>
 
       <div className="mt-6 space-y-4 text-[15px] leading-[1.9]">
@@ -67,17 +69,21 @@ export default function BroadcastRightsPage() {
       </ol>
 
       <div className="mt-8 card p-5">
-        <h2 className="text-[15px] font-extrabold">هل أنت ناقل رسمي؟</h2>
+        <h2 className="text-[15px] font-extrabold">توثيق ناقل جديد</h2>
         <p className="mt-2 text-[13px] leading-relaxed text-muted">
-          إن كنت تملك حقوق بث في منطقتك وترغب في ظهور منصتك، أرسل ما يثبت الترخيص عبر صفحة
-          اتصل بنا. نضيف الرابط بعد التحقق، ونعرض اسمك بوضوح كجهة النقل.
+          لا تتوفر حاليًا قناة استقبال عامة لطلبات النواقل. لذلك لا يُعدّ هذا القسم دعوةً لإرسال مستندات، ولا يظهر أي رابط لمجرد تقديم طلب غير موثّق.
         </p>
       </div>
 
-      <p className="mt-6 text-[12px] leading-relaxed text-muted">
-        ملاحظة: أسماء النواقل الواردة في هذه النسخة التجريبية معروضة كمثال على بنية السجل،
-        وليست إقرارًا باتفاق قائم. في الإنتاج لا يُنشر أي ناقل قبل اكتمال التوثيق.
-      </p>
+      {preview ? (
+        <p className="mt-6 text-[12px] leading-relaxed text-muted">
+          بيانات النواقل في بيئة المعاينة قد تكون توضيحية ولا تثبت وجود ترخيص أو اتفاق قائم.
+        </p>
+      ) : (
+        <p className="mt-6 text-[12px] leading-relaxed text-muted">
+          نشر هذه السياسة لا يعني توافر ناقل أو مباراة للبث؛ تُعرض المعلومات فقط عندما تكون موثّقة ومتاحة.
+        </p>
+      )}
     </div>
   );
 }

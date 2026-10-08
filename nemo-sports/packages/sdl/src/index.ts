@@ -294,6 +294,9 @@ export function getSdl(): { sdl: SportsDataLayer; mode: "live" | "demo"; missing
         API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY,
         // Accepted spellings: THESPORTSDB_KEY (original) or THESPORTSDB_API_KEY.
         THESPORTSDB_KEY: process.env.THESPORTSDB_KEY ?? process.env.THESPORTSDB_API_KEY,
+        // Explicitly disabling the keyless provider must be honored by the
+        // composition root as well as by indexability and attribution policy.
+        NEMO_SPORTSCORE_ENABLED: process.env.NEMO_SPORTSCORE_ENABLED,
         // Server-only variable: it is read here, in the process that talks to
         // the provider, and is never inlined into any client bundle.
         FOOTBALL_DATA_API_KEY: process.env.FOOTBALL_DATA_API_KEY,

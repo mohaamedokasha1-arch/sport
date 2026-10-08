@@ -45,7 +45,7 @@ export default async function TeamsPage() {
     majors.map((c) => c.slug ?? c.code),
   );
 
-  if (real.ok && real.data.length > 0) {
+  if (real.ok && real.source === "provider" && real.data.length > 0) {
     const groups = groupByCompetition(real.data);
     const nameOf = (id: string) => majors.find((c) => (c.slug ?? c.code) === id)?.nameAr ?? id;
 
@@ -53,7 +53,7 @@ export default async function TeamsPage() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">Teams</p>
+            <p className="eyebrow mb-1">دليل الفرق</p>
             <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
           </div>
           <p className="text-[12px] text-muted">
@@ -98,7 +98,7 @@ export default async function TeamsPage() {
                         <span className="block truncate text-[11px] text-muted">{nameOf(t.competition)}</span>
                         {t.position !== null ? (
                           <span className="num mt-1 block text-[10px] text-muted">
-                            المركز {t.position} · {t.points ?? 0} نقطة
+                            المركز {t.position}{t.points !== null ? ` · ${t.points} نقطة` : ""}
                           </span>
                         ) : null}
                       </span>
@@ -124,13 +124,14 @@ export default async function TeamsPage() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">Teams</p>
+            <p className="eyebrow mb-1">دليل الفرق</p>
             <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
           </div>
           <p className="text-[12px] text-muted">
-            <span className="num font-bold">{teams.length}</span> فريق ومشارك في قاعدة البيانات
+            <span className="num font-bold">{teams.length}</span> فريقًا في بيانات المعاينة
           </p>
         </header>
+        <p className="mb-6 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">دليل الفرق هذا بيانات توضيحية للتطوير فقط — لا يعكس ترتيبًا أو قائمة فرق حقيقية.</p>
 
         <div className="space-y-9">
           {sports.map((s) =>
@@ -183,7 +184,7 @@ export default async function TeamsPage() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">Teams</p>
+          <p className="eyebrow mb-1">دليل الفرق</p>
           <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
         </div>
         <p className="num text-[12px] font-bold text-muted">0 فريق</p>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ingestAllSources } from "@/lib/news/pipeline";
+import { invalidateSearchIndex } from "@/lib/search-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
       force,
       ...(only ? { sourceIds: [only] } : {}),
     });
+    invalidateSearchIndex();
     return NextResponse.json(
       { ok: true, ...stats },
       { status: 200, headers: { "cache-control": "no-store" } },

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import Crest from "@/components/ui/Crest";
+import Tabs from "@/components/ui/Tabs";
 import StatusBadge from "@/components/ui/StatusBadge";
 import MatchStreamPlayer, { type MatchStreamInfo, type MatchStreamPhase } from "@/components/match/MatchStreamPlayer";
 import useMatchState from "@/components/live/useMatchState";
@@ -10,16 +10,6 @@ import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, dateAr, homeTeam, number, relative, timeOf } from "@/lib/format";
 import type { Match } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
-
-const TABS = [
-  { id: "summary", label: "الملخص" },
-  { id: "events", label: "الأحداث" },
-  { id: "stats", label: "الإحصائيات" },
-  { id: "lineups", label: "التشكيلات" },
-  { id: "news", label: "الأخبار" },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
 
 export default function MatchLive({
   match,
@@ -34,7 +24,6 @@ export default function MatchLive({
   stream?: MatchStreamInfo | null;
 }) {
   const state = useMatchState(match.id, initial);
-  const [tab, setTab] = useState<TabId>("summary");
   const home = homeTeam(match);
   const away = awayTeam(match);
   const comp = compOf(match);
@@ -145,35 +134,18 @@ export default function MatchLive({
           }
         />
 
-        {/* tabs */}
-        <div className="no-bar mt-5 flex gap-1 overflow-x-auto border-b border-line">
-          {TABS.map((t) => {
-            const disabled = t.id === "lineups" && match.lineups.length === 0;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                disabled={disabled}
-                onClick={() => setTab(t.id)}
-                aria-selected={tab === t.id}
-                role="tab"
-                className={`relative shrink-0 px-4 py-2.5 text-[13px] font-bold transition focus-ring ${
-                  tab === t.id ? "text-navy-850 dark:text-gold-400" : "text-muted hover:text-ink"
-                } ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
-              >
-                {t.label}
-                {tab === t.id ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-gold-500" aria-hidden /> : null}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pt-5">
-          {tab === "summary" ? <Summary match={match} state={state} /> : null}
-          {tab === "events" ? <Events match={match} state={state} /> : null}
-          {tab === "stats" ? <Stats match={match} /> : null}
-          {tab === "lineups" ? <Lineups match={match} /> : null}
-          {tab === "news" ? <News tab={relatedNews} /> : null}
+        {/* تفاصيل المباراة */}
+        <div className="mt-5">
+          <Tabs
+            label="تفاصيل المباراة"
+            items={[
+              { id: "summary", label: "الملخص", content: <Summary match={match} state={state} /> },
+              { id: "events", label: "الأحداث", content: <Events match={match} state={state} /> },
+              { id: "stats", label: "الإحصائيات", content: <Stats match={match} /> },
+              { id: "lineups", label: "التشكيلات", disabled: match.lineups.length === 0, content: <Lineups match={match} /> },
+              { id: "news", label: "الأخبار", content: <News tab={relatedNews} /> },
+            ]}
+          />
         </div>
       </div>
 
@@ -196,7 +168,7 @@ export default function MatchLive({
 
 function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boolean; isDone: boolean }) {
   const b = match.broadcast;
-  const stateLabel = isLive ? "LIVE NOW" : isDone ? "انتهى البث" : "يبدأ قريبًا";
+  const stateLabel = isLive ? "يبث الآن" : isDone ? "انتهى البث" : "يبدأ قريبًا";
 
   if (!b) {
     return (

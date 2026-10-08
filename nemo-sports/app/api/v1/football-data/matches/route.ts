@@ -50,7 +50,7 @@ export async function GET(req: Request) {
         date,
         competition: competition ?? null,
         count: matches.length,
-        live: matches.filter((m) => ["live", "halftime", "extra_time", "penalty_shootout"].includes(m.status)).length,
+        live: matches.filter((m) => ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(m.status)).length,
         finished: matches.filter((m) => m.status === "finished").length,
         scheduled: matches.filter((m) => m.status === "scheduled").length,
         provider: result.source.provider,

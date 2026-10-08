@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { LiveState } from "@/lib/live";
 
 type Ctx = {
@@ -16,17 +16,18 @@ export const useLive = () => useContext(LiveContext);
 
 export default function LiveProvider({
   initial,
+  enabled = false,
   interval = 5000,
   children,
 }: {
   initial: Record<string, LiveState>;
+  enabled?: boolean;
   interval?: number;
   children: React.ReactNode;
 }) {
   const [live, setLive] = useState<Record<string, LiveState>>(initial);
   const [lastUpdate, setLastUpdate] = useState(() => Date.now());
   const [justScored, setJustScored] = useState<string[]>([]);
-  const mounted = useRef(false);
 
   const poll = useCallback(async () => {
     try {
@@ -43,11 +44,11 @@ export default function LiveProvider({
   }, []);
 
   useEffect(() => {
-    if (mounted.current) return;
-    mounted.current = true;
+    if (!enabled) return;
+    void poll();
     const id = setInterval(poll, interval);
     return () => clearInterval(id);
-  }, [poll, interval]);
+  }, [enabled, poll, interval]);
 
   const value = useMemo(() => ({ live, lastUpdate, justScored }), [live, lastUpdate, justScored]);
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;

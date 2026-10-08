@@ -73,18 +73,23 @@ export function hasProviderKeys(): boolean {
  *
  * The demo data in `lib/data.ts` (fixtures, live scores, news, standings,
  * players) exists so the product can be developed and demonstrated without
- * provider keys. It must never reach end users in production:
+ * provider keys. It must never reach end users in production unless the
+ * explicit demo-deployment override is enabled.
  *
- *   - development / preview  → visible (design & QA work needs it)
+ *   - development / preview  → visible when no provider is configured
  *   - production, no keys    → hidden (honest "data unavailable" states)
- *   - production, with keys  → hidden (pages must show real SDL data only)
- *   - NEXT_PUBLIC_DEMO_CONTENT=1 → force it back on (demo deployments only)
+ *   - production, with keys  → hidden (pages show real SDL data only)
+ *   - NEXT_PUBLIC_DEMO_CONTENT=1 → explicit public override (demo only)
  *
+ * The public flag is checked first so server and browser bundles agree. A
+ * browser cannot read private provider credentials, and checking those before
+ * the public flag caused demo entities to disappear during hydration.
  * When hidden, the site is also non-indexable by design (Instruction 6 in
  * `lib/sdl-gateway.ts`) and `app/sitemap.ts` lists only real static pages.
  */
 export function demoContentVisible(): boolean {
+  if (process.env.NEXT_PUBLIC_DEMO_CONTENT === "1") return true;
   if (hasProviderKeys()) return false;
   if (process.env.NODE_ENV !== "production") return true;
-  return process.env.NEXT_PUBLIC_DEMO_CONTENT === "1";
+  return false;
 }
