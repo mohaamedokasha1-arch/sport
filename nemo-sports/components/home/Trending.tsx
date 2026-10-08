@@ -46,7 +46,7 @@ export default function Trending() {
                   <span className="truncate">
                     {teamBySlug(m.home)?.short} × {teamBySlug(m.away)?.short}
                   </span>
-                  <span className="num shrink-0 text-[10px] text-live">{compact(m.viewers ?? 0)}</span>
+                  <span className="num shrink-0 text-[10px] text-live dark:text-live-400">{compact(m.viewers ?? 0)}</span>
                 </Link>
               </li>
             ))}

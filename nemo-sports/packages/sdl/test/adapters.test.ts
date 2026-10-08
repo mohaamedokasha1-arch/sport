@@ -167,6 +167,67 @@ test("api-football: events, standings and status maps are canonical", async () =
   assert.equal(AF_STATUS["PST"], "postponed");
 });
 
+test("api-football: top scorers keep provider names and omit unknown goal totals", async () => {
+  const adapter = new ApiFootballAdapter({
+    apiKey: "test",
+    fetchImpl: fakeFetch([
+      {
+        match: (u) => u.pathname === "/players/topscorers",
+        body: {
+          errors: [],
+          results: 3,
+          response: [
+            { player: { id: 900, name: "M. Salah", photo: "" }, statistics: [{ team: { id: 1063, name: "Al Ahly" }, goals: { total: 5, penalty: 1 }, games: { appearences: 3 } }] },
+            { player: { id: 901, name: "Player with zero goals", photo: "" }, statistics: [{ team: { id: 1064, name: "Zamalek" }, goals: { total: 0, penalty: null }, games: { appearences: 1 } }] },
+            { player: { id: 902, name: "Unknown goals", photo: "" }, statistics: [{ team: { id: 1065, name: "Team" }, goals: { total: null, penalty: null }, games: { appearences: null } }] },
+          ],
+        },
+      },
+    ]),
+  });
+
+  const result = await adapter.getTopScorers({ providerCompetitionId: "39", season: "2026" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.length, 2);
+  assert.equal(result.data[0].playerName, "M. Salah");
+  assert.equal(result.data[0].teamName, "Al Ahly");
+  assert.equal(result.data[0].profileAvailable, true);
+  assert.equal(result.data[1].goals, 0);
+});
+
+test("api-football: unavailable match statistics are omitted while genuine zeroes remain zero", async () => {
+  const adapter = new ApiFootballAdapter({
+    apiKey: "test",
+    fetchImpl: fakeFetch([
+      {
+        match: (u) => u.pathname === "/fixtures/statistics",
+        body: {
+          results: 2,
+          response: [
+            {
+              team: { id: 1063, name: "Al Ahly" },
+              statistics: [
+                { type: "Ball Possession", value: "55%" },
+                { type: "Shots", value: null },
+                { type: "Shots on Goal", value: 0 },
+              ],
+            },
+          ],
+        },
+      },
+    ]),
+  });
+
+  const result = await adapter.getMatchStats({ providerMatchId: "12345" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.map(({ type, value }) => [type, value]), [
+    ["ball_possession", "55%"],
+    ["shots_on_goal", 0],
+  ]);
+});
+
 /* ── Sportmonks ────────────────────────────────────────────── */
 
 const smFixture = (id: number) => ({

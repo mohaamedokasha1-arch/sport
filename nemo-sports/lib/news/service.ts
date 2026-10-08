@@ -12,6 +12,7 @@
 
 import { ingestAllSources } from "./pipeline";
 import { feedCategories, listArticles, listSources, type ArticleFilter } from "./store";
+import { invalidateSearchIndex } from "@/lib/search-service";
 import type { NewsArticle } from "./types";
 
 export const FEED_STALE_AFTER_MIN = 30;
@@ -40,6 +41,7 @@ async function maybeRefresh(): Promise<void> {
   if (refreshInFlight || now - lastRefreshAt < REFRESH_COALESCE_MS) return;
   lastRefreshAt = now;
   refreshInFlight = ingestAllSources()
+    .then(() => invalidateSearchIndex())
     .catch(() => {})
     .finally(() => {
       refreshInFlight = null;

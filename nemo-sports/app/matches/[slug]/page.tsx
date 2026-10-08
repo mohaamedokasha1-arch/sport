@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
-import PoweredBy from "@/components/ui/PoweredBy";
+import DataSourceNote from "@/components/data/DataSourceNote";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
@@ -13,6 +13,7 @@ import { SITE_TZ } from "@/lib/tz";
 import { teamBySlug } from "@/lib/core-data";
 import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
+import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
 
 export const revalidate = 30;
@@ -25,8 +26,9 @@ export function generateStaticParams() {
 
 const STATUS_AR: Record<string, string> = {
   live: "مباشر الآن",
-  halftime: "الشوط الأول انتهى — استراحة",
+  halftime: "استراحة بين الشوطين",
   extra_time: "وقت إضافي",
+  extra_time_halftime: "استراحة الوقت الإضافي",
   penalty_shootout: "ركلات الترجيح",
   finished: "انتهت المباراة",
   scheduled: "لم تبدأ بعد",
@@ -35,38 +37,139 @@ const STATUS_AR: Record<string, string> = {
   suspended: "موقوفة",
   abandoned: "متوقفة",
   walkover: "انسحاب",
+  awarded: "حُسمت بقرار",
 };
 
 const EVENT_ICON: Record<string, string> = {
   goal: "⚽",
   penalty: "⚽",
   "own-goal": "⚽",
+  own_goal: "⚽",
+  penalty_awarded: "⚽",
   "missed-penalty": "🚫",
+  penalty_missed: "🚫",
   yellow: "🟨",
+  yellow_card: "🟨",
   red: "🟥",
+  red_card: "🟥",
+  yellow_red_card: "🟥",
   "second-yellow": "🟥",
   "sub-in": "🔄",
+  substitution: "🔄",
   var: "📺",
+  var_review: "📺",
+  var_decision: "📺",
+  period_start: "⏱",
+  period_end: "⏱",
 };
 
 const EVENT_AR: Record<string, string> = {
   goal: "هدف",
   penalty: "هدف من ركلة جزاء",
+  penalty_awarded: "ركلة جزاء محتسبة",
   "own-goal": "هدف عكسي",
+  own_goal: "هدف عكسي",
   "missed-penalty": "ركلة جزاء ضائعة",
+  penalty_missed: "ركلة جزاء ضائعة",
   yellow: "بطاقة صفراء",
+  yellow_card: "بطاقة صفراء",
   red: "بطاقة حمراء",
+  red_card: "بطاقة حمراء",
+  yellow_red_card: "بطاقة صفراء ثانية",
   "second-yellow": "بطاقة صفراء ثانية",
   "sub-in": "تبديل",
+  substitution: "تبديل",
   var: "مراجعة الفيديو",
+  var_review: "مراجعة الفيديو",
+  var_decision: "قرار تقنية الفيديو",
+  period_start: "بداية الفترة",
+  period_end: "نهاية الفترة",
+  match_start: "بداية المباراة",
+  match_end: "نهاية المباراة",
+  injury: "توقف للإصابة",
+  extra_time_start: "بداية الوقت الإضافي",
+  penalty_shootout_start: "بداية ركلات الترجيح",
 };
+
+const STAT_LABELS_AR: Record<string, string> = {
+  ball_possession: "الاستحواذ",
+  possession: "الاستحواذ",
+  shots_total: "إجمالي التسديدات",
+  total_shots: "إجمالي التسديدات",
+  shots_on_target: "تسديدات على المرمى",
+  shots_on_goal: "تسديدات على المرمى",
+  shots_off_target: "تسديدات خارج المرمى",
+  corners: "الركنيات",
+  corner_kicks: "الركنيات",
+  fouls: "الأخطاء",
+  offsides: "التسلل",
+  yellow_cards: "البطاقات الصفراء",
+  red_cards: "البطاقات الحمراء",
+  saves: "التصديات",
+  passes: "التمريرات",
+  passes_accuracy: "دقة التمرير",
+};
+
+const STAT_PERIODS_AR: Record<string, string> = {
+  first_half: "الشوط الأول",
+  firsthalf: "الشوط الأول",
+  "1h": "الشوط الأول",
+  second_half: "الشوط الثاني",
+  secondhalf: "الشوط الثاني",
+  "2h": "الشوط الثاني",
+  extra_time: "الوقت الإضافي",
+  penalty_shootout: "ركلات الترجيح",
+  period_1: "الفترة الأولى",
+  period_2: "الفترة الثانية",
+  period_3: "الفترة الثالثة",
+  period_4: "الفترة الرابعة",
+  q1: "الربع الأول",
+  q2: "الربع الثاني",
+  q3: "الربع الثالث",
+  q4: "الربع الرابع",
+};
+
+function statLabel(type: string): string {
+  const key = type.toLowerCase().replace(/[\s-]+/g, "_");
+  return STAT_LABELS_AR[key] ?? "إحصائية أخرى";
+}
+
+function statPeriodSuffix(period: string): string {
+  const key = period.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["", "all", "total", "full_time", "fulltime", "ft"].includes(key)) return "";
+  return ` · ${STAT_PERIODS_AR[key] ?? "فترة أخرى"}`;
+}
+
+function eventDescriptionAr(description: string | null): string | null {
+  const text = description?.trim();
+  if (!text) return null;
+  if (/[\u0600-\u06ff]/.test(text)) return text;
+
+  const substitution = /^(?:in|player in):\s*(.+?)\s*[·,|]\s*(?:out|player out):\s*(.+)$/i.exec(text);
+  if (substitution) return `دخول: ${substitution[1].trim()} · خروج: ${substitution[2].trim()}`;
+
+  const assist = /^(?:assist|assisted by):\s*(.+)$/i.exec(text);
+  if (assist) return `تمريرة حاسمة: ${assist[1].trim()}`;
+
+  const key = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const known: Record<string, string> = {
+    "goal disallowed": "هدف ملغى",
+    "goal cancelled": "هدف ملغى",
+    "penalty awarded": "احتُسبت ركلة جزاء",
+    "penalty missed": "ركلة جزاء ضائعة",
+    "tactical foul": "مخالفة تكتيكية",
+    offside: "تسلل",
+    handball: "لمسة يد",
+  };
+  return known[key] ?? null;
+}
 
 function clockOf(f: NormalizedFixture): string {
   if (f.status === "halftime") return "استراحة";
-  if (f.minute !== null && ["live", "extra_time", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
+  if (f.minute !== null && ["live", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
   if (f.status === "finished") return "انتهت";
   if (f.status === "scheduled") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
-  return STATUS_AR[f.status] ?? f.status;
+  return STATUS_AR[f.status] ?? "حالة غير معروفة";
 }
 
 export async function generateMetadata({
@@ -78,14 +181,14 @@ export async function generateMetadata({
 
   // ── real match first ──
   const real = await sdlMatchDetail("football", slug);
-  if (real.ok && hasMatchIdentity(real.data)) {
+  if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     const f = real.data;
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
     const comp = f.competitionName ?? "";
     const date = dateAr(f.scheduledAt);
     const title = `${home} ضد ${away} | ${comp} | ${date}`;
-    const description = `نتيجة وتفاصيل مباراة ${home} و${away} في ${comp}: النتيجة، حالة المباراة، الأحداث، والتشكيلات — بيانات حية.`;
+    const description = `نتيجة وتفاصيل مباراة ${home} و${away} في ${comp}: النتيجة، حالة المباراة، الأحداث، والتشكيلات من مصدر البيانات المتاح.`;
     return {
       title,
       description,
@@ -139,7 +242,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     // (retrying can never change that answer, so a stable 404 is honest).
     throw new Error(`match_detail_unavailable:${real.error.kind}`);
   }
-  if (real.ok) {
+  if (real.ok && real.source === "provider") {
     const f = real.data;
     // A successful call can still yield a contentless shell. Rendering it
     // would publish an indexable "— ضد —" page for an unbounded slug space,
@@ -147,7 +250,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     if (!hasMatchIdentity(f)) notFound();
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
-    const live = ["live", "halftime", "extra_time", "penalty_shootout"].includes(f.status);
+    const live = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
     const played = f.homeScore !== null && f.awayScore !== null;
 
     // Stream source for THIS match only (null for every other match →
@@ -164,15 +267,26 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data : [];
     const lineups: NormalizedLineup[] = lineupsRes.ok ? lineupsRes.data : [];
     const rawStats: NormalizedStat[] = statsRes.ok ? statsRes.data : [];
-    // pair home/away values per stat label
-    const statPairs = new Map<string, { home: string; away: string }>();
-    for (const s of rawStats) {
-      const cur = statPairs.get(s.type) ?? { home: "—", away: "—" };
-      if (s.teamProviderId === home) cur.home = String(s.value);
-      else if (s.teamProviderId === away) cur.away = String(s.value);
-      statPairs.set(s.type, cur);
+    // Pair statistics by period and the provider IDs, not display names.
+    // Providers may use numeric IDs even when the fixture has a team label.
+    const statPairs = new Map<string, { type: string; period: string; home: string; away: string }>();
+    for (const stat of rawStats) {
+      const type = stat.type.toLowerCase().replace(/[\s-]+/g, "_");
+      const period = stat.period.trim().toLowerCase().replace(/[\s-]+/g, "_");
+      const key = JSON.stringify([type, period]);
+      const pair = statPairs.get(key) ?? { type, period, home: "—", away: "—" };
+      if (f.homeProviderId && stat.teamProviderId === f.homeProviderId) pair.home = String(stat.value);
+      else if (f.awayProviderId && stat.teamProviderId === f.awayProviderId) pair.away = String(stat.value);
+      statPairs.set(key, pair);
     }
-    const statRows = [...statPairs.entries()];
+    const statRows = [...statPairs.entries()]
+      .filter(([, pair]) => pair.home !== "—" || pair.away !== "—")
+      .map(([key, pair]) => ({
+        key,
+        label: `${statLabel(pair.type)}${statPeriodSuffix(pair.period)}`,
+        home: pair.home,
+        away: pair.away,
+      }));
 
     const ht = f.periods.find((p) => p.label === "HT");
 
@@ -186,8 +300,10 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
           ? "https://schema.org/EventCompleted"
           : f.status === "postponed"
             ? "https://schema.org/EventPostponed"
-            : f.status === "cancelled"
-              ? "https://schema.org/EventCancelled"
+          : f.status === "cancelled"
+            ? "https://schema.org/EventCancelled"
+            : ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)
+              ? "https://schema.org/EventInProgress"
               : "https://schema.org/EventScheduled",
       sport: "Football",
       url: `/matches/${slug}`,
@@ -198,7 +314,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
     return (
       <>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(ld) }} />
         <div className="mx-auto max-w-[1280px] px-4 py-6">
           <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
             <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
@@ -279,19 +395,25 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </p>
             ) : (
               <ol className="card divide-y divide-line">
-                {events.map((e) => (
-                  <li key={e.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
-                    <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{e.minute !== null ? `${e.minute}'` : "—"}</span>
-                    <span aria-hidden className="w-5 text-center">{EVENT_ICON[e.type] ?? "•"}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="font-bold">{EVENT_AR[e.type] ?? e.type}</span>
-                      {" · "}
-                      <span>{e.playerProviderId ?? "—"}</span>
-                      {e.description ? <span className="text-muted"> ({e.description})</span> : null}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted">{e.teamProviderId ?? ""}</span>
-                  </li>
-                ))}
+                {events.map((event) => {
+                  const teamName = event.teamProviderId && event.teamProviderId === f.homeProviderId
+                    ? home
+                    : event.teamProviderId && event.teamProviderId === f.awayProviderId
+                      ? away
+                      : null;
+                  const description = eventDescriptionAr(event.description);
+                  return (
+                    <li key={event.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
+                      <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}'` : "—"}</span>
+                      <span aria-hidden className="w-5 text-center">{EVENT_ICON[event.type] ?? "•"}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-bold">{EVENT_AR[event.type] ?? "حدث رياضي"}</span>
+                        {teamName ? <span className="text-muted"> · {teamName}</span> : null}
+                        {description ? <span className="text-muted"> · {description}</span> : null}
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </section>
@@ -301,8 +423,8 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             <section className="mt-8">
               <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">إحصائيات المباراة</h2>
               <div className="card overflow-hidden">
-                {statRows.map(([label, v]) => (
-                  <StatBar key={label} label={label} home={v.home} away={v.away} />
+                {statRows.map((row) => (
+                  <StatBar key={row.key} label={row.label} home={row.home} away={row.away} />
                 ))}
               </div>
             </section>
@@ -313,53 +435,54 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             <section className="mt-8">
               <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">التشكيلات</h2>
               <div className="grid gap-4 md:grid-cols-2">
-                {lineups.map((lu) => (
-                  <div key={lu.teamProviderId} className="card overflow-hidden">
-                    <header className="flex items-center justify-between border-b border-line bg-navy-850 px-3 py-2.5 text-white dark:bg-navy-850">
-                      <h3 className="text-[13px] font-extrabold">{lu.teamProviderId}</h3>
-                      {lu.formation ? <span className="num text-[12px] font-bold text-gold-400">{lu.formation}</span> : null}
-                    </header>
-                    <div className="grid gap-0 sm:grid-cols-2">
-                      <div className="border-b border-line sm:border-e sm:border-b-0">
-                        <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">التشكيلة الأساسية</p>
-                        <ul className="p-2">
-                          {lu.starters.map((p) => (
-                            <li key={p.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px]">
-                              <span className="num w-6 shrink-0 text-end font-bold text-muted">{p.jerseyNumber ?? "–"}</span>
-                              <span className="truncate font-semibold">{p.name}</span>
-                              {p.position ? <span className="shrink-0 text-[10px] text-muted">{p.position}</span> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      {lu.bench.length > 0 ? (
-                        <div>
-                          <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">البدلاء</p>
+                {lineups.map((lineup) => {
+                  const teamName = lineup.teamProviderId === f.homeProviderId
+                    ? home
+                    : lineup.teamProviderId === f.awayProviderId
+                      ? away
+                      : "الفريق";
+                  return (
+                    <div key={lineup.teamProviderId} className="card overflow-hidden">
+                      <header className="flex items-center justify-between border-b border-line bg-navy-850 px-3 py-2.5 text-white dark:bg-navy-850">
+                        <h3 className="text-[13px] font-extrabold">{teamName}</h3>
+                        {lineup.formation ? <span className="num text-[12px] font-bold text-gold-400">{lineup.formation}</span> : null}
+                      </header>
+                      <div className="grid gap-0 sm:grid-cols-2">
+                        <div className="border-b border-line sm:border-e sm:border-b-0">
+                          <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">التشكيلة الأساسية</p>
                           <ul className="p-2">
-                            {lu.bench.map((p) => (
-                              <li key={p.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px] text-muted">
-                                <span className="num w-6 shrink-0 text-end font-bold">{p.jerseyNumber ?? "–"}</span>
-                                <span className="truncate">{p.name}</span>
+                            {lineup.starters.map((player) => (
+                              <li key={player.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px]">
+                                <span className="num w-6 shrink-0 text-end font-bold text-muted">{player.jerseyNumber ?? "–"}</span>
+                                <span className="truncate font-semibold">{player.name}</span>
+                                {player.position ? <span className="shrink-0 text-[10px] text-muted">{player.position}</span> : null}
                               </li>
                             ))}
                           </ul>
                         </div>
-                      ) : null}
+                        {lineup.bench.length > 0 ? (
+                          <div>
+                            <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">البدلاء</p>
+                            <ul className="p-2">
+                              {lineup.bench.map((player) => (
+                                <li key={player.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px] text-muted">
+                                  <span className="num w-6 shrink-0 text-end font-bold">{player.jerseyNumber ?? "–"}</span>
+                                  <span className="truncate">{player.name}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                      {lineup.coach ? <p className="border-t border-line px-3 py-2 text-[11px] text-muted">المدرب: {lineup.coach}</p> : null}
                     </div>
-                    {lu.coach ? <p className="border-t border-line px-3 py-2 text-[11px] text-muted">المدرب: {lu.coach}</p> : null}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ) : null}
 
-          <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-[11px] text-muted">
-            <span>
-              المصدر: {real.provider} · آخر جلب: {new Date(real.fetchedAt).toLocaleTimeString("ar-EG", { timeZone: SITE_TZ })}
-              {real.fromCache ? " (من الكاش)" : ""}
-            </span>
-            <PoweredBy />
-          </div>
+          <DataSourceNote className="mt-8 border-t border-line pt-4" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
         </div>
       </>
     );
@@ -426,8 +549,9 @@ async function DemoMatchView({ slug }: { slug: string }) {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(ld) }} />
       <div className="mx-auto max-w-[1280px] px-4 py-6">
+        <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — لا تمثل مباراة حقيقية.</p>
         <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
           <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
           <span aria-hidden>/</span>

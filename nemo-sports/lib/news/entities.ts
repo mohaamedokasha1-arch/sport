@@ -52,9 +52,9 @@ const PLAYERS: EntityDef[] = [
 ];
 
 const COMPETITIONS: EntityDef[] = [
-  { internalId: "egyptian-league", displayName: "الدوري المصري", names: ["egyptian premier league", "egyptian league", "epl", "الدوري المصري"] },
+  { internalId: "egyptian-league", displayName: "الدوري المصري", names: ["egyptian premier league", "egyptian league", "الدوري المصري"] },
   { internalId: "caf-champions-league", displayName: "دوري أبطال أفريقيا", names: ["caf champions league", "african champions league", "دوري أبطال أفريقيا"] },
-  { internalId: "premier-league", displayName: "الدوري الإنجليزي", names: ["premier league", "الدوري الإنجليزي"] },
+  { internalId: "premier-league", displayName: "الدوري الإنجليزي", names: ["premier league", "epl", "الدوري الإنجليزي"] },
   { internalId: "champions-league", displayName: "دوري أبطال أوروبا", names: ["champions league", "uefa champions", "دوري أبطال أوروبا"] },
   { internalId: "la-liga", displayName: "الدوري الإسباني", names: ["la liga", "laliga", "الدوري الإسباني"] },
   { internalId: "serie-a", displayName: "الدوري الإيطالي", names: ["serie a", "الدوري الإيطالي"] },

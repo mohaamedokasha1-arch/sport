@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { teamBySlug } from "@/lib/core-data";
 
 /**
@@ -16,7 +17,8 @@ export default function Crest({
   const team = teamBySlug(slug);
   const primary = team?.primary ?? "#0F1B2E";
   const secondary = team?.secondary ?? "#D4AF37";
-  const id = `c-${slug}-${size}`;
+  const reactId = useId();
+  const id = `crest-${reactId.replace(/:/g, "")}`;
   const label = team?.short ?? slug.slice(0, 3);
   const glyph = label.length > 3 ? label.slice(0, 3) : label;
 

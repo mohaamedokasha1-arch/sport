@@ -45,7 +45,7 @@ async function resolveStreamRow(s: MatchStreamSource): Promise<StreamRow> {
   if (slug) {
     try {
       const res = await sdlMatchDetail("football", slug);
-      if (res.ok && hasMatchIdentity(res.data)) {
+      if (res.ok && res.source === "provider" && hasMatchIdentity(res.data)) {
         const f = res.data;
         return {
           key: s.id,
@@ -93,7 +93,7 @@ export default async function WatchPage() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">Legal Broadcasts</p>
+          <p className="eyebrow mb-1">البث المرخّص</p>
           <h1 className="text-2xl font-extrabold tracking-tight">البث المباشر</h1>
         </div>
         <p className="text-[12px] text-muted">
@@ -129,11 +129,11 @@ export default async function WatchPage() {
       {done.length > 0 ? <StreamSchedule title="انتهى بثها" list={done} tone="done" /> : null}
 
       <section className="mt-10">
-        <SectionHead eyebrow="Licensed partners" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
+        <SectionHead eyebrow="النواقل المرخّصون" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
         {broadcasters.length === 0 ? (
           <DataUnavailable
             title="لا نواقل موثّقين بعد"
-            message="يُدار سجل النواقل الرسميين من لوحة التحكم (/admin/broadcast) ولا يُنشر أي ناقل قبل توثيقه."
+            message="يُدار سجل النواقل الرسميين من لوحة التحرير، ولا يظهر أي ناقل قبل توثيق حقوقه ومناطقه."
           />
         ) : (
           <div className="card overflow-hidden">
@@ -195,7 +195,7 @@ function StreamSchedule({
   return (
     <section className="mb-8">
       <SectionHead
-        eyebrow={tone === "live" ? "On air" : tone === "soon" ? "Upcoming" : tone === "unlinked" ? "Registered" : "Replay"}
+        eyebrow={tone === "live" ? "مباشر" : tone === "soon" ? "قادمة" : tone === "unlinked" ? "مسجّلة" : "إعادة البث"}
         title={title}
       />
       <ul className="space-y-2">
@@ -216,7 +216,7 @@ function StreamSchedule({
               <span className="flex items-center justify-end gap-2">
                 {r.kickoff ? <span className="num text-[12px] font-extrabold">{timeOf(r.kickoff)}</span> : null}
                 <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`}>
-                  {tone === "live" ? "LIVE" : tone === "soon" ? "قريبًا" : tone === "unlinked" ? "مسجّل" : "انتهى"}
+                  {tone === "live" ? "مباشر" : tone === "soon" ? "قريبًا" : tone === "unlinked" ? "مسجّل" : "انتهى"}
                 </span>
               </span>
             </>
@@ -255,13 +255,14 @@ function LegacyDemoWatch() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">Legal Broadcasts</p>
+          <p className="eyebrow mb-1">البث المرخّص</p>
           <h1 className="text-2xl font-extrabold tracking-tight">البث المباشر</h1>
         </div>
         <p className="text-[12px] text-muted">
-          <span className="num font-bold">{broadcastable.length}</span> مباراة عبر نواقل رسميين
+          <span className="num font-bold">{broadcastable.length}</span> سجلًا في بيانات المعاينة
         </p>
       </header>
+      <p className="mb-6 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">سجل البث أدناه توضيحي للتطوير فقط؛ لم يتم التحقق من النواقل أو الحقوق ولا يُعدّ مصدر بث معتمدًا.</p>
 
       {broadcastable.length === 0 ? (
         <DataUnavailable
@@ -289,7 +290,7 @@ function LegacyDemoWatch() {
       {done.length > 0 ? <Schedule title="انتهى بثها" list={done} tone="done" /> : null}
 
       <section className="mt-10">
-        <SectionHead eyebrow="Licensed partners" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
+        <SectionHead eyebrow="النواقل المرخّصون" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
         <div className="card overflow-hidden">
           <table className="w-full text-[12px]">
             <thead>
@@ -351,7 +352,7 @@ function Schedule({
 
   return (
     <section className="mb-8">
-      <SectionHead eyebrow={tone === "live" ? "On air" : tone === "soon" ? "Upcoming" : "Replay"} title={title} />
+      <SectionHead eyebrow={tone === "live" ? "مباشر" : tone === "soon" ? "قادمة" : "إعادة البث"} title={title} />
       <ul className="space-y-2">
         {list.map((m) => (
           <li key={m.id}>
@@ -375,7 +376,7 @@ function Schedule({
                 <span className="text-[11px] font-bold text-muted">{m.broadcast?.provider}</span>
                 <span className="num text-[12px] font-extrabold">{timeOf(m.kickoff)}</span>
                 <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`}>
-                  {tone === "live" ? "LIVE" : tone === "soon" ? "قريبًا" : "انتهى"}
+                  {tone === "live" ? "مباشر" : tone === "soon" ? "قريبًا" : "انتهى"}
                 </span>
               </span>
             </Link>

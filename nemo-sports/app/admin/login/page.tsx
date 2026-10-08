@@ -36,7 +36,7 @@ export default function AdminLogin() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <section className="w-full max-w-md rounded-[6px] border border-navy-800 bg-navy-900 p-6 shadow-2xl sm:p-8">
         <div className="mb-8 text-center">
           <NemoMark size={40} tone="light" />
@@ -91,6 +91,6 @@ export default function AdminLogin() {
           يُضبط الحساب من متغيرات البيئة <span dir="ltr" className="num">ADMIN_USERNAME</span> و<span dir="ltr" className="num">ADMIN_PASSWORD_HASH</span>.
         </p>
       </section>
-    </main>
+    </div>
   );
 }

@@ -7,7 +7,6 @@ import MatchCard from "@/components/match/MatchCard";
 import NewsCard from "@/components/news/NewsCard";
 import StandingsTable from "@/components/competition/StandingsTable";
 import DataSourceNote from "@/components/data/DataSourceNote";
-import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
 import { articles, standings, teamMatches } from "@/lib/data";
 import {
   competitionBySlug,
@@ -53,7 +52,7 @@ export async function generateMetadata({
 
   /* ── real provider team first ── */
   const real = await sdlTeam("football", slug);
-  if (real.ok) {
+  if (real.ok && real.source === "provider") {
     const t = real.data;
     const title = `${t.name} | الفريق`;
     const description = `كل ما يخص ${t.name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
@@ -65,7 +64,7 @@ export async function generateMetadata({
     };
   }
 
-  const t = teamBySlug(slug);
+  const t = demoContentVisible() ? teamBySlug(slug) : undefined;
   // Explicit robots so a 404 emits one consistent directive instead of the
   // layout's `index, follow` stacked on Next.js's built-in not-found noindex.
   if (!t) return { title: "الفريق غير موجود", robots: { index: false, follow: true } };
@@ -88,11 +87,11 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
     // unsupported) fall through to the demo lookup and then to an honest 404.
     throw new Error(`team_unavailable:${real.error.kind}`);
   }
-  if (real.ok) {
+  if (real.ok && real.source === "provider") {
     return <RealTeamView slug={slug} provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} name={real.data.name} shortName={real.data.shortName} logoUrl={real.data.logoUrl} countryName={real.data.countryName} foundedYear={real.data.foundedYear} venueName={real.data.venueName} primaryColor={real.data.primaryColor} secondaryColor={real.data.secondaryColor} />;
   }
 
-  const team = teamBySlug(slug);
+  const team = demoContentVisible() ? teamBySlug(slug) : undefined;
   if (!team) notFound();
 
   const comp = competitionBySlug(team.competition);
@@ -130,6 +129,7 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — ليست إحصاءات أو مباريات حقيقية.</p>
       <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
         <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
         <span aria-hidden>/</span>
@@ -146,7 +146,7 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
           <div className="flex items-center gap-4">
             <Crest slug={team.slug} size={76} />
             <div>
-              <p className="eyebrow !text-white/50">{sport?.nameEn}</p>
+              <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{team.name}</h1>
               <p className="mt-1 text-[12px] text-white/70">
                 {team.country} · {comp?.name} · تأسس <span className="num">{team.founded}</span>
@@ -189,6 +189,7 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
       </header>
 
       <Tabs
+        label="تفاصيل الفريق"
         items={[
           {
             id: "overview",
@@ -322,15 +323,20 @@ const STATUS_AR: Record<string, string> = {
   scheduled: "لم تبدأ",
   live: "جارية",
   halftime: "الاستراحة",
+  extra_time: "وقت إضافي",
+  extra_time_halftime: "استراحة الوقت الإضافي",
+  penalty_shootout: "ركلات الترجيح",
   finished: "انتهت",
-  awarded: "اعتبارية",
+  awarded: "حُسمت بقرار",
+  walkover: "انسحاب",
   suspended: "موقوفة",
+  abandoned: "متوقفة",
   postponed: "مؤجلة",
   cancelled: "ملغاة",
 };
 
-/** Statuses that mean "this match has a final result". */
-const SETTLED = new Set(["finished", "awarded", "cancelled"]);
+const LIVE_STATUSES = new Set(["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"]);
+const FINAL_STATUSES = new Set(["finished", "awarded", "walkover"]);
 
 const arabicDateTime = (iso: string) => {
   const d = new Date(iso);
@@ -340,6 +346,32 @@ const arabicDateTime = (iso: string) => {
     hour: "2-digit", minute: "2-digit", timeZone: "Africa/Cairo",
   });
 };
+
+function ProviderTeamFixtureList({ fixtures, showScore = false }: { fixtures: NormalizedFixture[]; showScore?: boolean }) {
+  return (
+    <ul className="space-y-2">
+      {fixtures.slice(0, 10).map((fixture) => (
+        <li key={fixture.providerId}>
+          <Link href={`/matches/${encodeURIComponent(fixture.providerId)}`} className="card flex min-h-11 items-center justify-between gap-3 p-3 transition hover:border-gold-500/50 focus-ring">
+            <span className="min-w-0 text-[13px]">
+              <span className="block truncate font-bold">
+                {fixture.homeName ?? fixture.homeProviderId ?? "—"} – {fixture.awayName ?? fixture.awayProviderId ?? "—"}
+              </span>
+              <span className="num block text-[11px] text-muted">{arabicDateTime(fixture.scheduledAt) ?? "—"}</span>
+            </span>
+            {showScore ? (
+              <span className="num shrink-0 text-[15px] font-extrabold">
+                {fixture.homeScore !== null && fixture.awayScore !== null ? `${fixture.homeScore} : ${fixture.awayScore}` : "النتيجة غير متاحة"}
+              </span>
+            ) : (
+              <span className="chip shrink-0">{STATUS_AR[fixture.status] ?? "حالة غير معروفة"}</span>
+            )}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 async function RealTeamView(props: {
   slug: string;
@@ -365,18 +397,21 @@ async function RealTeamView(props: {
   let row: NormalizedStandingRow | null = null;
   let compId: string | null = null;
   tables.forEach((res, i) => {
-    if (row || !res.ok) return;
+    if (row || !res.ok || res.source.provider === "demo") return;
     const hit = res.data.find((r: NormalizedStandingRow) => r.teamProviderId === props.slug) ?? null;
     if (hit) { row = hit; compId = ids[i] ?? null; }
   });
 
   /* Matches of that competition, filtered to this team. */
   const fixturesRes = compId ? await footballMatches({ competitionId: compId }) : null;
-  const mine = (fixturesRes?.ok ? fixturesRes.data : []).filter(
+  const fixtureData = fixturesRes?.ok && fixturesRes.source.provider !== "demo" ? fixturesRes.data : [];
+  const mine = fixtureData.filter(
     (f) => f.homeProviderId === props.slug || f.awayProviderId === props.slug,
   );
-  const played = mine.filter((f) => f.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt));
-  const upcoming = mine.filter((f) => !SETTLED.has(f.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const live = mine.filter((fixture) => LIVE_STATUSES.has(fixture.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const upcoming = mine.filter((fixture) => fixture.status === "scheduled").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const played = mine.filter((fixture) => FINAL_STATUSES.has(fixture.status)).sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt));
+  const special = mine.filter((fixture) => !LIVE_STATUSES.has(fixture.status) && fixture.status !== "scheduled" && !FINAL_STATUSES.has(fixture.status));
 
   const r = row as NormalizedStandingRow | null;
 
@@ -403,7 +438,7 @@ async function RealTeamView(props: {
           </span>
         )}
         <div className="min-w-0">
-          <p className="eyebrow mb-1">Team · بيانات حقيقية</p>
+          <p className="eyebrow mb-1">فريق · بيانات حقيقية</p>
           <h1 className="text-2xl font-extrabold tracking-tight">{props.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-muted">
             {props.shortName ? <span>{props.shortName}</span> : null}
@@ -436,52 +471,32 @@ async function RealTeamView(props: {
       {r?.form?.length ? <p className="mb-8 text-[12px] text-muted">سلسلة آخر النتائج: <span className="num font-bold tracking-[0.2em] text-white">{r.form.join("")}</span></p> : null}
 
       <div className="grid gap-8 lg:grid-cols-2">
+        {live.length > 0 ? (
+          <section>
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">مباشر الآن</h2>
+            <ProviderTeamFixtureList fixtures={live} />
+          </section>
+        ) : null}
+
         <section>
           <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">المباريات القادمة</h2>
-          {upcoming.length === 0 ? (
-            <p className="text-[12px] text-muted">لا توجد مباريات قادمة ضمن نافذة المباريات المسترجعة حاليًا.</p>
-          ) : (
-            <ul className="space-y-2">
-              {upcoming.slice(0, 10).map((f) => (
-                <li key={f.providerId}>
-                  <Link href={`/matches/${f.providerId}`} className="card flex items-center justify-between gap-3 p-3 transition hover:border-gold-500/50">
-                    <span className="min-w-0 text-[13px]">
-                      <span className="block truncate font-bold">{f.homeName ?? "فريق"} – {f.awayName ?? "فريق"}</span>
-                      <span className="num block text-[11px] text-muted">{arabicDateTime(f.scheduledAt) ?? "—"}</span>
-                    </span>
-                    <span className="chip shrink-0">{STATUS_AR[f.status] ?? f.status}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          {upcoming.length > 0 ? <ProviderTeamFixtureList fixtures={upcoming} /> : <p className="text-[12px] text-muted">لا توجد مباريات مجدولة ضمن نافذة المباريات المسترجعة حاليًا.</p>}
         </section>
+
+        {special.length > 0 ? (
+          <section>
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">مباريات بحالات خاصة</h2>
+            <ProviderTeamFixtureList fixtures={special} />
+          </section>
+        ) : null}
 
         <section>
           <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">أحدث النتائج</h2>
-          {played.length === 0 ? (
-            <p className="text-[12px] text-muted">لا توجد نتائج ضمن نافذة المباريات المسترجعة حاليًا.</p>
-          ) : (
-            <ul className="space-y-2">
-              {played.slice(0, 10).map((f) => (
-                <li key={f.providerId}>
-                  <Link href={`/matches/${f.providerId}`} className="card flex items-center justify-between gap-3 p-3 transition hover:border-gold-500/50">
-                    <span className="min-w-0 text-[13px]">
-                      <span className="block truncate font-bold">{f.homeName ?? "فريق"} – {f.awayName ?? "فريق"}</span>
-                      <span className="num block text-[11px] text-muted">{arabicDateTime(f.scheduledAt) ?? "—"}</span>
-                    </span>
-                    <span className="num shrink-0 text-[15px] font-extrabold">{f.homeScore ?? "–"} : {f.awayScore ?? "–"}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          {played.length > 0 ? <ProviderTeamFixtureList fixtures={played} showScore /> : <p className="text-[12px] text-muted">لا توجد نتائج مكتملة ضمن نافذة المباريات المسترجعة حاليًا.</p>}
         </section>
       </div>
 
-      <footer className="mt-8">
-        <PoweredByFootballData />
-      </footer>
+
     </div>
   );
 }

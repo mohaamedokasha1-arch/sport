@@ -27,6 +27,15 @@ export const sports: Sport[] = [
   { slug: "baseball", name: "البيسبول", nameEn: "Baseball", icon: "⚾", order: 6, active: true, scoreUnit: "ران", periodLabel: "إينينج" },
   { slug: "hockey", name: "الهوكي", nameEn: "Ice Hockey", icon: "🏒", order: 7, active: true, scoreUnit: "هدف", periodLabel: "شوط" },
   { slug: "boxing", name: "الملاكمة", nameEn: "Boxing", icon: "🥊", order: 8, active: true, scoreUnit: "جولة", periodLabel: "جولة" },
+  { slug: "cricket", name: "الكريكيت", nameEn: "Cricket", icon: "🏏", order: 9, active: true, scoreUnit: "ران", periodLabel: "أوفر" },
+];
+
+/** Sports with a provider adapter implemented in the production data layer. */
+export const PUBLIC_SPORTS: Sport[] = [
+  sports.find((sport) => sport.slug === "football")!,
+  sports.find((sport) => sport.slug === "basketball")!,
+  sports.find((sport) => sport.slug === "tennis")!,
+  sports.find((sport) => sport.slug === "cricket")!,
 ];
 
 export type Competition = {

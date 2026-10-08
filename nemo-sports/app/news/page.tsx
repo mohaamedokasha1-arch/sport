@@ -38,7 +38,7 @@ export default async function NewsPage({
 
   // ── editorial / demo articles (dev + demo deployments only) ────
   const showDemo = demoContentVisible();
-  const editorial = showDemo
+  const editorial = showDemo && feed.items.length === 0
     ? articles.filter(
         (a) =>
           (!category || a.category === category) &&
@@ -54,7 +54,7 @@ export default async function NewsPage({
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">Newsroom</p>
+          <p className="eyebrow mb-1">التغطية الرياضية</p>
           <h1 className="text-2xl font-extrabold tracking-tight">الأخبار</h1>
         </div>
         <p className="text-[12px] text-muted">
@@ -70,6 +70,8 @@ export default async function NewsPage({
         </p>
       </header>
 
+      {editorial.length > 0 ? <p className="mb-5 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">المقالات الظاهرة بيانات توضيحية للتطوير فقط، ولا تمثل أخبارًا منشورة.</p> : null}
+
       {!hasAny ? (
         <DataUnavailable
           title="لا توجد أخبار منشورة حاليًا"
@@ -82,7 +84,7 @@ export default async function NewsPage({
         <div className="mb-5 flex flex-wrap gap-2">
           <Link
             href="/news"
-            className={`rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition ${
+            className={`inline-flex min-h-11 items-center rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
               !category
                 ? "bg-navy-850 text-white"
                 : "border border-line bg-surface text-muted hover:border-gold-500"
@@ -96,7 +98,7 @@ export default async function NewsPage({
               <Link
                 key={c.name}
                 href={`/news?category=${encodeURIComponent(c.name)}`}
-                className={`rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition ${
+                className={`inline-flex min-h-11 items-center rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
                   category === c.name
                     ? "bg-navy-850 text-white"
                     : "border border-line bg-surface text-muted hover:border-gold-500"
@@ -116,7 +118,7 @@ export default async function NewsPage({
             <Link
               key={s.slug}
               href={`/news?sport=${s.slug}`}
-              className={`rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition ${
+              className={`inline-flex min-h-11 items-center rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
                 sport === s.slug
                   ? "bg-gold-500 text-navy-900"
                   : "border border-line bg-surface text-muted hover:border-gold-500"
@@ -154,7 +156,7 @@ export default async function NewsPage({
               <section aria-label="مقالات تحريرية">
                 <h2 className="mb-3 flex items-center gap-2 text-[14px] font-extrabold">
                   <span className="h-4 w-1 rounded-full bg-gold-500" aria-hidden />
-                  مقالات تحريرية
+                  مقالات توضيحية للتطوير
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {editorial.map((a, i) => (

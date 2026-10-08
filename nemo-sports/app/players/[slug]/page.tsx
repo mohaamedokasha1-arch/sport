@@ -7,11 +7,25 @@ import NewsCard from "@/components/news/NewsCard";
 import { articles, teamMatches } from "@/lib/data";
 import { competitionBySlug, playerBySlug, players, teamBySlug } from "@/lib/core-data";
 import { age } from "@/lib/format";
-import PoweredBy from "@/components/ui/PoweredBy";
+import DataSourceNote, { providerLabel } from "@/components/data/DataSourceNote";
 import { playerStats as sdlPlayerStats, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 
 export const revalidate = 1800;
+
+function realPlayerDisplayName(name: string | null | undefined): string {
+  return name?.trim() || "اسم اللاعب غير متاح";
+}
+
+const EXTRA_STAT_LABELS_AR: Record<string, string> = {
+  penalties: "أهداف من ركلات الجزاء",
+  position: "المركز",
+  ratingRaw: "التقييم كما ورد من المصدر (مقياس غير موحّد)",
+  shots: "إجمالي التسديدات",
+  shotsOnTarget: "التسديدات على المرمى",
+  dribbles: "المراوغات",
+  keyPasses: "التمريرات المفتاحية",
+};
 
 export function generateStaticParams() {
   // demo players are prerendered for dev/preview only; real provider players
@@ -28,16 +42,20 @@ export async function generateMetadata({
 
   // real provider player first (SportScore slugs, e.g. "erling-haaland")
   const real = await sdlPlayerStats("football", slug);
-  if (real.ok) {
+  if (real.ok && real.source === "provider") {
     const team = String(real.data.extra.team ?? "");
+    const name = realPlayerDisplayName(real.data.playerName);
+    const scope = real.data.seasonName ? `لموسم ${real.data.seasonName}` : "المتاحة من المصدر";
+    const hasRealName = Boolean(real.data.playerName?.trim());
     return {
-      title: `${slug.replaceAll("-", " ")}${team ? ` | ${team}` : ""} | إحصائيات`,
-      description: `إحصائيات ${slug.replaceAll("-", " ")} هذا الموسم من مصدر حي: المباريات، الأهداف، الصناعات، الدقائق والبطاقات.`,
+      title: `${name}${team ? ` | ${team}` : ""} | إحصائيات`,
+      description: `إحصاءات ${name} ${scope} لدى ${providerLabel(real.provider)}: المباريات، الأهداف، الصناعات، الدقائق والبطاقات.`,
       alternates: { canonical: `/players/${slug}` },
+      ...(!hasRealName ? { robots: { index: false, follow: true } } : {}),
     };
   }
 
-  const p = playerBySlug(slug);
+  const p = demoContentVisible() ? playerBySlug(slug) : undefined;
   // Explicit robots so the 404 emits one directive, not the layout's
   // `index, follow` stacked on Next.js's built-in not-found `noindex`.
   if (!p) return { title: "اللاعب غير موجود", robots: { index: false, follow: true } };
@@ -67,9 +85,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
     // simply inconsistent.
     throw new Error(`player_stats_unavailable:${real.error.kind}`);
   }
-  if (real.ok) {
+  if (real.ok && real.source === "provider") {
     const s = real.data;
-    const name = slug.replaceAll("-", " ");
+    const name = realPlayerDisplayName(s.playerName);
+    const statsHeading = s.seasonName ? `إحصائيات موسم ${s.seasonName}` : "الإحصاءات المتاحة من المصدر";
     const statCells: { label: string; value: string }[] = [
       { label: "المباريات", value: s.appearances !== null ? String(s.appearances) : "—" },
       { label: "الأهداف", value: s.goals !== null ? String(s.goals) : "—" },
@@ -78,7 +97,12 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
       { label: "بطاقات صفراء", value: s.yellowCards !== null ? String(s.yellowCards) : "—" },
       { label: "بطاقات حمراء", value: s.redCards !== null ? String(s.redCards) : "—" },
     ];
-    const extraEntries = Object.entries(s.extra).filter(([k]) => !["team", "competition"].includes(k));
+    const extraEntries = Object.entries(s.extra).flatMap(([key, value]) => {
+      const label = EXTRA_STAT_LABELS_AR[key];
+      if (!label || (typeof value !== "string" && typeof value !== "number")) return [];
+      if ((typeof value === "string" && !value.trim()) || (typeof value === "number" && !Number.isFinite(value))) return [];
+      return [{ key, label, value: String(value) }];
+    });
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <nav aria-label="مسار التنقل" className="mb-4 text-[11px] text-muted">
@@ -102,8 +126,8 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
           </div>
         </header>
 
-        <section aria-label="إحصائيات الموسم">
-          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">إحصائيات الموسم</h2>
+        <section aria-label={statsHeading}>
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{statsHeading}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {statCells.map((c) => (
               <div key={c.label} className="card px-3 py-4 text-center">
@@ -118,26 +142,23 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
           <section className="mt-8" aria-label="إحصائيات إضافية">
             <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">تفاصيل إضافية</h2>
             <div className="card grid grid-cols-2 gap-px overflow-hidden sm:grid-cols-4">
-              {extraEntries.map(([k, v]) => (
-                <div key={k} className="bg-surface px-3 py-3">
-                  <p className="num text-[15px] font-extrabold">{String(v)}</p>
-                  <p className="text-[10.5px] text-muted">{k}</p>
+              {extraEntries.map((entry) => (
+                <div key={entry.key} className="bg-surface px-3 py-3">
+                  <p className="num text-[15px] font-extrabold">{entry.value}</p>
+                  <p className="text-[10.5px] text-muted">{entry.label}</p>
                 </div>
               ))}
             </div>
           </section>
         ) : null}
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-[11px] text-muted">
-          <span>المصدر: {real.provider} · إحصائيات حقيقية من طبقة البيانات</span>
-          <PoweredBy />
-        </div>
+        <DataSourceNote className="mt-8 border-t border-line pt-4" provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} />
       </div>
     );
   }
 
   /* ══ 2) development/demo player ══ */
-  const player = playerBySlug(slug);
+  const player = demoContentVisible() ? playerBySlug(slug) : undefined;
   if (!player) {
     // honest 404: real player pages come from real provider slugs only
     notFound();
@@ -174,6 +195,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
         <span className="font-semibold text-ink">{player.name}</span>
       </nav>
 
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — ليست إحصاءات حقيقية.</p>
       <header className="stripes mb-6 overflow-hidden rounded-[8px] border border-navy-700 bg-navy-850 text-white">
         <div className="flex flex-wrap items-center gap-5 px-5 py-6">
           <span className="grid h-24 w-24 shrink-0 place-items-center rounded-[6px] border border-white/10 bg-white/5">
@@ -214,6 +236,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
       </header>
 
       <Tabs
+        label="تفاصيل اللاعب"
         items={[
           {
             id: "overview",

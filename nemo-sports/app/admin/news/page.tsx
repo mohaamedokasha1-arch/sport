@@ -15,6 +15,7 @@ import {
 } from "@/lib/news/store";
 import { runSource, ingestAllSources } from "@/lib/news/pipeline";
 import { logActivity } from "@/lib/activity";
+import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ async function testFetchAction(form: FormData): Promise<void> {
   const s = await getSource(id);
   if (!s) return;
   await runSource(s, { force: true });
+  invalidateSearchIndex();
   await logActivity({ action: "news.source.fetch", entityType: "rss_source", entityId: id });
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
@@ -72,6 +74,7 @@ async function testFetchAction(form: FormData): Promise<void> {
 async function fetchAllAction(): Promise<void> {
   "use server";
   await ingestAllSources();
+  invalidateSearchIndex();
   await logActivity({ action: "news.ingest.run" });
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
@@ -81,6 +84,7 @@ async function hideArticleAction(form: FormData): Promise<void> {
   "use server";
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "hidden");
+  invalidateSearchIndex();
   await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "hidden" } });
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
@@ -90,6 +94,7 @@ async function publishArticleAction(form: FormData): Promise<void> {
   "use server";
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "published");
+  invalidateSearchIndex();
   await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "published" } });
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
@@ -99,6 +104,7 @@ async function removeArticleAction(form: FormData): Promise<void> {
   "use server";
   const id = String(form.get("id") ?? "");
   await deleteArticle(id);
+  invalidateSearchIndex();
   await logActivity({ action: "news.article.delete", entityType: "news_article", entityId: id });
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");

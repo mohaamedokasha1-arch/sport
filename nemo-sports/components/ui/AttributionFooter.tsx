@@ -5,8 +5,14 @@ import { requiredAttributions } from "@/lib/providers";
  * Rendered in the site footer and available to any data panel.
  * Arabic-first: "بيانات المباريات: SportScore" etc., each linked.
  */
-export default function AttributionFooter({ className = "" }: { className?: string }) {
-  const sources = requiredAttributions();
+export default function AttributionFooter({
+  className = "",
+  exclude = [],
+}: {
+  className?: string;
+  exclude?: string[];
+}) {
+  const sources = requiredAttributions().filter((source) => !exclude.includes(source.name));
   return (
     <p className={`text-[11px] leading-relaxed text-white/45 ${className}`}>
       {sources.map((s, i) => (

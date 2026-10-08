@@ -17,6 +17,8 @@ import {
 import { checkDuplicate, textSimilarity } from "../lib/news/dedup";
 import { categorizeArticle } from "../lib/news/categorize";
 import { matchEntities } from "../lib/news/entities";
+import { newsEntityHref } from "../lib/news/entity-links";
+import { requiredAttributions } from "../lib/providers";
 import { buildFeedUrl } from "../lib/news/sources";
 import { validateBroadcastLink } from "../lib/broadcasts";
 
@@ -122,6 +124,27 @@ async function main() {
   assert("entities: Salah player", e2.some((e) => e.type === "player" && e.internalId === "mohamed-salah"));
   assert("entities: Liverpool team", e2.some((e) => e.type === "team" && e.internalId === "liverpool"));
   assert("entities: no false positives", matchEntities("Tennis results today", "atp wta serve").every((e) => e.confidence > 75));
+  const eplEntities = matchEntities("EPL coverage begins today", "");
+  assert("entities: EPL resolves to the English Premier League", eplEntities.some((e) => e.type === "competition" && e.internalId === "premier-league"));
+  assert("entities: EPL is not mislabeled as the Egyptian League", !eplEntities.some((e) => e.type === "competition" && e.internalId === "egyptian-league"));
+
+  // Only destinations with a real route or an explicitly marked preview page are clickable.
+  const originalDemoFlag = process.env.NEXT_PUBLIC_DEMO_CONTENT;
+  const originalSdlMode = process.env.NEMO_SDL_MODE;
+  const originalSportScoreSetting = process.env.NEMO_SPORTSCORE_ENABLED;
+  process.env.NEMO_SDL_MODE = "auto";
+  process.env.NEMO_SPORTSCORE_ENABLED = "1";
+  delete process.env.NEXT_PUBLIC_DEMO_CONTENT;
+  assert("entity links: unverified real team/player ids stay labels", newsEntityHref({ type: "team", internalId: "al-ahly", displayName: "الأهلي", extractedName: "Al Ahly", confidence: 90, foundIn: "title" }) === null && newsEntityHref({ type: "player", internalId: "erling-haaland", displayName: "هالاند", extractedName: "Haaland", confidence: 90, foundIn: "title" }) === null);
+  assert("entity links: supported real competition uses canonical route", newsEntityHref({ type: "competition", internalId: "premier-league", displayName: "الدوري الإنجليزي", extractedName: "Premier League", confidence: 90, foundIn: "title" }) === "/competitions/premier-league");
+  assert("entity links: unsupported real competition stays a label", newsEntityHref({ type: "competition", internalId: "egyptian-league", displayName: "الدوري المصري", extractedName: "Egyptian League", confidence: 90, foundIn: "title" }) === null);
+  process.env.NEXT_PUBLIC_DEMO_CONTENT = "1";
+  assert("entity links: demo entities use marked preview pages", newsEntityHref({ type: "team", internalId: "al-ahly", displayName: "الأهلي", extractedName: "Al Ahly", confidence: 90, foundIn: "title" }) === "/teams/al-ahly");
+  assert("entity links: demo preview does not claim sports data providers", !requiredAttributions().some((provider) => provider.name === "SportScore" || provider.name === "Football-Data.org"));
+  for (const [key, value] of [["NEXT_PUBLIC_DEMO_CONTENT", originalDemoFlag], ["NEMO_SDL_MODE", originalSdlMode], ["NEMO_SPORTSCORE_ENABLED", originalSportScoreSetting]] as const) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
 
   // broadcasts
   assert("broadcast: official ok", validateBroadcastLink("https://www.onsport.tv/live").ok);

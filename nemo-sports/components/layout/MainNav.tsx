@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NAV } from "@/lib/nav";
-import { sports } from "@/lib/core-data";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
 
 export default function MainNav({
   onNavigate,
@@ -33,7 +33,7 @@ export default function MainNav({
   const vertical = orientation === "vertical";
 
   const linkCls = (active: boolean) =>
-    `rounded-[3px] px-3 py-2 text-[13px] font-bold transition ${
+    `inline-flex min-h-11 items-center rounded-[3px] px-3 py-2 text-[13px] font-bold transition ${
       active ? "text-gold-400" : "text-white/80 hover:bg-white/10 hover:text-white"
     }`;
 
@@ -65,15 +65,15 @@ export default function MainNav({
             } w-64 border border-navy-700 bg-navy-900 p-2 shadow-2xl`}
           >
             <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
-              8 رياضات مدعومة
+              رياضات متاحة للمتابعة
             </p>
             <div className="grid grid-cols-2 gap-1">
-              {sports.map((s) => (
+              {PUBLIC_SPORTS.map((s) => (
                 <Link
                   key={s.slug}
                   href={`/matches?sport=${s.slug}`}
                   onClick={onNavigate}
-                  className="flex items-center gap-2 rounded-[3px] px-2 py-1.5 text-[12px] font-semibold text-white/80 transition hover:bg-gold-500 hover:text-navy-900"
+                  className="flex min-h-11 items-center gap-2 rounded-[3px] px-2 py-1.5 text-[12px] font-semibold text-white/80 transition hover:bg-gold-500 hover:text-navy-900 focus-ring"
                 >
                   <span aria-hidden>{s.icon}</span>
                   {s.name}

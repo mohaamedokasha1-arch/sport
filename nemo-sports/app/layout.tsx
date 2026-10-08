@@ -5,7 +5,9 @@ import Footer from "@/components/layout/Footer";
 import LiveProvider from "@/components/live/LiveProvider";
 import { getLiveStates } from "@/lib/live";
 import { robotsForDataSource } from "@/lib/sdl-gateway";
+import { demoContentVisible } from "@/lib/site";
 import { SITE_NAME, SITE_NAME_AR, SITE_URL, absoluteUrl } from "@/lib/site";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 const baseMetadata: Metadata = {
   // Single source of truth for every absolute SEO URL (canonical, OG, Twitter,
@@ -14,15 +16,15 @@ const baseMetadata: Metadata = {
   // "URL غير مسموح به" for every URL submitted via the sitemap.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "نيمو سبورتس | نتائج مباشرة، أخبار وإحصائيات لـ 8 رياضات",
+    default: "نيمو سبورتس | نتائج ومواعيد المباريات",
     template: "%s | نيمو سبورتس",
   },
   description:
-    "منصة رياضية شاملة: نتائج ومباريات مباشرة، أخبار موثوقة، ترتيب البطولات، إحصائيات الفرق واللاعبين، وروابط بث رسمية مرخّصة فقط.",
-  keywords: ["نتائج مباشرة", "مباريات اليوم", "أخبار رياضية", "ترتيب الدوري", "بث مباشر رسمي"],
+    "مواعيد ونتائج المباريات من مصادر البيانات المتاحة، مع توضيح حالة التحديث وعدم عرض بيانات غير مؤكدة.",
+  keywords: ["نتائج المباريات", "مباريات اليوم", "جدول المباريات", "نتائج كرة القدم"],
   openGraph: {
-    title: "نيمو سبورتس | Live Sports, Every Moment",
-    description: "نتائج مباشرة، أخبار، إحصائيات وبث رسمي مرخّص لثمانية رياضات.",
+    title: "نيمو سبورتس | نتائج ومواعيد المباريات",
+    description: "تابع مواعيد ونتائج المباريات من مصادر البيانات المتاحة.",
     siteName: "NEMO Sports",
     locale: "ar_AR",
     type: "website",
@@ -58,8 +60,8 @@ const organizationLd = {
   name: SITE_NAME,
   alternateName: SITE_NAME_AR,
   url: SITE_URL,
-  slogan: "Live Sports, Every Moment",
-  description: "منصة رياضية شاملة للنتائج المباشرة والأخبار والإحصائيات.",
+  slogan: "نتائج ومواعيد المباريات",
+  description: "منصة لعرض مواعيد ونتائج المباريات من مصادر البيانات المتاحة.",
 };
 
 const websiteLd = {
@@ -84,15 +86,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationLd) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteLd) }}
         />
       </head>
       <body className="min-h-screen bg-bg text-ink antialiased">
-        <LiveProvider initial={getLiveStates()}>
+        <LiveProvider initial={demoContentVisible() ? getLiveStates() : {}} enabled={demoContentVisible()}>
           <a
             href="#main"
             className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-[90] focus:rounded-[3px] focus:bg-gold-500 focus:px-4 focus:py-2 focus:text-navy-900"

@@ -25,7 +25,7 @@ export default function SectionHead({
       {href ? (
         <Link
           href={href}
-          className="shrink-0 text-[12px] font-bold text-navy-850 transition hover:text-gold-600 dark:text-gold-400 dark:hover:text-gold-300"
+          className="inline-flex min-h-11 shrink-0 items-center text-[12px] font-bold text-navy-850 transition hover:text-gold-600 dark:text-gold-400 dark:hover:text-gold-300"
         >
           {linkLabel} ←
         </Link>
