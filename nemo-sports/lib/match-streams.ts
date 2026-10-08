@@ -35,6 +35,8 @@
  *   · no source → nothing renders at all.
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { validateBroadcastLink } from "@/lib/broadcasts";
@@ -163,8 +165,33 @@ CREATE INDEX IF NOT EXISTS idx_match_streams_match_slug ON match_streams(match_s
 let mem: MatchStreamSource[] | null = null;
 let ddlDone = false;
 
+const STREAMS_FILE = path.join(process.cwd(), "db", "match-streams.json");
+
+function loadDiskStreams(): MatchStreamSource[] {
+  try {
+    if (fs.existsSync(STREAMS_FILE)) {
+      const raw = fs.readFileSync(STREAMS_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // fall through
+  }
+  return seed();
+}
+
+function saveDiskStreams(list: MatchStreamSource[]): void {
+  try {
+    const dir = path.dirname(STREAMS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(STREAMS_FILE, JSON.stringify(list, null, 2), "utf-8");
+  } catch {
+    // ignore
+  }
+}
+
 function memory(): MatchStreamSource[] {
-  if (!mem) mem = seed();
+  if (!mem) mem = loadDiskStreams();
   return mem;
 }
 
@@ -277,7 +304,7 @@ export async function listPublishedStreams(): Promise<MatchStreamSource[]> {
 /** Counts per lifecycle status (admin dashboard + /admin/live stats). */
 export async function liveStreamStats(): Promise<Record<LiveStreamStatus, number>> {
   const all = await listMatchStreams(true);
-  const stats: Record<LiveStreamStatus, number> = { draft: 0, published: 0, live: 0, ended: 0, disabled: 0 };
+  const stats: Record<LiveStreamStatus, number> = { draft: 0, scheduled: 0, published: 0, live: 0, ended: 0, disabled: 0 };
   for (const s of all) stats[s.status] += 1;
   return stats;
 }
@@ -304,8 +331,20 @@ export async function streamForMatch(key: {
   if (all.length === 0) return null;
 
   const slug = String(key.slug ?? "").trim().toLowerCase();
+  const slugBase = slug.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
   if (slug) {
-    const bySlug = all.find((s) => s.slugs.some((x) => x.trim().toLowerCase() === slug) || s.matchSlug.trim().toLowerCase() === slug);
+    const bySlug = all.find((s) => {
+      const sSlug = s.matchSlug.trim().toLowerCase();
+      const sSlugBase = sSlug.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
+      return (
+        sSlug === slug ||
+        sSlugBase === slugBase ||
+        s.slugs.some((x) => {
+          const xLower = x.trim().toLowerCase();
+          return xLower === slug || xLower.replace(/-20\d{2}-\d{2}-\d{2}$/, "") === slugBase;
+        })
+      );
+    });
     if (bySlug) return bySlug;
   }
 
@@ -313,8 +352,8 @@ export async function streamForMatch(key: {
   const a = norm(String(key.away ?? ""));
   if (h && a) {
     const byTeams = all.find((s) => {
-      const homeSet = s.homeAliases.map(norm);
-      const awaySet = s.awayAliases.map(norm);
+      const homeSet = [s.homeName, ...s.homeAliases].filter(Boolean).map(norm);
+      const awaySet = [s.awayName, ...s.awayAliases].filter(Boolean).map(norm);
       return (homeSet.includes(h) && awaySet.includes(a)) || (homeSet.includes(a) && awaySet.includes(h));
     });
     if (byTeams) return byTeams;
@@ -479,6 +518,7 @@ async function persistUpsert(entry: MatchStreamSource, previous: MatchStreamSour
   const i = list.findIndex((s) => s.id === entry.id);
   if (i >= 0) list[i] = entry;
   else list.push(entry);
+  saveDiskStreams(list);
   return null;
 }
 
@@ -705,6 +745,7 @@ export async function deleteMatchStream(id: string): Promise<boolean> {
   const i = list.findIndex((s) => s.id === id);
   if (i < 0) return false;
   list.splice(i, 1);
+  saveDiskStreams(list);
   return true;
 }
 

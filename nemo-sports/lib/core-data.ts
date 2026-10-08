@@ -57,6 +57,9 @@ export const competitions: Competition[] = [
   // Football
   { slug: "premier-league", name: "الدوري الإنجليزي الممتاز", nameEn: "Premier League", sport: "football", country: "إنجلترا", season: "2026/2027", format: "دوري", rounds: 38, teamsCount: 20, code: "EPL", tier: "domestic" },
   { slug: "la-liga", name: "الدوري الإسباني", nameEn: "La Liga", sport: "football", country: "إسبانيا", season: "2026/2027", format: "دوري", rounds: 38, teamsCount: 20, code: "LL", tier: "domestic" },
+  { slug: "saudi-pro-league", name: "دوري روشن السعودي", nameEn: "Saudi Pro League", sport: "football", country: "السعودية", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "SPL", tier: "domestic" },
+  { slug: "bundesliga", name: "الدوري الألماني", nameEn: "Bundesliga", sport: "football", country: "ألمانيا", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "BL1", tier: "domestic" },
+  { slug: "ligue-1", name: "الدوري الفرنسي", nameEn: "Ligue 1", sport: "football", country: "فرنسا", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "FL1", tier: "domestic" },
   { slug: "champions-league", name: "دوري أبطال أوروبا", nameEn: "UEFA Champions League", sport: "football", country: "أوروبا", season: "2026/2027", format: "دوري + كأس", rounds: 17, teamsCount: 36, code: "UCL", tier: "continental" },
   { slug: "egyptian-league", name: "الدوري المصري الممتاز", nameEn: "Egyptian Premier League", sport: "football", country: "مصر", season: "2026/2027", format: "دوري", rounds: 34, teamsCount: 18, code: "EGY", tier: "domestic" },
   { slug: "caf-champions-league", name: "دوري أبطال أفريقيا", nameEn: "CAF Champions League", sport: "football", country: "أفريقيا", season: "2026/2027", format: "دوري + كأس", rounds: 13, teamsCount: 16, code: "CAF", tier: "continental" },
@@ -152,6 +155,20 @@ const TEAMS_RAW: Team[] = [
   /* ── International football ─────────────────────────────── */
   t("argentina", "الأرجنتين", "Argentina", "ARG", "football", "الأرجنتين", "🇦🇷", "international-friendly", 1893, "#75AADB", "#FFFFFF", { coach: "ليونيل سكالوني", captain: "ليونيل ميسي" }),
   t("benin", "بنين", "Benin", "BEN", "football", "بنين", "🇧🇯", "international-friendly", 1962, "#FCD116", "#E8112D", { coach: "الجهاز الفني", captain: "قائد منتخب بنين" }),
+  /* ── Saudi Pro League ───────────────────────────────────── */
+  t("al-fateh", "الفتح", "Al-Fateh SC", "الفتح", "football", "السعودية", "🇸🇦", "saudi-pro-league", 1958, "#1A472A", "#FFFFFF", { stadium: "ملعب الأمير عبد الله بن جلوي", capacity: 19550, coach: "سلافين بيليتش", captain: "محمد الفهيد" }),
+  t("al-ahli-saudi", "الأهلي", "Al-Ahli Saudi FC", "الأهلي", "football", "السعودية", "🇸🇦", "saudi-pro-league", 1937, "#006C35", "#FFFFFF", { stadium: "مدينة الملك عبد الله الرياضية", capacity: 62345, coach: "ماتياس يايسله", captain: "روبرتو فيرمينو" }),
+  t("al-nassr", "النصر", "Al-Nassr FC", "النصر", "football", "السعودية", "🇸🇦", "saudi-pro-league", 1955, "#FFD700", "#002B7F", { stadium: "الأول بارك", capacity: 25000, coach: "ستيفانو بيولي", captain: "كريستيانو رونالدو" }),
+  t("al-diriyah", "الدرعية", "Al-Diriyah Club", "الدرعية", "football", "السعودية", "🇸🇦", "saudi-pro-league", 1976, "#8B4513", "#FFFFFF", { stadium: "الأول بارك", capacity: 25000, coach: "محمد دحام", captain: "عبد الله الدوسري" }),
+  /* ── Bundesliga ─────────────────────────────────────────── */
+  t("borussia-dortmund", "بوروسيا دورتموند", "Borussia Dortmund", "دورتموند", "football", "ألمانيا", "🇩🇪", "bundesliga", 1909, "#FDE100", "#000000", { stadium: "سيغنال إيدونا بارك", capacity: 81365, coach: "نوري شاهين", captain: "إيمري تشان" }),
+  t("werder-bremen", "فيردر بريمن", "Werder Bremen", "بريمن", "football", "ألمانيا", "🇩🇪", "bundesliga", 1899, "#1D9053", "#FFFFFF", { stadium: "فيسير شتاديون", capacity: 42100, coach: "أولي فيرنر", captain: "ماركو فريدل" }),
+  /* ── Ligue 1 ────────────────────────────────────────────── */
+  t("rc-lens", "لانس", "RC Lens", "لانس", "football", "فرنسا", "🇫🇷", "ligue-1", 1906, "#EC1C24", "#FFCC00", { stadium: "ملعب بولار ديلولي", capacity: 38223, coach: "ويل ستيل", captain: "فلوريان سوتوكا" }),
+  t("olympique-lyonnais", "أولمبيك ليون", "Olympique Lyonnais", "ليون", "football", "فرنسا", "🇫🇷", "ligue-1", 1950, "#1D3B8B", "#DA291C", { stadium: "بارك أولمبيك ليون", capacity: 59186, coach: "بيير ساج", captain: "ألكسندر لاكازيت" }),
+  /* ── Additional La Liga ─────────────────────────────────── */
+  t("malaga", "مالقا", "Málaga CF", "مالقا", "football", "إسبانيا", "🇪🇸", "la-liga", 1904, "#0080FF", "#FFFFFF", { stadium: "ملعب لا روزاليدا", capacity: 30044, coach: "سيرخيو بيليثير", captain: "رامون إنريكيز" }),
+  t("espanyol", "إسبانيول", "RCD Espanyol", "إسبانيول", "football", "إسبانيا", "🇪🇸", "la-liga", 1900, "#007FC8", "#FFFFFF", { stadium: "ملعب آر سي دي إي", capacity: 40000, coach: "مانولو غونزاليس", captain: "سيرجي غوميز" }),
   /* ── NBA ────────────────────────────────────────────────── */
   t("boston-celtics", "بوسطن سلتيكس", "Boston Celtics", "BOS", "basketball", "الولايات المتحدة", "🇺🇸", "nba", 1946, "#007A33", "#BA9653", { stadium: "تي دي غاردن", capacity: 19156, coach: "جو مازولا", captain: "جايسون تيتوم" }),
   t("la-lakers", "لوس أنجلوس ليكرز", "Los Angeles Lakers", "LAL", "basketball", "الولايات المتحدة", "🇺🇸", "nba", 1947, "#552583", "#FDB927", { stadium: "كريبتو أرينا", capacity: 18997, coach: "جي جي ريديك", captain: "ليبرون جيمس" }),
@@ -297,7 +314,13 @@ export const players: Player[] = demoContentVisible() ? PLAYERS_RAW : [];
 
 export const sportBySlug = (s: string) => sports.find((x) => x.slug === s);
 export const competitionBySlug = (s: string) => competitions.find((x) => x.slug === s);
-export const teamBySlug = (s: string) => teams.find((x) => x.slug === s);
+export const teamBySlug = (s: string) => {
+  const norm = s.trim().toLowerCase();
+  return (
+    teams.find((x) => x.slug === norm) ??
+    TEAMS_ALL.find((x) => x.slug === norm || x.name === s || x.nameEn.toLowerCase() === norm || x.short.toLowerCase() === norm)
+  );
+};
 export const playerBySlug = (s: string) => players.find((x) => x.slug === s);
 export const teamsByCompetition = (c: string) => teams.filter((x) => x.competition === c);
 export const playersByTeam = (t: string) => players.filter((x) => x.team === t);
