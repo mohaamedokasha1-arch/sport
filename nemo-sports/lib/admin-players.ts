@@ -11,6 +11,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 
 export interface AdminPlayer {
   id: string;
@@ -286,18 +287,17 @@ export async function createAdminPlayer(
   };
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `INSERT INTO admin_players (${COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
         valuesOf(player),
-      );
-      return { ok: true, player };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(player.id, player);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(player.id, player);
   return { ok: true, player };
 }
 
@@ -333,9 +333,9 @@ export async function updateAdminPlayer(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `UPDATE admin_players SET slug=$2, full_name_ar=$3, full_name_en=$4, team_slug=$5, team_name=$6,
            position=$7, nationality=$8, jersey_number=$9, photo_url=$10, date_of_birth=$11, height_cm=$12,
            weight_kg=$13, stats=$14, is_published=$15, updated_at=now() WHERE id=$1`,
@@ -344,13 +344,12 @@ export async function updateAdminPlayer(
           found.position, found.nationality, found.jerseyNumber, found.photoUrl, found.dateOfBirth,
           found.heightCm, found.weightKg, JSON.stringify(found.stats), found.isPublished,
         ],
-      );
-      return { ok: true, player: found };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(id, found);
   return { ok: true, player: found };
 }
 
@@ -361,26 +360,14 @@ export async function setAdminPlayerPublished(id: string, isPublished: boolean):
   found.isPublished = isPublished;
   found.updatedAt = now();
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("UPDATE admin_players SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]);
-      return true;
-    } catch {
-      // fall through
-    }
-  }
-  mem.set(id, found);
+  const inDb = await persistOrThrow(db, (d) => d.run("UPDATE admin_players SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]));
+  if (!inDb) mem.set(id, found);
   return true;
 }
 
 export async function deleteAdminPlayer(id: string): Promise<boolean> {
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM admin_players WHERE id = $1", [id]);
-    } catch {
-      // fall through
-    }
-  }
-  return mem.delete(id) || true;
+  const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM admin_players WHERE id = $1", [id]));
+  if (!inDb) mem.delete(id);
+  return true;
 }

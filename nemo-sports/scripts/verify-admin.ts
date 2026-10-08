@@ -19,6 +19,7 @@ import { createAdminPlayer, parseStatsInput, listAdminPlayers } from "@/lib/admi
 import { createAdminCompetition, listAdminCompetitions } from "@/lib/admin-competitions";
 import { getSiteSettings, updateSiteSettings } from "@/lib/site-settings";
 import { logActivity, listActivity } from "@/lib/activity";
+import { persistOrThrow, memoryStoreAllowed, StoreWriteError, STORE_WRITE_FAILED_AR, STORE_MEMORY_DISABLED_AR } from "@/lib/db/store-policy";
 
 process.env.ADMIN_SESSION_SECRET = "unit-test-secret-0123456789";
 
@@ -117,11 +118,20 @@ async function main() {
   await test("cannot delete the last active super admin", async () => {
     const created = await createUser({ username: "root_admin", password: "RootPass12345!", role: "super_admin" });
     assert.equal(created.ok, true);
-    const supers = (await listUsers()).filter((u) => u.role === "super_admin" && u.isActive);
-    assert.equal(supers.length, 1, "exactly one super admin in this test");
-    const r = await deleteUser(supers[0]!.id);
-    assert.equal(r.ok, false);
-    assert.equal(await countActiveSuperAdmins(), 1);
+    if (!created.ok) return;
+    // The directory may already hold other super admins (the env operator is
+    // bootstrapped into an empty directory), so park them to make root_admin the last one.
+    const others = (await listUsers()).filter((u) => u.role === "super_admin" && u.isActive && u.id !== created.user.id);
+    for (const u of others) await updateUser(u.id, { isActive: false });
+    try {
+      const supers = (await listUsers()).filter((u) => u.role === "super_admin" && u.isActive);
+      assert.equal(supers.length, 1, "exactly one active super admin in this test");
+      const r = await deleteUser(supers[0]!.id);
+      assert.equal(r.ok, false);
+      assert.equal(await countActiveSuperAdmins(), 1);
+    } finally {
+      for (const u of others) await updateUser(u.id, { isActive: true });
+    }
   });
 
   console.log("Matches & scheduling");
@@ -267,6 +277,72 @@ async function main() {
     const top = items[0]!;
     assert.equal(top.actor, "tester");
     assert.equal(JSON.stringify(items).includes("EditorPass123"), false);
+  });
+
+  console.log("Storage policy (no silent data loss)");
+  const env = process.env as Record<string, string | undefined>;
+  const withEnv = async (vars: Record<string, string | undefined>, fn: () => void | Promise<void>) => {
+    const saved: Record<string, string | undefined> = {};
+    for (const k of Object.keys(vars)) {
+      saved[k] = env[k];
+      if (vars[k] === undefined) delete env[k];
+      else env[k] = vars[k];
+    }
+    try {
+      await fn();
+    } finally {
+      for (const k of Object.keys(saved)) {
+        if (saved[k] === undefined) delete env[k];
+        else env[k] = saved[k];
+      }
+    }
+  };
+  await test("memory store allowed in development, refused in production by default", async () => {
+    await withEnv({ DATABASE_URL: undefined, NODE_ENV: "development", ADMIN_ALLOW_MEMORY_STORE: undefined }, () => {
+      assert.equal(memoryStoreAllowed(), true);
+    });
+    await withEnv({ DATABASE_URL: undefined, NODE_ENV: "production", ADMIN_ALLOW_MEMORY_STORE: undefined }, () => {
+      assert.equal(memoryStoreAllowed(), false);
+    });
+    await withEnv({ DATABASE_URL: undefined, NODE_ENV: "production", ADMIN_ALLOW_MEMORY_STORE: "1" }, () => {
+      assert.equal(memoryStoreAllowed(), true);
+    });
+  });
+  await test("production without a database rejects writes with a clear Arabic message", async () => {
+    await withEnv({ DATABASE_URL: undefined, NODE_ENV: "production", ADMIN_ALLOW_MEMORY_STORE: undefined }, async () => {
+      const r = await createAdminTeam({ nameAr: "فريق اختبار الحفظ", nameEn: "", shortName: "", sport: "football", country: "", logoUrl: "", competitionSlug: "", stadium: "", coach: "", foundedYear: null, primaryColor: "", secondaryColor: "", isPublished: false } as never, "t");
+      assert.equal(r.ok, false);
+      if (!r.ok) assert.equal(r.error, STORE_MEMORY_DISABLED_AR);
+    });
+  });
+  await test("database configured but unavailable: write is rejected, never kept in memory", async () => {
+    await withEnv({ DATABASE_URL: "postgres://nobody@127.0.0.1:1/none", NODE_ENV: "production" }, async () => {
+      let threw: unknown = null;
+      try {
+        await persistOrThrow(null, async () => undefined);
+      } catch (e) {
+        threw = e;
+      }
+      assert.ok(threw instanceof StoreWriteError);
+      assert.equal((threw as StoreWriteError).messageAr, STORE_WRITE_FAILED_AR);
+    });
+  });
+  await test("failed SQL write surfaces an operator-safe message without SQL or secrets", async () => {
+    let threw: unknown = null;
+    try {
+      await persistOrThrow({ marker: 1 }, async () => {
+        throw new Error('relation "admin_teams" does not exist postgres://user:pw@host');
+      });
+    } catch (e) {
+      threw = e;
+    }
+    assert.ok(threw instanceof StoreWriteError);
+    const msg = (threw as StoreWriteError).messageAr;
+    assert.equal(msg, STORE_WRITE_FAILED_AR);
+    assert.equal(/admin_teams|postgres:\/\/|pw@/.test(msg), false);
+  });
+  await test("successful database write reports persisted (no memory copy)", async () => {
+    assert.equal(await persistOrThrow({ marker: 1 }, async () => undefined), true);
   });
 
   console.log(`\n${passed} passed, ${failures.length} failed`);

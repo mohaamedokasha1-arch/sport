@@ -14,6 +14,7 @@ import { listBroadcasters } from "@/lib/broadcasts";
 import { fixtures as loadFixtures, liveMatches as loadLiveMatches } from "@/lib/sdl-gateway";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import { requireUser } from "@/lib/admin-session";
+import { can } from "@/lib/admin-roles";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -96,7 +97,10 @@ function LiveMatchCard({ match }: { match: NormalizedFixture }) {
 }
 
 export default async function AdminDashboard() {
-  await requireUser();
+  const user = await requireUser();
+  // Links are shown only where the operator may actually open the target page.
+  const canBroadcast = can(user.role, "broadcast");
+  const canProviders = can(user.role, "providers");
   const [liveResult, fixturesResult, streams, overrides, broadcasters, articleResult, activityResult, matchCounts, teamCounts, playerCounts, competitionCounts, newsCounts, streamStats] = await Promise.all([
     loadLiveMatches("football"),
     loadFixtures({ sport: "football" }),
@@ -156,8 +160,8 @@ export default async function AdminDashboard() {
         <Stat label="بثوث نشطة الآن" value={String(streamStats.live)} hint={`${streamStats.draft} مسودة · ${streamStats.disabled} موقوف`} />
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
+      <div className="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-4">
           <Panel
             title="المباريات الجارية الآن"
             aside={liveResult.ok ? sourcePill(liveResult.source, liveResult.stale) : <Pill tone="warn">المصدر غير متاح</Pill>}
@@ -206,9 +210,13 @@ export default async function AdminDashboard() {
                   <span key="competition" className="block max-w-[140px] truncate text-white/50">{match.competitionName ?? match.competitionProviderId}</span>,
                   <span key="date" className="num whitespace-nowrap text-[11px] text-white/65">{safeDate(match.scheduledAt)}</span>,
                   <Pill key="status" tone="idle">{statusLabel(match.status)}</Pill>,
-                  <Link key="action" href={`/admin/broadcast?${new URLSearchParams({ match: match.providerId, home: match.homeName ?? "", away: match.awayName ?? "" }).toString()}#match-stream-form`} className="whitespace-nowrap text-[11px] font-bold text-gold-400 hover:underline">
-                    ربط ناقل ←
-                  </Link>,
+                  canBroadcast ? (
+                    <Link key="action" href={`/admin/broadcast?${new URLSearchParams({ match: match.providerId, home: match.homeName ?? "", away: match.awayName ?? "" }).toString()}#match-stream-form`} className="whitespace-nowrap text-[11px] font-bold text-gold-400 hover:underline">
+                      ربط ناقل ←
+                    </Link>
+                  ) : (
+                    <span key="action" className="text-[11px] text-white/35">—</span>
+                  ),
                 ])}
               />
             )}
@@ -220,21 +228,25 @@ export default async function AdminDashboard() {
           </Panel>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Panel title="مهام سريعة" aside={<Pill tone={pendingBroadcasters > 0 ? "warn" : "idle"}>{pendingBroadcasters} قيد المراجعة</Pill>}>
             <ul className="space-y-2 text-[12px]">
-              <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
-                <span>مراجعة ناقل بث جديد</span>
-                <Link href="/admin/broadcast" className="font-bold text-gold-400">مراجعة ←</Link>
-              </li>
+              {canBroadcast ? (
+                <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
+                  <span>مراجعة ناقل بث جديد</span>
+                  <Link href="/admin/broadcast" className="font-bold text-gold-400">مراجعة ←</Link>
+                </li>
+              ) : null}
               <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
                 <span>مراجعة {overrides.length} تصحيح نتيجة</span>
                 <Link href="/admin/matches" className="font-bold text-gold-400">فتح ←</Link>
               </li>
-              <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
-                <span>فحص مزوّدي البيانات</span>
-                <Link href="/admin/providers" className="font-bold text-gold-400">فحص ←</Link>
-              </li>
+              {canProviders ? (
+                <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
+                  <span>فحص مزوّدي البيانات</span>
+                  <Link href="/admin/providers" className="font-bold text-gold-400">فحص ←</Link>
+                </li>
+              ) : null}
             </ul>
           </Panel>
 
@@ -291,7 +303,7 @@ export default async function AdminDashboard() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link href="/admin/matches"><Btn tone="ghost">تصحيحات النتائج</Btn></Link>
-            <Link href="/admin/broadcast"><Btn tone="ghost">البث والترخيص</Btn></Link>
+            {canBroadcast ? <Link href="/admin/broadcast"><Btn tone="ghost">البث والترخيص</Btn></Link> : null}
           </div>
         </Panel>
       </div>

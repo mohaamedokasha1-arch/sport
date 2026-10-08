@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
@@ -29,7 +30,7 @@ function refresh(slug?: string): void {
   revalidatePath("/admin/activity");
   revalidatePath("/admin");
   revalidatePath("/news");
-  if (slug) revalidatePath(`/news/${slug}`);
+  if (slug) revalidatePath(`/news/${encodeURIComponent(slug)}`);
   revalidatePath("/sitemap.xml");
 }
 
@@ -83,7 +84,11 @@ async function setNewsStatusAction(form: FormData): Promise<void> {
   if (status === "published" && (!article || !article.sourceName || !article.sourceUrl)) {
     redirect(`/admin/news/manual?err=${encodeURIComponent("لا يمكن نشر خبر بدون مصدر حقيقي")}`);
   }
-  await setManualNewsStatus(id, status);
+  try {
+    await setManualNewsStatus(id, status);
+  } catch (e) {
+    redirect(`/admin/news/manual?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "news.manual.status", entityType: "news", entityId: article?.slug ?? id, actor: actor.username, role: actor.role, after: { status } });
   refresh(article?.slug);
   redirect(`/admin/news/manual?ok=${encodeURIComponent(`حالة الخبر: ${MANUAL_NEWS_STATUS_AR[status]}`)}`);
@@ -94,7 +99,11 @@ async function deleteNewsAction(form: FormData): Promise<void> {
   const actor = await requirePermission("news");
   const id = String(form.get("id") ?? "");
   const article = await getManualNewsById(id);
-  await deleteManualNews(id);
+  try {
+    await deleteManualNews(id);
+  } catch (e) {
+    redirect(`/admin/news/manual?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "news.manual.delete", entityType: "news", entityId: article?.slug ?? id, actor: actor.username, role: actor.role });
   refresh(article?.slug);
   redirect(`/admin/news/manual?ok=${encodeURIComponent("تم حذف الخبر")}`);

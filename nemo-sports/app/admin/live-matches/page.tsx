@@ -2,13 +2,13 @@ import Link from "next/link";
 import { AdminHead, Btn, NotConnected, Panel } from "@/components/admin/ui";
 import MatchFeedPanel, { isLiveFixture } from "@/components/admin/MatchFeedPanel";
 import { liveMatches as loadLiveMatches } from "@/lib/sdl-gateway";
-import { requireUser } from "@/lib/admin-session";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminLiveMatches() {
-  await requireUser();
+  await requirePermission("matches");
   const result = await loadLiveMatches("football");
   const matches = result.ok
     ? result.data.filter(isLiveFixture).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))

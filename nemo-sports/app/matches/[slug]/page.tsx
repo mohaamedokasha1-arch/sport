@@ -10,13 +10,18 @@ import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-str
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
+import { decodeSlug } from "@/lib/slug";
 import { teamBySlug } from "@/lib/core-data";
 import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
 
-export const revalidate = 30;
+// Rendered per request: the page carries admin-controlled stream state
+// (publish / stop / edit / delete). ISR with revalidatePath() does not reliably
+// purge entries for percent-encoded Arabic slugs, so a stopped stream could
+// stay visible. Provider data is still cached in lib/ (see lib/cache).
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   // Demo slugs are prerendered for development/preview only; production
@@ -177,7 +182,9 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  // Arabic slugs arrive percent-encoded; decode once so every lookup (admin
+  // match, stream registry, overrides, provider) uses the real slug.
+  const slug = decodeSlug((await params).slug);
 
   // ── real match first ──
   const real = await sdlMatchDetail("football", slug);
@@ -228,7 +235,9 @@ const StatBar = ({ label, home, away }: { label: string; home: string; away: str
 );
 
 export default async function MatchPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
+  // Arabic slugs arrive percent-encoded; decode once so every lookup (admin
+  // match, stream registry, overrides, provider) uses the real slug.
+  const slug = decodeSlug((await params).slug);
 
   /* ══ 1) real provider match (SportScore via the SDL) ══════════════════ */
   const real = await sdlMatchDetail("football", slug);

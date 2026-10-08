@@ -36,6 +36,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { validateBroadcastLink } from "@/lib/broadcasts";
 
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
@@ -448,12 +449,12 @@ function valuesOf(s: MatchStreamSource): unknown[] {
  * write — the caller must report that instead of pretending it was saved.
  * Memory is used only when no database is configured at all.
  */
-async function persistUpsert(entry: MatchStreamSource, previous: MatchStreamSource | null): Promise<boolean> {
+async function persistUpsert(entry: MatchStreamSource, previous: MatchStreamSource | null): Promise<string | null> {
   const db = await pg();
-  if (db) {
-    try {
+  try {
+    const inDb = await persistOrThrow(db, (d) => {
       if (previous) {
-        await db.run(
+        return d.run(
           `UPDATE match_streams SET label=$2, embed_url=$3, slugs=$4, home_aliases=$5, away_aliases=$6,
              enabled=$7, stream_type=$8, status=$9, match_slug=$10, home_name=$11, away_name=$12,
              competition_name=$13, kickoff_at=$14, published_at=$15, updated_at=now() WHERE id=$1`,
@@ -463,24 +464,22 @@ async function persistUpsert(entry: MatchStreamSource, previous: MatchStreamSour
             entry.competitionName, entry.kickoffAt, entry.publishedAt,
           ],
         );
-      } else {
-        const values = valuesOf(entry);
-        await db.run(
-          `INSERT INTO match_streams (${COLUMNS}) VALUES (${values.map((_, i) => `$${i + 1}`).join(",")}) ON CONFLICT (id) DO NOTHING`,
-          values,
-        );
       }
-      return true;
-    } catch (e) {
-      console.error("[match-streams] database write failed:", e instanceof Error ? e.message.slice(0, 200) : "unknown");
-      return false;
-    }
+      const values = valuesOf(entry);
+      return d.run(
+        `INSERT INTO match_streams (${COLUMNS}) VALUES (${values.map((_, i) => `$${i + 1}`).join(",")}) ON CONFLICT (id) DO NOTHING`,
+        values,
+      );
+    });
+    if (inDb) return null;
+  } catch (e) {
+    return storeErrorMessage(e);
   }
   const list = memory();
   const i = list.findIndex((s) => s.id === entry.id);
   if (i >= 0) list[i] = entry;
   else list.push(entry);
-  return true;
+  return null;
 }
 
 /**
@@ -525,8 +524,8 @@ export async function upsertMatchStream(
   const previous = all.find((s) => s.id === entry.id) ?? null;
   if (previous) entry.createdAt = previous.createdAt;
   if (previous) entry.publishedAt = previous.publishedAt ?? entry.publishedAt;
-  const saved = await persistUpsert(entry, previous);
-  if (!saved) return { ok: false, error: "تعذّر حفظ التعديل في قاعدة البيانات. الحالة السابقة لم تتغيّر." };
+  const saveError = await persistUpsert(entry, previous);
+  if (saveError) return { ok: false, error: saveError };
   return { ok: true, entry };
 }
 
@@ -600,8 +599,8 @@ export async function createLiveStream(
     createdAt: t,
   });
 
-  const saved = await persistUpsert(entry, null);
-  if (!saved) return { ok: false, error: "تعذّر حفظ البث في قاعدة البيانات. لم يتم نشر شيء — حاول مرة أخرى." };
+  const saveError = await persistUpsert(entry, null);
+  if (saveError) return { ok: false, error: saveError };
   return { ok: true, entry };
 }
 
@@ -661,8 +660,8 @@ export async function updateLiveStream(
         : previous.publishedAt,
     updatedAt: now(),
   };
-  const saved = await persistUpsert(entry, previous);
-  if (!saved) return { ok: false, error: "تعذّر حفظ مصدر البث في قاعدة البيانات" };
+  const saveError = await persistUpsert(entry, previous);
+  if (saveError) return { ok: false, error: saveError };
   return { ok: true, entry };
 }
 
@@ -698,15 +697,10 @@ export async function setMatchStreamEnabled(id: string, enabled: boolean): Promi
 
 /** Remove a match's stream source entirely. Never touches the match itself. */
 export async function deleteMatchStream(id: string): Promise<boolean> {
+  // Throws StoreWriteError when the database rejects the delete (never silent).
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM match_streams WHERE id = $1", [id]);
-      return true;
-    } catch {
-      // fall through
-    }
-  }
+  const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM match_streams WHERE id = $1", [id]));
+  if (inDb) return true;
   const list = memory();
   const i = list.findIndex((s) => s.id === id);
   if (i < 0) return false;

@@ -1,12 +1,12 @@
 import { AdminHead, NotConnected, Panel, Pill, Table } from "@/components/admin/ui";
 import { actionLabel, listActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
-import { requireUser } from "@/lib/admin-session";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminActivity() {
-  await requireUser();
+  await requirePermission("activity");
   const { items, source } = await listActivity(100);
 
   return (

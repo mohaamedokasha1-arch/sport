@@ -23,6 +23,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { isSuperAdminOnlyPath, SUPER_ADMIN_ONLY_PREFIXES } from "@/lib/admin-auth-shared";
 import { ADMIN_ROLES, type AdminRole } from "@/lib/admin-roles";
 import { compare, hash } from "bcryptjs";
@@ -256,19 +257,18 @@ export async function createUser(
   };
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `INSERT INTO admin_users (id, username, email, password_hash, role, is_active, created_at, updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
         [user.id, user.username, user.email, user.passwordHash, user.role, user.isActive, user.createdAt, user.updatedAt],
-      );
-      return { ok: true, user: publicUser(user) };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(user.id, user);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(user.id, user);
   return { ok: true, user: publicUser(user) };
 }
 
@@ -292,18 +292,17 @@ export async function updateUser(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         "UPDATE admin_users SET email = $2, role = $3, is_active = $4, updated_at = now() WHERE id = $1",
         [id, found.email, found.role, found.isActive],
-      );
-      return { ok: true, user: publicUser(found) };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(id, found);
   return { ok: true, user: publicUser(found) };
 }
 
@@ -320,15 +319,14 @@ export async function setUserPassword(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("UPDATE admin_users SET password_hash = $2, updated_at = now() WHERE id = $1", [id, found.passwordHash]);
-      return { ok: true };
-    } catch {
-      // fall through to memory
-    }
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run("UPDATE admin_users SET password_hash = $2, updated_at = now() WHERE id = $1", [id, found.passwordHash]),
+    );
+    if (!inDb) mem.set(id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(id, found);
   return { ok: true };
 }
 
@@ -344,15 +342,12 @@ export async function deleteUser(id: string): Promise<{ ok: true } | { ok: false
   }
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM admin_users WHERE id = $1", [id]);
-      return { ok: true };
-    } catch {
-      // fall through to memory
-    }
+  try {
+    const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM admin_users WHERE id = $1", [id]));
+    if (!inDb) mem.delete(id);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.delete(id);
   return { ok: true };
 }
 

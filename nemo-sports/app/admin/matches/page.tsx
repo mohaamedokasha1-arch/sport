@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
@@ -47,7 +48,7 @@ function refreshMatchSurfaces(slug?: string): void {
   revalidatePath("/fixtures");
   revalidatePath("/watch");
   revalidatePath("/sitemap.xml");
-  if (slug) revalidatePath(`/matches/${slug}`);
+  if (slug) revalidatePath(`/matches/${encodeURIComponent(slug)}`);
 }
 
 function parseScore(raw: FormDataEntryValue | null): number | null {
@@ -158,7 +159,11 @@ async function deleteMatchAction(form: FormData): Promise<void> {
   const actor = await requirePermission("matches");
   const id = String(form.get("id") ?? "");
   const match = await getAdminMatchById(id);
-  await deleteAdminMatch(id);
+  try {
+    await deleteAdminMatch(id);
+  } catch (e) {
+    redirect(`/admin/matches?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "match.delete", entityType: "match", entityId: match?.slug ?? id, actor: actor.username, role: actor.role });
   refreshMatchSurfaces(match?.slug);
   redirect(`/admin/matches?tab=managed&ok=${encodeURIComponent("تم حذف المباراة")}`);
@@ -170,7 +175,11 @@ async function toggleMatchPublishAction(form: FormData): Promise<void> {
   const id = String(form.get("id") ?? "");
   const publish = form.get("publish") === "1";
   const match = await getAdminMatchById(id);
-  await setAdminMatchPublished(id, publish);
+  try {
+    await setAdminMatchPublished(id, publish);
+  } catch (e) {
+    redirect(`/admin/matches?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({
     action: publish ? "match.publish" : "match.hide",
     entityType: "match",
@@ -462,11 +471,16 @@ export default async function AdminMatches({
                       required
                       className={inputCls}
                     >
-                      <option value="">اختر البطولة…</option>
+                      <option value="">{competitionOptions.length ? "اختر البطولة…" : "لا توجد بطولات بعد"}</option>
                       {competitionOptions.map((c) => (
                         <option key={c.slug} value={c.slug}>{c.name}</option>
                       ))}
                     </select>
+                    {competitionOptions.length === 0 ? (
+                      <p className="mt-1.5 text-[11px] text-gold-400">
+                        لا توجد بطولات لإضافة المباراة إليها. <Link href="/admin/competitions" className="font-bold underline">أضِف بطولة من صفحة البطولات</Link> ثم عُد لإكمال النموذج.
+                      </p>
+                    ) : null}
                   </Field>
                   <Field label="الموسم">
                     <input name="season" defaultValue={editing?.season ?? ""} maxLength={40} className={inputCls} placeholder="2026/2027" />

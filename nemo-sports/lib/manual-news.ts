@@ -16,6 +16,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 
 export type ManualNewsStatus = "draft" | "published" | "hidden";
 
@@ -290,18 +291,17 @@ export async function createManualNews(
   };
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `INSERT INTO manual_news (${COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         valuesOf(article),
-      );
-      return { ok: true, article };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(article.id, article);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(article.id, article);
   return { ok: true, article };
 }
 
@@ -345,9 +345,9 @@ export async function updateManualNews(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `UPDATE manual_news SET slug=$2, title=$3, title_en=$4, image_url=$5, description=$6, content=$7,
            source_name=$8, source_url=$9, published_at=$10, category=$11, related_team=$12,
            related_competition=$13, status=$14, updated_at=now() WHERE id=$1`,
@@ -356,13 +356,12 @@ export async function updateManualNews(
           found.sourceName, found.sourceUrl, found.publishedAt, found.category, found.relatedTeam,
           found.relatedCompetition, found.status,
         ],
-      );
-      return { ok: true, article: found };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(id, found);
   return { ok: true, article: found };
 }
 
@@ -373,26 +372,14 @@ export async function setManualNewsStatus(id: string, status: ManualNewsStatus):
   found.status = status;
   found.updatedAt = now();
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("UPDATE manual_news SET status = $2, updated_at = now() WHERE id = $1", [id, status]);
-      return true;
-    } catch {
-      // fall through
-    }
-  }
-  mem.set(id, found);
+  const inDb = await persistOrThrow(db, (d) => d.run("UPDATE manual_news SET status = $2, updated_at = now() WHERE id = $1", [id, status]));
+  if (!inDb) mem.set(id, found);
   return true;
 }
 
 export async function deleteManualNews(id: string): Promise<boolean> {
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM manual_news WHERE id = $1", [id]);
-    } catch {
-      // fall through
-    }
-  }
-  return mem.delete(id) || true;
+  const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM manual_news WHERE id = $1", [id]));
+  if (!inDb) mem.delete(id);
+  return true;
 }

@@ -12,6 +12,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 
 export interface SiteSettings {
   siteName: string;
@@ -261,22 +262,27 @@ export async function updateSiteSettings(
   ];
 
   const db = await pg();
-  if (db) {
-    try {
-      for (const [key, value] of sections) {
-        await db.run(
-          `INSERT INTO site_settings (key, value, updated_at, updated_by)
-           VALUES ($1, $2, now(), $3)
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
-          [key, JSON.stringify(value), updatedBy],
-        );
-      }
-    } catch {
-      // fall through to memory
-    }
+  let inDb: boolean;
+  try {
+    inDb = await persistOrThrow(db, (d) =>
+      d.transaction(async (tx) => {
+        for (const [key, value] of sections) {
+          await tx.run(
+            `INSERT INTO site_settings (key, value, updated_at, updated_by)
+             VALUES ($1, $2, now(), $3)
+             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+            [key, JSON.stringify(value), updatedBy],
+          );
+        }
+      }),
+    );
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  for (const [key, value] of sections) {
-    mem.set(key, { value, updatedAt: now(), updatedBy });
+  if (!inDb) {
+    for (const [key, value] of sections) {
+      mem.set(key, { value, updatedAt: now(), updatedBy });
+    }
   }
 
   return { ok: true, settings: next };

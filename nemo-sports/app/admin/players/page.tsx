@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
@@ -25,7 +26,7 @@ function refresh(slug?: string): void {
   revalidatePath("/admin/activity");
   revalidatePath("/admin");
   revalidatePath("/players");
-  if (slug) revalidatePath(`/players/${slug}`);
+  if (slug) revalidatePath(`/players/${encodeURIComponent(slug)}`);
   revalidatePath("/sitemap.xml");
 }
 
@@ -79,7 +80,11 @@ async function togglePlayerAction(form: FormData): Promise<void> {
   const id = String(form.get("id") ?? "");
   const publish = form.get("publish") === "1";
   const player = await getAdminPlayerById(id);
-  await setAdminPlayerPublished(id, publish);
+  try {
+    await setAdminPlayerPublished(id, publish);
+  } catch (e) {
+    redirect(`/admin/players?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "player.publish", entityType: "player", entityId: player?.slug ?? id, actor: actor.username, role: actor.role, after: { isPublished: publish } });
   refresh(player?.slug);
   redirect(`/admin/players?ok=${encodeURIComponent(publish ? "تم نشر اللاعب" : "تم إخفاء اللاعب")}`);
@@ -90,7 +95,11 @@ async function deletePlayerAction(form: FormData): Promise<void> {
   const actor = await requirePermission("players");
   const id = String(form.get("id") ?? "");
   const player = await getAdminPlayerById(id);
-  await deleteAdminPlayer(id);
+  try {
+    await deleteAdminPlayer(id);
+  } catch (e) {
+    redirect(`/admin/players?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "player.delete", entityType: "player", entityId: player?.slug ?? id, actor: actor.username, role: actor.role });
   refresh(player?.slug);
   redirect(`/admin/players?ok=${encodeURIComponent("تم حذف اللاعب")}`);

@@ -18,7 +18,7 @@ import { runSource, ingestAllSources } from "@/lib/news/pipeline";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
-import { requireUser } from "@/lib/admin-session";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,7 @@ export const dynamic = "force-dynamic";
 
 async function addSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const query = String(form.get("query") ?? "").trim();
   if (!query) return;
   const created = await createSource({
@@ -43,6 +44,7 @@ async function addSourceAction(form: FormData): Promise<void> {
 
 async function toggleSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   const s = await getSource(id);
   if (!s) return;
@@ -54,6 +56,7 @@ async function toggleSourceAction(form: FormData): Promise<void> {
 
 async function deleteSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await deleteSource(id);
   await logActivity({ action: "news.source.delete", entityType: "rss_source", entityId: id });
@@ -63,6 +66,7 @@ async function deleteSourceAction(form: FormData): Promise<void> {
 
 async function testFetchAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   const s = await getSource(id);
   if (!s) return;
@@ -75,6 +79,7 @@ async function testFetchAction(form: FormData): Promise<void> {
 
 async function fetchAllAction(): Promise<void> {
   "use server";
+  await requirePermission("news");
   await ingestAllSources();
   invalidateSearchIndex();
   await logActivity({ action: "news.ingest.run" });
@@ -84,6 +89,7 @@ async function fetchAllAction(): Promise<void> {
 
 async function hideArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "hidden");
   invalidateSearchIndex();
@@ -94,6 +100,7 @@ async function hideArticleAction(form: FormData): Promise<void> {
 
 async function publishArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "published");
   invalidateSearchIndex();
@@ -104,6 +111,7 @@ async function publishArticleAction(form: FormData): Promise<void> {
 
 async function removeArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await deleteArticle(id);
   invalidateSearchIndex();
@@ -125,7 +133,7 @@ export default async function AdminNews({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireUser();
+  await requirePermission("news");
   const sp = await searchParams;
   const catFilter = typeof sp.category === "string" ? sp.category : "";
 

@@ -17,6 +17,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { SITE_TZ } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
@@ -454,9 +455,9 @@ export async function createAdminMatch(
   };
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, season,
            home_name, home_name_en, home_logo, away_name, away_name_en, away_logo,
            scheduled_at, status, home_score, away_score, venue, referee, is_published,
@@ -468,13 +469,12 @@ export async function createAdminMatch(
           match.scheduledAt, match.status, match.homeScore, match.awayScore, match.venue, match.referee,
           match.isPublished, match.createdBy, match.createdAt, match.updatedAt,
         ],
-      );
-      return { ok: true, match };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(match.id, match);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(match.id, match);
   return { ok: true, match };
 }
 
@@ -535,9 +535,9 @@ export async function updateAdminMatch(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `UPDATE admin_matches SET slug=$2, sport=$3, competition_slug=$4, competition_name=$5, season=$6,
            home_name=$7, home_name_en=$8, home_logo=$9, away_name=$10, away_name_en=$11, away_logo=$12,
            scheduled_at=$13, status=$14, home_score=$15, away_score=$16, venue=$17, referee=$18,
@@ -548,13 +548,12 @@ export async function updateAdminMatch(
           found.scheduledAt, found.status, found.homeScore, found.awayScore, found.venue, found.referee,
           found.isPublished,
         ],
-      );
-      return { ok: true, match: found };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(found.id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(found.id, found);
   return { ok: true, match: found };
 }
 
@@ -565,15 +564,8 @@ export async function setAdminMatchPublished(id: string, isPublished: boolean): 
   found.isPublished = isPublished;
   found.updatedAt = now();
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("UPDATE admin_matches SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]);
-      return true;
-    } catch {
-      // fall through
-    }
-  }
-  mem.set(id, found);
+  const inDb = await persistOrThrow(db, (d) => d.run("UPDATE admin_matches SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]));
+  if (!inDb) mem.set(id, found);
   return true;
 }
 
@@ -583,13 +575,7 @@ export async function deleteAdminMatch(id: string): Promise<boolean> {
   const found = list.find((m) => m.id === id);
   if (!found) return false;
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM admin_matches WHERE id = $1", [id]);
-    } catch {
-      // fall through
-    }
-  }
-  mem.delete(id);
+  const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM admin_matches WHERE id = $1", [id]));
+  if (!inDb) mem.delete(id);
   return true;
 }

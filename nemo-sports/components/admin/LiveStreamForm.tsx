@@ -19,6 +19,12 @@ type Prefill = { match?: string; home?: string; away?: string; competition?: str
  * embed URL → preview (server-validated, sandboxed iframe) → save draft or
  * publish. All state is local; the server action does validation + storage.
  */
+/** Sets the save intent on the form's hidden `intent` field before submit. */
+function setIntent(form: HTMLFormElement | null, intent: "draft" | "publish"): void {
+  const field = form?.elements.namedItem("intent");
+  if (field instanceof HTMLInputElement) field.value = intent;
+}
+
 export default function LiveStreamForm({
   action,
   editing,
@@ -127,18 +133,20 @@ export default function LiveStreamForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+        {/* React 19 does not include a clicked submit button's name/value in the
+            action's FormData, so the intent travels in a hidden input that each
+            button sets right before the form submits. */}
+        <input type="hidden" name="intent" defaultValue="draft" />
         <button
           type="submit"
-          name="intent"
-          value="draft"
+          onClick={(e) => setIntent(e.currentTarget.form, "draft")}
           className="rounded-[3px] border border-navy-700 px-4 py-2 text-[12px] font-extrabold text-white/80 transition hover:border-gold-500 hover:text-gold-400"
         >
           حفظ كمسودة
         </button>
         <button
           type="submit"
-          name="intent"
-          value="publish"
+          onClick={(e) => setIntent(e.currentTarget.form, "publish")}
           disabled={!publishingEnabled}
           className="rounded-[3px] bg-gold-500 px-4 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400 disabled:cursor-not-allowed disabled:opacity-50"
         >

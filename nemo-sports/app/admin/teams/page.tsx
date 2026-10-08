@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
@@ -25,7 +26,7 @@ function refresh(slug?: string): void {
   revalidatePath("/admin/activity");
   revalidatePath("/admin");
   revalidatePath("/teams");
-  if (slug) revalidatePath(`/teams/${slug}`);
+  if (slug) revalidatePath(`/teams/${encodeURIComponent(slug)}`);
   revalidatePath("/sitemap.xml");
 }
 
@@ -76,7 +77,11 @@ async function toggleTeamAction(form: FormData): Promise<void> {
   const id = String(form.get("id") ?? "");
   const publish = form.get("publish") === "1";
   const team = await getAdminTeamById(id);
-  await setAdminTeamPublished(id, publish);
+  try {
+    await setAdminTeamPublished(id, publish);
+  } catch (e) {
+    redirect(`/admin/teams?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "team.publish", entityType: "team", entityId: team?.slug ?? id, actor: actor.username, role: actor.role, after: { isPublished: publish } });
   refresh(team?.slug);
   redirect(`/admin/teams?ok=${encodeURIComponent(publish ? "تم نشر الفريق" : "تم إخفاء الفريق")}`);
@@ -87,7 +92,11 @@ async function deleteTeamAction(form: FormData): Promise<void> {
   const actor = await requirePermission("teams");
   const id = String(form.get("id") ?? "");
   const team = await getAdminTeamById(id);
-  await deleteAdminTeam(id);
+  try {
+    await deleteAdminTeam(id);
+  } catch (e) {
+    redirect(`/admin/teams?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "team.delete", entityType: "team", entityId: team?.slug ?? id, actor: actor.username, role: actor.role });
   refresh(team?.slug);
   redirect(`/admin/teams?ok=${encodeURIComponent("تم حذف الفريق")}`);

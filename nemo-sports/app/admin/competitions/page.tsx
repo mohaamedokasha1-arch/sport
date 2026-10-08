@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
@@ -25,7 +26,7 @@ function refresh(slug?: string): void {
   revalidatePath("/admin/activity");
   revalidatePath("/admin");
   revalidatePath("/competitions");
-  if (slug) revalidatePath(`/competitions/${slug}`);
+  if (slug) revalidatePath(`/competitions/${encodeURIComponent(slug)}`);
   revalidatePath("/sitemap.xml");
 }
 
@@ -70,7 +71,11 @@ async function toggleCompetitionAction(form: FormData): Promise<void> {
   const id = String(form.get("id") ?? "");
   const publish = form.get("publish") === "1";
   const comp = await getAdminCompetitionById(id);
-  await setAdminCompetitionPublished(id, publish);
+  try {
+    await setAdminCompetitionPublished(id, publish);
+  } catch (e) {
+    redirect(`/admin/competitions?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "competition.publish", entityType: "competition", entityId: comp?.slug ?? id, actor: actor.username, role: actor.role, after: { isPublished: publish } });
   refresh(comp?.slug);
   redirect(`/admin/competitions?ok=${encodeURIComponent(publish ? "تم نشر البطولة" : "تم إخفاء البطولة")}`);
@@ -81,7 +86,11 @@ async function deleteCompetitionAction(form: FormData): Promise<void> {
   const actor = await requirePermission("competitions");
   const id = String(form.get("id") ?? "");
   const comp = await getAdminCompetitionById(id);
-  await deleteAdminCompetition(id);
+  try {
+    await deleteAdminCompetition(id);
+  } catch (e) {
+    redirect(`/admin/competitions?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "competition.delete", entityType: "competition", entityId: comp?.slug ?? id, actor: actor.username, role: actor.role });
   refresh(comp?.slug);
   redirect(`/admin/competitions?ok=${encodeURIComponent("تم حذف البطولة")}`);

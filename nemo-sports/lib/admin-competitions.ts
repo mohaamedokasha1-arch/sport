@@ -11,6 +11,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 
 export interface AdminCompetition {
   id: string;
@@ -221,18 +222,17 @@ export async function createAdminCompetition(
   };
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `INSERT INTO admin_competitions (${COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         valuesOf(competition),
-      );
-      return { ok: true, competition };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(competition.id, competition);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(competition.id, competition);
   return { ok: true, competition };
 }
 
@@ -263,22 +263,21 @@ export async function updateAdminCompetition(
   found.updatedAt = now();
 
   const db = await pg();
-  if (db) {
-    try {
-      await db.run(
+  try {
+    const inDb = await persistOrThrow(db, (d) =>
+      d.run(
         `UPDATE admin_competitions SET slug=$2, name_ar=$3, name_en=$4, sport=$5, country=$6, season=$7,
            logo_url=$8, type=$9, is_published=$10, updated_at=now() WHERE id=$1`,
         [
           id, found.slug, found.nameAr, found.nameEn, found.sport, found.country, found.season,
           found.logoUrl, found.type, found.isPublished,
         ],
-      );
-      return { ok: true, competition: found };
-    } catch {
-      // fall through to memory
-    }
+      ),
+    );
+    if (!inDb) mem.set(id, found);
+  } catch (e) {
+    return { ok: false, error: storeErrorMessage(e) };
   }
-  mem.set(id, found);
   return { ok: true, competition: found };
 }
 
@@ -289,26 +288,14 @@ export async function setAdminCompetitionPublished(id: string, isPublished: bool
   found.isPublished = isPublished;
   found.updatedAt = now();
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("UPDATE admin_competitions SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]);
-      return true;
-    } catch {
-      // fall through
-    }
-  }
-  mem.set(id, found);
+  const inDb = await persistOrThrow(db, (d) => d.run("UPDATE admin_competitions SET is_published = $2, updated_at = now() WHERE id = $1", [id, isPublished]));
+  if (!inDb) mem.set(id, found);
   return true;
 }
 
 export async function deleteAdminCompetition(id: string): Promise<boolean> {
   const db = await pg();
-  if (db) {
-    try {
-      await db.run("DELETE FROM admin_competitions WHERE id = $1", [id]);
-    } catch {
-      // fall through
-    }
-  }
-  return mem.delete(id) || true;
+  const inDb = await persistOrThrow(db, (d) => d.run("DELETE FROM admin_competitions WHERE id = $1", [id]));
+  if (!inDb) mem.delete(id);
+  return true;
 }

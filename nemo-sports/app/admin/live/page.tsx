@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Stat, Table, Field, inputCls } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
@@ -40,7 +41,7 @@ function refreshStreamSurfaces(matchSlug?: string): void {
   revalidatePath("/watch");
   revalidatePath("/matches");
   revalidatePath("/sitemap.xml");
-  if (matchSlug) revalidatePath(`/matches/${matchSlug}`);
+  if (matchSlug) revalidatePath(`/matches/${encodeURIComponent(matchSlug)}`);
 }
 
 const statusTone: Record<LiveStreamStatus, "ok" | "warn" | "bad" | "idle"> = {
@@ -140,7 +141,11 @@ async function deleteStreamAction(form: FormData): Promise<void> {
   const actor = await requirePermission("streams");
   const id = String(form.get("id") ?? "");
   const stream = await getLiveStream(id);
-  await deleteLiveStream(id);
+  try {
+    await deleteLiveStream(id);
+  } catch (e) {
+    redirect(`/admin/live?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "stream.delete", entityType: "match_stream", entityId: id, actor: actor.username, role: actor.role });
   refreshStreamSurfaces(stream?.matchSlug);
   redirect(`/admin/live?ok=${encodeURIComponent("تم حذف البث — المباراة نفسها لم تُمسّ")}`);

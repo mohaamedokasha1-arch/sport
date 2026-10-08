@@ -1,7 +1,7 @@
 import { AdminHead, Panel, Pill, Table } from "@/components/admin/ui";
 import { diagnostics, chainFor } from "@/lib/sdl-gateway";
 import { SITE_TZ } from "@/lib/tz";
-import { requireUser } from "@/lib/admin-session";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * أي حالة وهمية: ما تراه هو ما يفعله النظام فعلًا الآن.
  */
 export default async function AdminProviders() {
-  await requireUser();
+  await requirePermission("providers");
   const [d, liveChain, eventsChain, fixturesChain, standingsChain, imagesChain] = await Promise.all([
     diagnostics(),
     chainFor("football", null, "live_matches"),

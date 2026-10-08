@@ -9,6 +9,7 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { contentSecurityPolicy } from "@/lib/security-csp";
 import {
   ADMIN_COOKIE,
   ENV_OPERATOR_ID,
@@ -31,8 +32,7 @@ export const config = {
 function securityHeaders(): Record<string, string> {
   return {
     "cache-control": "no-store, max-age=0",
-    "content-security-policy":
-      "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'",
+    "content-security-policy": contentSecurityPolicy(process.env.NODE_ENV === "development"),
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
     "referrer-policy": "no-referrer",
@@ -92,7 +92,7 @@ function deny(request: NextRequest): NextResponse {
 
   // Do not advertise the panel to anonymous crawlers or scanners.
   return new NextResponse(
-    "<!doctype html><meta charset=utf-8><title>404</title>" +
+    "<!doctype html><meta charset=utf-8><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>404</title>" +
       "<body style=\"font:14px system-ui,sans-serif;display:grid;place-items:center;min-height:80vh;margin:0\">" +
       "<p>404 — الصفحة غير موجودة</p></body>",
     {
