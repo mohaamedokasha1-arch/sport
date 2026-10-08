@@ -11,6 +11,7 @@ import { age } from "@/lib/format";
 import { footballDataCompetitions, footballTopScorers, type FootballDataSource } from "@/lib/football-data";
 import { supportsPlayerStats } from "@/lib/sdl-gateway";
 import type { NormalizedTopScorer } from "@/packages/sdl/src";
+import { AdminPlayersSection } from "@/components/public/AdminPublished";
 
 export const revalidate = 1800;
 
@@ -60,7 +61,7 @@ const realPlayerGroups = cache(async (): Promise<RealPlayerGroup[]> => {
   return groups;
 });
 
-export default async function PlayersPage() {
+async function PlayersPageBody() {
   const showDemo = demoContentVisible();
   if (!showDemo) {
     const groups = await realPlayerGroups();
@@ -208,5 +209,14 @@ export default async function PlayersPage() {
         ) : null)}
       </div>
     </div>
+  );
+}
+
+export default async function PlayersPage() {
+  return (
+    <>
+      <AdminPlayersSection />
+      <PlayersPageBody />
+    </>
   );
 }

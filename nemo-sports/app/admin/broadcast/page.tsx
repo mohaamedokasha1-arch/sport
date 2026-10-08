@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 import {
   coverageStats,
@@ -20,6 +21,8 @@ import {
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
 import { logActivity } from "@/lib/activity";
 import { competitions } from "@/lib/core-data";
+import { requirePermission, requireUser } from "@/lib/admin-session";
+import { can } from "@/lib/admin-roles";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,7 @@ export const dynamic = "force-dynamic";
 
 async function addBroadcasterAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("broadcast");
   const competitionId = String(form.get("competitionId") ?? "").trim();
   const comp = competitions.find((c) => c.slug === competitionId);
   const broadcasterName = String(form.get("broadcasterName") ?? "").trim();
@@ -59,6 +63,7 @@ async function addBroadcasterAction(form: FormData): Promise<void> {
 
 async function setStatusAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("broadcast");
   const id = String(form.get("id") ?? "");
   const status = String(form.get("status") ?? "pending") as BroadcastStatus;
   await setBroadcasterStatus(id, status);
@@ -69,6 +74,7 @@ async function setStatusAction(form: FormData): Promise<void> {
 
 async function removeAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("broadcast");
   const id = String(form.get("id") ?? "");
   await deleteBroadcaster(id);
   await logActivity({ action: "broadcaster.delete", entityType: "broadcaster", entityId: id });
@@ -78,6 +84,7 @@ async function removeAction(form: FormData): Promise<void> {
 
 async function saveMatchStreamAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("streams");
   const id = String(form.get("id") ?? "").trim();
   const result = await upsertMatchStream(id, {
     label: String(form.get("label") ?? "").trim(),
@@ -105,9 +112,14 @@ async function saveMatchStreamAction(form: FormData): Promise<void> {
 
 async function toggleMatchStreamAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("streams");
   const id = String(form.get("id") ?? "");
   const enabled = form.get("enabled") === "true";
-  await setMatchStreamEnabled(id, enabled);
+  try {
+    await setMatchStreamEnabled(id, enabled);
+  } catch (e) {
+    redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "stream.toggle", entityType: "match_stream", entityId: id, after: { enabled } });
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
@@ -116,8 +128,13 @@ async function toggleMatchStreamAction(form: FormData): Promise<void> {
 
 async function deleteMatchStreamAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("streams");
   const id = String(form.get("id") ?? "");
-  await deleteMatchStream(id);
+  try {
+    await deleteMatchStream(id);
+  } catch (e) {
+    redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`);
+  }
   await logActivity({ action: "stream.delete", entityType: "match_stream", entityId: id });
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
@@ -135,6 +152,12 @@ export default async function AdminBroadcast({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const user = await requireUser();
+  const canBroadcast = can(user.role, "broadcast");
+  const canStreams = can(user.role, "streams");
+  if (!canBroadcast && !canStreams) {
+    redirect(`/admin?err=${encodeURIComponent("ليس لديك صلاحية للوصول إلى هذا القسم")}`);
+  }
   const sp = await searchParams;
   const testUrl = typeof sp.test === "string" ? sp.test : "";
   const testResult = testUrl ? validateBroadcastLink(testUrl) : null;
@@ -178,6 +201,7 @@ export default async function AdminBroadcast({
         يُرفض تلقائيًا ولا يمكن نشره — لا بث مقرصن، لا IPTV، لا إضافات غير مرخّصة.
       </p>
 
+      {canStreams ? (
       <Panel title="مصادر بث المباريات (ربط لكل مباراة)" aside={<Pill tone={streams.length ? "warn" : "idle"}>{streams.length} مصدر</Pill>}>
         <p className="mb-4 text-[11px] leading-relaxed text-white/50">
           يُربط كل مشغّل بمعرّف مباراة أو slug محدد ولا يمكن أن يظهر على مباراة أخرى. لا يُقبل
@@ -252,7 +276,9 @@ export default async function AdminBroadcast({
           </div>
         </form>
       </Panel>
+      ) : null}
 
+      {canBroadcast ? (
       <div className="mt-5">
       <Panel title="سجل النواقل">
         {entries.length === 0 ? (
@@ -301,8 +327,10 @@ export default async function AdminBroadcast({
         )}
       </Panel>
       </div>
+      ) : null}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {canBroadcast ? (
         <Panel title="إضافة ناقل بث (يُحفظ قيد المراجعة)">
           <form action={addBroadcasterAction} className="grid gap-3 sm:grid-cols-2">
             <Field label="البطولة">
@@ -359,6 +387,7 @@ export default async function AdminBroadcast({
             نطاقات غير معتمدة تُرفض تلقائيًا.
           </p>
         </Panel>
+        ) : null}
 
         <Panel title="اختبار رابط">
           <form method="get" className="grid gap-2">

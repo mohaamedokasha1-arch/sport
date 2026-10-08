@@ -134,7 +134,8 @@ async function wrap<T>(result: GatewayResult<T>, dataType: DataType): Promise<Fo
     ok: true,
     data: result.data,
     source: {
-      provider: result.provider,
+      // Football-data reads always come from the SDL (never admin-entered data).
+      provider: result.provider as ProviderName,
       fromCache: result.fromCache,
       stale: result.stale,
       fetchedAt: result.fetchedAt,

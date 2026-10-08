@@ -24,6 +24,7 @@ export function providerLabel(provider: string): string {
     api_football: "API-Football",
     thesportsdb: "TheSportsDB",
     demo: "بيانات توضيحية (وضع التطوير)",
+    admin: "إدارة نيمو سبورتس",
   };
   return labels[provider] ?? provider;
 }

@@ -3,11 +3,18 @@ import { AdminHead, Btn, NotConnected, Panel, Pill, Stat, Table } from "@/compon
 import { actionLabel, listActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
 import { listArticles } from "@/lib/news/store";
-import { listMatchStreams } from "@/lib/match-streams";
+import { liveStreamStats, listMatchStreams } from "@/lib/match-streams";
+import { adminMatchCounts } from "@/lib/admin-matches";
+import { adminTeamCounts } from "@/lib/admin-teams";
+import { adminPlayerCounts } from "@/lib/admin-players";
+import { adminCompetitionCounts } from "@/lib/admin-competitions";
+import { manualNewsCounts } from "@/lib/manual-news";
 import { listOverrides } from "@/lib/match-overrides";
 import { listBroadcasters } from "@/lib/broadcasts";
 import { fixtures as loadFixtures, liveMatches as loadLiveMatches } from "@/lib/sdl-gateway";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { requireUser } from "@/lib/admin-session";
+import { can } from "@/lib/admin-roles";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -90,7 +97,11 @@ function LiveMatchCard({ match }: { match: NormalizedFixture }) {
 }
 
 export default async function AdminDashboard() {
-  const [liveResult, fixturesResult, streams, overrides, broadcasters, articleResult, activityResult] = await Promise.all([
+  const user = await requireUser();
+  // Links are shown only where the operator may actually open the target page.
+  const canBroadcast = can(user.role, "broadcast");
+  const canProviders = can(user.role, "providers");
+  const [liveResult, fixturesResult, streams, overrides, broadcasters, articleResult, activityResult, matchCounts, teamCounts, playerCounts, competitionCounts, newsCounts, streamStats] = await Promise.all([
     loadLiveMatches("football"),
     loadFixtures({ sport: "football" }),
     listMatchStreams(false),
@@ -98,7 +109,14 @@ export default async function AdminDashboard() {
     listBroadcasters(true),
     listArticles({ status: "published", limit: 5 }),
     listActivity(5),
+    adminMatchCounts(),
+    adminTeamCounts(),
+    adminPlayerCounts(),
+    adminCompetitionCounts(),
+    manualNewsCounts(),
+    liveStreamStats(),
   ]);
+  const rssTotal = articleResult.items.length;
 
   const live = liveResult.ok ? liveResult.data.filter((match) =>
     ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(match.status),
@@ -129,23 +147,21 @@ export default async function AdminDashboard() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat
-          label="مباريات مباشرة"
-          value={liveCount}
-          hint={liveResult.ok ? `كرة القدم · ${liveResult.source === "demo" ? "مصدر تجريبي" : "مزوّد بيانات"}${liveResult.stale ? " · آخر قيمة محفوظة" : ""}` : "تعذّر جلب بيانات المباريات"}
-        />
-        <Stat
-          label="مباريات قادمة"
-          value={upcomingCount}
-          hint={fixturesResult.ok ? `ضمن نافذة التغطية · ${fixturesResult.source === "demo" ? "مصدر تجريبي" : "مزوّد بيانات"}` : "تعذّر جلب جدول المباريات"}
-        />
-        <Stat label="مشاهدون الآن" value="—" hint="غير متاح — لا توجد تحليلات للمشغّلات" />
-        <Stat label="مصادر بث مرخّصة مفعّلة" value={String(streams.length)} hint="تُعرض بعد التحقق من النطاق الرسمي" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <Stat label="عدد المباريات" value={String(matchCounts.total + (fixturesResult.ok ? fixturesResult.data.length : 0))} hint={`${matchCounts.total} من الإدارة`} />
+        <Stat label="مباريات اليوم" value={String(matchCounts.today)} hint="بتوقيت القاهرة (الإدارة)" />
+        <Stat label="مباريات مباشرة" value={liveCount} hint={liveResult.ok ? `${matchCounts.live} من الإدارة` : "تعذّر جلب المزوّد"} />
+        <Stat label="مباريات قادمة" value={upcomingCount} hint={`${matchCounts.upcoming} من الإدارة`} />
+        <Stat label="عدد الفرق" value={String(teamCounts.total)} hint={`${teamCounts.published} منشور`} />
+        <Stat label="عدد اللاعبين" value={String(playerCounts.total)} hint={`${playerCounts.published} منشور`} />
+        <Stat label="عدد البطولات" value={String(competitionCounts.total)} hint={`${competitionCounts.published} منشورة`} />
+        <Stat label="عدد الأخبار" value={String(newsCounts.published + rssTotal)} hint={`${newsCounts.published} يدوي · ${newsCounts.draft} مسودة`} />
+        <Stat label="بثوث منشورة" value={String(streamStats.published + streamStats.live)} hint="تظهر للزوار" />
+        <Stat label="بثوث نشطة الآن" value={String(streamStats.live)} hint={`${streamStats.draft} مسودة · ${streamStats.disabled} موقوف`} />
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">
+      <div className="mt-5 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-4">
           <Panel
             title="المباريات الجارية الآن"
             aside={liveResult.ok ? sourcePill(liveResult.source, liveResult.stale) : <Pill tone="warn">المصدر غير متاح</Pill>}
@@ -194,9 +210,13 @@ export default async function AdminDashboard() {
                   <span key="competition" className="block max-w-[140px] truncate text-white/50">{match.competitionName ?? match.competitionProviderId}</span>,
                   <span key="date" className="num whitespace-nowrap text-[11px] text-white/65">{safeDate(match.scheduledAt)}</span>,
                   <Pill key="status" tone="idle">{statusLabel(match.status)}</Pill>,
-                  <Link key="action" href={`/admin/broadcast?${new URLSearchParams({ match: match.providerId, home: match.homeName ?? "", away: match.awayName ?? "" }).toString()}#match-stream-form`} className="whitespace-nowrap text-[11px] font-bold text-gold-400 hover:underline">
-                    ربط ناقل ←
-                  </Link>,
+                  canBroadcast ? (
+                    <Link key="action" href={`/admin/broadcast?${new URLSearchParams({ match: match.providerId, home: match.homeName ?? "", away: match.awayName ?? "" }).toString()}#match-stream-form`} className="whitespace-nowrap text-[11px] font-bold text-gold-400 hover:underline">
+                      ربط ناقل ←
+                    </Link>
+                  ) : (
+                    <span key="action" className="text-[11px] text-white/35">—</span>
+                  ),
                 ])}
               />
             )}
@@ -208,21 +228,25 @@ export default async function AdminDashboard() {
           </Panel>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <Panel title="مهام سريعة" aside={<Pill tone={pendingBroadcasters > 0 ? "warn" : "idle"}>{pendingBroadcasters} قيد المراجعة</Pill>}>
             <ul className="space-y-2 text-[12px]">
-              <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
-                <span>مراجعة ناقل بث جديد</span>
-                <Link href="/admin/broadcast" className="font-bold text-gold-400">مراجعة ←</Link>
-              </li>
+              {canBroadcast ? (
+                <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
+                  <span>مراجعة ناقل بث جديد</span>
+                  <Link href="/admin/broadcast" className="font-bold text-gold-400">مراجعة ←</Link>
+                </li>
+              ) : null}
               <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
                 <span>مراجعة {overrides.length} تصحيح نتيجة</span>
                 <Link href="/admin/matches" className="font-bold text-gold-400">فتح ←</Link>
               </li>
-              <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
-                <span>فحص مزوّدي البيانات</span>
-                <Link href="/admin/providers" className="font-bold text-gold-400">فحص ←</Link>
-              </li>
+              {canProviders ? (
+                <li className="flex items-center justify-between gap-2 rounded-[3px] border border-navy-800 px-3 py-2">
+                  <span>فحص مزوّدي البيانات</span>
+                  <Link href="/admin/providers" className="font-bold text-gold-400">فحص ←</Link>
+                </li>
+              ) : null}
             </ul>
           </Panel>
 
@@ -279,7 +303,7 @@ export default async function AdminDashboard() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link href="/admin/matches"><Btn tone="ghost">تصحيحات النتائج</Btn></Link>
-            <Link href="/admin/broadcast"><Btn tone="ghost">البث والترخيص</Btn></Link>
+            {canBroadcast ? <Link href="/admin/broadcast"><Btn tone="ghost">البث والترخيص</Btn></Link> : null}
           </div>
         </Panel>
       </div>

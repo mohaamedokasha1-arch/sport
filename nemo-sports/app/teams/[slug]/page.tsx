@@ -20,6 +20,9 @@ import { footballDataCompetitions, footballMatches, footballStandings } from "@/
 import { team as sdlTeam, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import type { NormalizedFixture, NormalizedStandingRow } from "@/packages/sdl/src";
+import { getAdminTeamBySlug } from "@/lib/admin-teams";
+import { AdminTeamDetail } from "@/components/public/AdminPublished";
+import { decodeSlug } from "@/lib/slug";
 
 /**
  * Bound the lifetime of an on-demand ISR entry.
@@ -43,7 +46,7 @@ function competitionNameAr(id: string): string {
   return majors.find((c) => c.slug === id || c.code === id)?.nameAr ?? id;
 }
 
-export async function generateMetadata({
+async function teamMetadataBody({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -76,7 +79,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
+async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
   /* ══ 1) real provider team ══════════════════════════════════════════ */
@@ -499,4 +502,26 @@ async function RealTeamView(props: {
 
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const t = await getAdminTeamBySlug(slug);
+  if (t?.isPublished) {
+    return {
+      title: `${t.nameAr} | الفريق`,
+      description: `${t.nameAr}${t.country ? ` — ${t.country}` : ""}: بيانات الفريق من إدارة نيمو سبورتس.`,
+      alternates: { canonical: `/teams/${slug}` },
+    };
+  }
+  return teamMetadataBody({ params });
+}
+
+export default async function TeamPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const adminTeam = await getAdminTeamBySlug(slug);
+  if (adminTeam?.isPublished) return <AdminTeamDetail team={adminTeam} />;
+  return <TeamPageBody params={params} />;
 }

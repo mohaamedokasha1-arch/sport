@@ -15,6 +15,8 @@ import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type Pr
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
+import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
+import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
 
 export type DataSource = "provider" | "demo";
@@ -68,8 +70,11 @@ export function hasMatchIdentity(fixture: NormalizedFixture): boolean {
   const away = fixture.awayName ?? fixture.awayProviderId;
   return Boolean(home) && Boolean(away) && Boolean(fixture.scheduledAt);
 }
+/** "admin" = operator-entered matches (lib/admin-matches.ts), never provider data. */
+export type GatewayProvider = ProviderName | "admin";
+
 export type GatewayResult<T> =
-  | { ok: true; data: T; provider: ProviderName; fromCache: boolean; stale: boolean; degraded: boolean; fetchedAt: string; source: DataSource }
+  | { ok: true; data: T; provider: GatewayProvider; fromCache: boolean; stale: boolean; degraded: boolean; fetchedAt: string; source: DataSource }
   | { ok: false; error: SdlFailure };
 
 export type InfraState = {
@@ -145,9 +150,27 @@ function wrap<T>(
  * Runs AFTER wrap() so provider accounting (cost, cache, health) is untouched;
  * when no override exists the input is returned untouched (same references).
  */
-async function corrected(res: GatewayResult<NormalizedFixture[]>): Promise<GatewayResult<NormalizedFixture[]>> {
-  if (!res.ok) return res;
-  return { ...res, data: await applyFixtureOverrides(res.data) };
+async function corrected(res: GatewayResult<NormalizedFixture[]>, sport: string): Promise<GatewayResult<NormalizedFixture[]>> {
+  const adminFixtures = (await publishedAdminFixtures().catch(() => [])).filter((f) => f.sport === sport);
+  if (!res.ok) {
+    // Operator-entered matches stay visible even when every provider is down.
+    if (adminFixtures.length === 0) return res;
+    return {
+      ok: true,
+      data: await applyFixtureOverrides(adminFixtures),
+      provider: "admin",
+      fromCache: false,
+      stale: false,
+      degraded: true,
+      fetchedAt: new Date().toISOString(),
+      source: "provider",
+    };
+  }
+  const providerData = await applyFixtureOverrides(res.data);
+  if (adminFixtures.length === 0) return { ...res, data: providerData };
+  const known = new Set(providerData.map((f) => f.providerId));
+  const extra = adminFixtures.filter((f) => !known.has(f.providerId));
+  return { ...res, data: [...providerData, ...extra] };
 }
 
 /** In-play matches across every supported sport. */
@@ -164,6 +187,7 @@ export async function liveMatches(sport = "football"): Promise<GatewayResult<Nor
       }),
       "live_matches",
     ),
+    sport,
   );
 }
 
@@ -182,6 +206,7 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
       }),
       "fixtures",
     ),
+    sport,
   );
 }
 
@@ -205,6 +230,22 @@ export async function matchEvents(providerMatchId: string): Promise<GatewayResul
  * Score, status, live minute and display metadata.
  */
 export async function matchDetail(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedFixture>> {
+  // Operator-entered matches resolve locally first: no provider quota is spent,
+  // and a draft (unpublished) match is never served to the public.
+  const adminMatch = await getAdminMatchBySlug(decodeSlug(providerMatchId)).catch(() => null);
+  if (adminMatch && adminMatch.isPublished && adminMatch.sport === sport) {
+    const [fixture] = await applyFixtureOverrides([adminMatchToFixture(adminMatch)]);
+    return {
+      ok: true,
+      data: fixture,
+      provider: "admin",
+      fromCache: false,
+      stale: false,
+      degraded: false,
+      fetchedAt: new Date().toISOString(),
+      source: "provider",
+    };
+  }
   const { sdl } = await sdlContext();
   const res = wrap(
     await sdl.fetch<NormalizedFixture>({

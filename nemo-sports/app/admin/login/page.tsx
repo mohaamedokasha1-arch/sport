@@ -88,7 +88,7 @@ export default function AdminLogin() {
         </form>
 
         <p className="mt-6 border-t border-navy-800 pt-4 text-center text-[11px] leading-relaxed text-white/40">
-          يُضبط الحساب من متغيرات البيئة <span dir="ltr" className="num">ADMIN_USERNAME</span> و<span dir="ltr" className="num">ADMIN_PASSWORD_HASH</span>.
+          أول حساب يُضبط من متغيرات البيئة <span dir="ltr" className="num">ADMIN_USERNAME</span> و<span dir="ltr" className="num">ADMIN_PASSWORD_HASH</span>، ثم تُدار بقية الحسابات والأدوار من لوحة التحكم.
         </p>
       </section>
     </div>

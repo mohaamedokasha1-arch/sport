@@ -10,6 +10,9 @@ import { age } from "@/lib/format";
 import DataSourceNote, { providerLabel } from "@/components/data/DataSourceNote";
 import { playerStats as sdlPlayerStats, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
+import { getAdminPlayerBySlug } from "@/lib/admin-players";
+import { AdminPlayerDetail } from "@/components/public/AdminPublished";
+import { decodeSlug } from "@/lib/slug";
 
 export const revalidate = 1800;
 
@@ -33,7 +36,7 @@ export function generateStaticParams() {
   return demoContentVisible() ? players.map((p) => ({ slug: p.slug })) : [];
 }
 
-export async function generateMetadata({
+async function playerMetadataBody({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -68,7 +71,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function PlayerPage({ params }: { params: Promise<{ slug: string }> }) {
+async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
   /* ══ 1) real provider player (SportScore) ══ */
@@ -400,4 +403,26 @@ export default async function PlayerPage({ params }: { params: Promise<{ slug: s
       />
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const p = await getAdminPlayerBySlug(slug);
+  if (p?.isPublished) {
+    return {
+      title: `${p.fullNameAr}${p.teamName ? ` | ${p.teamName}` : ""} | لاعب`,
+      description: `${p.fullNameAr}${p.teamName ? ` — ${p.teamName}` : ""}: ملف اللاعب من إدارة نيمو سبورتس.`,
+      alternates: { canonical: `/players/${slug}` },
+    };
+  }
+  return playerMetadataBody({ params });
+}
+
+export default async function PlayerPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const adminPlayer = await getAdminPlayerBySlug(slug);
+  if (adminPlayer?.isPublished) return <AdminPlayerDetail player={adminPlayer} />;
+  return <PlayerPageBody params={params} />;
 }

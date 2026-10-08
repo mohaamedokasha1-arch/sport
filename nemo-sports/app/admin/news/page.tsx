@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { AdminHead, Panel, Pill, Table } from "@/components/admin/ui";
 import {
@@ -17,6 +18,7 @@ import { runSource, ingestAllSources } from "@/lib/news/pipeline";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ export const dynamic = "force-dynamic";
 
 async function addSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const query = String(form.get("query") ?? "").trim();
   if (!query) return;
   const created = await createSource({
@@ -41,6 +44,7 @@ async function addSourceAction(form: FormData): Promise<void> {
 
 async function toggleSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   const s = await getSource(id);
   if (!s) return;
@@ -52,6 +56,7 @@ async function toggleSourceAction(form: FormData): Promise<void> {
 
 async function deleteSourceAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await deleteSource(id);
   await logActivity({ action: "news.source.delete", entityType: "rss_source", entityId: id });
@@ -61,6 +66,7 @@ async function deleteSourceAction(form: FormData): Promise<void> {
 
 async function testFetchAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   const s = await getSource(id);
   if (!s) return;
@@ -73,6 +79,7 @@ async function testFetchAction(form: FormData): Promise<void> {
 
 async function fetchAllAction(): Promise<void> {
   "use server";
+  await requirePermission("news");
   await ingestAllSources();
   invalidateSearchIndex();
   await logActivity({ action: "news.ingest.run" });
@@ -82,6 +89,7 @@ async function fetchAllAction(): Promise<void> {
 
 async function hideArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "hidden");
   invalidateSearchIndex();
@@ -92,6 +100,7 @@ async function hideArticleAction(form: FormData): Promise<void> {
 
 async function publishArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await setArticleStatus(id, "published");
   invalidateSearchIndex();
@@ -102,6 +111,7 @@ async function publishArticleAction(form: FormData): Promise<void> {
 
 async function removeArticleAction(form: FormData): Promise<void> {
   "use server";
+  await requirePermission("news");
   const id = String(form.get("id") ?? "");
   await deleteArticle(id);
   invalidateSearchIndex();
@@ -123,6 +133,7 @@ export default async function AdminNews({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await requirePermission("news");
   const sp = await searchParams;
   const catFilter = typeof sp.category === "string" ? sp.category : "";
 
@@ -153,14 +164,19 @@ export default async function AdminNews({
         title="الأخبار التلقائية"
         subtitle={`مصادر RSS · الاستيعاب · الإشراف — المخزن: ${backend === "postgres" ? "PostgreSQL" : "ذاكرة مؤقتة"}`}
         action={
-          <form action={fetchAllAction}>
-            <button
-              type="submit"
-              className="rounded-[3px] bg-gold-500 px-3 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400"
-            >
-              جلب الكل الآن
-            </button>
-          </form>
+          <span className="flex flex-wrap items-center gap-2">
+            <Link href="/admin/news/manual" className="rounded-[3px] border border-navy-700 px-3 py-2 text-[12px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400">
+              + خبر يدوي
+            </Link>
+            <form action={fetchAllAction}>
+              <button
+                type="submit"
+                className="rounded-[3px] bg-gold-500 px-3 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400"
+              >
+                جلب الكل الآن
+              </button>
+            </form>
+          </span>
         }
       />
 

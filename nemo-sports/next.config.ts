@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { contentSecurityPolicy } from "./lib/security-csp";
 
 /**
  * Site-wide security headers.
@@ -27,28 +28,7 @@ import type { NextConfig } from "next";
  *     are added below only when a real production origin is configured.
  */
 
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' https: data:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "media-src 'self'",
-  // Match-page live players (components/match/MatchStreamPlayer.tsx) embed
-  // the registered per-match source in an <iframe>. `frame-src` falls back
-  // to default-src ('self') without this line, which would blank every
-  // external player. Frames are only rendered for matches that have a
-  // source registered in lib/match-streams.ts; `https:` keeps future
-  // provider hosts working from the admin/data source without a redeploy.
-  "frame-src 'self' https:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
+const CONTENT_SECURITY_POLICY = contentSecurityPolicy(process.env.NODE_ENV === "development");
 
 /** HSTS is only safe once the site is served from an origin it controls. */
 function hstsHeaders(): Record<string, string> {

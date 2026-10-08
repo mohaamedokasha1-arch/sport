@@ -4,44 +4,67 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { NemoMark } from "@/components/brand/Logo";
+import { ROLE_AR, can, type AdminRole } from "@/lib/admin-roles";
 
-const GROUPS = [
+type NavItem = { href: string; label: string; exact?: boolean; perm?: string };
+type NavGroup = { title: string; items: NavItem[] };
+
+/**
+ * The sidebar mirrors the operator's real permissions: items whose permission
+ * the signed-in role does not hold are hidden, so an Editor never sees
+ * "المستخدمون" or "إعدادات الموقع" at all.
+ */
+const GROUPS: NavGroup[] = [
+  {
+    title: "نظرة عامة",
+    items: [{ href: "/admin", label: "لوحة البيانات", exact: true }],
+  },
   {
     title: "المباريات",
     items: [
-      { href: "/admin", label: "لوحة البيانات", exact: true },
-      { href: "/admin/live-matches", label: "المباريات المباشرة" },
-      { href: "/admin/upcoming-matches", label: "المباريات القادمة" },
-      { href: "/admin/matches", label: "تصحيح النتائج" },
+      { href: "/admin/matches", label: "المباريات", perm: "matches" },
+      { href: "/admin/live", label: "البث المباشر", perm: "streams" },
+      { href: "/admin/live-matches", label: "المباريات المباشرة", perm: "matches" },
+      { href: "/admin/upcoming-matches", label: "المباريات القادمة", perm: "matches" },
     ],
   },
   {
     title: "المحتوى",
     items: [
-      { href: "/admin/articles", label: "المقالات والأخبار" },
-      { href: "/admin/news", label: "الأخبار التلقائية (RSS)" },
+      { href: "/admin/news/manual", label: "الأخبار اليدوية", perm: "news" },
+      { href: "/admin/news", label: "الأخبار التلقائية (RSS)", perm: "news" },
+      { href: "/admin/broadcast", label: "النواقل الرسمية", perm: "broadcast" },
     ],
   },
   {
     title: "الرياضة",
     items: [
-      { href: "/admin/competitions", label: "البطولات والفرق" },
-      { href: "/admin/broadcast", label: "البث والترخيص" },
+      { href: "/admin/teams", label: "الفرق", perm: "teams" },
+      { href: "/admin/players", label: "اللاعبون", perm: "players" },
+      { href: "/admin/competitions", label: "البطولات", perm: "competitions" },
+      { href: "/admin/standings", label: "الترتيب", perm: "standings" },
     ],
   },
   {
-    title: "المنصة",
+    title: "النظام",
     items: [
-      { href: "/admin/providers", label: "مزوّدو البيانات" },
-      { href: "/admin/activity", label: "سجل النشاط" },
-      { href: "/admin/users", label: "المستخدمون والصلاحيات" },
-      { href: "/admin/ads", label: "الإعلانات" },
-      { href: "/admin/seo", label: "SEO والبيانات" },
+      { href: "/admin/providers", label: "مصادر البيانات", perm: "providers" },
+      { href: "/admin/activity", label: "سجل العمليات", perm: "activity" },
+      { href: "/admin/users", label: "المستخدمون والصلاحيات", perm: "users" },
+      { href: "/admin/settings", label: "إعدادات الموقع", perm: "settings" },
     ],
   },
 ];
 
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+type ShellUser = { username: string; role: AdminRole };
+
+export default function AdminShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: ShellUser | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -60,6 +83,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
+
+  const visibleGroups = GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.perm || !user || can(user.role, item.perm)),
+  })).filter((group) => group.items.length > 0);
 
   // Keep the credential form outside the authenticated navigation chrome. The
   // middleware still owns the route guard; this branch is only presentation.
@@ -103,15 +131,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Link href="/" className="whitespace-nowrap text-[11px] font-bold text-white/60 transition hover:text-gold-400">
             عرض الموقع ↗
           </Link>
-          <span className="hidden items-center gap-2 rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] sm:flex">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-win/20 text-[10px] font-extrabold text-win" aria-hidden>
-              ✓
+          {user ? (
+            <span className="hidden items-center gap-2 rounded-[3px] border border-navy-800 px-2.5 py-1.5 text-[11px] sm:flex">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-gold-500/20 text-[10px] font-extrabold text-gold-400" aria-hidden>
+                {user.username.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="max-w-[10rem] truncate">
+                <span className="block truncate font-bold leading-none">{user.username}</span>
+                <span className="block text-[10px] text-white/45">{ROLE_AR[user.role] ?? user.role}</span>
+              </span>
             </span>
-            <span>
-              <span className="block font-bold leading-none">جلسة موثّقة</span>
-              <span className="block text-[10px] text-white/45">تنتهي تلقائيًا خلال 12 ساعة</span>
-            </span>
-          </span>
+          ) : null}
           <button
             type="button"
             onClick={logout}
@@ -141,7 +171,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           aria-label="التنقل الإداري"
         >
           <div className="flex-1">
-            {GROUPS.map((group) => (
+            {visibleGroups.map((group) => (
               <nav key={group.title} className="mb-4" aria-label={group.title}>
                 {!collapsed ? (
                   <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
@@ -176,9 +206,20 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
 
           {!collapsed ? (
-            <p className="mt-2 rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
-              النتائج تُقرأ من مزوّدي البيانات؛ التصحيحات الإدارية والبث الموثّق يُسجلان مع قاعدة البيانات، ومؤقتًا بدونها.
-            </p>
+            <div className="mt-2 space-y-2">
+              <p className="rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
+                كل إجراء إداري يُسجَّل في سجل العمليات مع اسم المشغّل والوقت. البث لا يُنشر إلا
+                من نطاقات رسمية موثّقة.
+              </p>
+              <button
+                type="button"
+                onClick={logout}
+                disabled={loggingOut}
+                className="w-full rounded-[3px] border border-navy-700 px-2.5 py-2 text-[12px] font-bold text-white/70 transition hover:border-live hover:text-live disabled:opacity-50"
+              >
+                {loggingOut ? "جارٍ الخروج…" : "تسجيل الخروج"}
+              </button>
+            </div>
           ) : null}
         </aside>
 

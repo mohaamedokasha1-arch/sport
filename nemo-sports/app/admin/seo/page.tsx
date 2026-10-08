@@ -1,6 +1,7 @@
 import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 import { allMatches, articles, competitions, players, teams } from "@/lib/data";
 import { SITE_URL, demoContentVisible } from "@/lib/site";
+import { requirePermission } from "@/lib/admin-session";
 
 /** Mirrors app/robots.ts — the URLs are derived, never hardcoded. */
 const robotsTxt = `User-agent: *
@@ -11,7 +12,8 @@ Disallow: /api/
 
 Sitemap: ${SITE_URL}/sitemap.xml`;
 
-export default function AdminSeo() {
+export default async function AdminSeo() {
+  await requirePermission("settings");
   const showDemo = demoContentVisible();
   // Only pages that actually exist and carry indexable content are counted —
   // matching what app/sitemap.ts emits for the current content mode.

@@ -23,6 +23,9 @@ import {
   topScorers,
 } from "@/lib/data";
 import { playerBySlug, sportBySlug, teamBySlug, teamsByCompetition } from "@/lib/core-data";
+import { getAdminCompetitionBySlug } from "@/lib/admin-competitions";
+import { AdminCompetitionDetail } from "@/components/public/AdminPublished";
+import { decodeSlug } from "@/lib/slug";
 
 /**
  * Bound the lifetime of an on-demand ISR entry.
@@ -38,7 +41,7 @@ export function generateStaticParams() {
   return demoContentVisible() ? competitions.map((c) => ({ slug: c.slug })) : [];
 }
 
-export async function generateMetadata({
+async function competitionMetadataBody({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -63,7 +66,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function CompetitionPage({ params }: { params: Promise<{ slug: string }> }) {
+async function CompetitionPageBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const providerCompetition = competitionByPath(slug);
   if (providerCompetition) return <ProviderCompetitionPage competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
@@ -392,4 +395,26 @@ function Group({ title, list }: { title: string; list: Parameters<typeof MatchCa
       </div>
     </section>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const c = await getAdminCompetitionBySlug(slug);
+  if (c?.isPublished) {
+    return {
+      title: `${c.nameAr} | البطولات`,
+      description: `${c.nameAr}${c.season ? ` — موسم ${c.season}` : ""}: تفاصيل البطولة من إدارة نيمو سبورتس.`,
+      alternates: { canonical: `/competitions/${slug}` },
+    };
+  }
+  return competitionMetadataBody({ params });
+}
+
+export default async function CompetitionPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const adminComp = await getAdminCompetitionBySlug(slug);
+  if (adminComp?.isPublished) return <AdminCompetitionDetail competition={adminComp} />;
+  return <CompetitionPageBody params={params} />;
 }

@@ -2,11 +2,13 @@ import Link from "next/link";
 import { AdminHead, Btn, NotConnected, Panel } from "@/components/admin/ui";
 import MatchFeedPanel from "@/components/admin/MatchFeedPanel";
 import { fixtures as loadFixtures } from "@/lib/sdl-gateway";
+import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminUpcomingMatches() {
+  await requirePermission("matches");
   const result = await loadFixtures({ sport: "football" });
   const now = Date.now();
   const matches = result.ok

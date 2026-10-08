@@ -8,6 +8,9 @@ import { articleBySlug, articles, relatedArticles } from "@/lib/data";
 import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact, dateAr } from "@/lib/format";
 import { SITE_NAME, absoluteUrl, demoContentVisible } from "@/lib/site";
+import { getManualNewsBySlug } from "@/lib/manual-news";
+import { AdminNewsDetail } from "@/components/public/AdminPublished";
+import { decodeSlug } from "@/lib/slug";
 
 /**
  * Bound the lifetime of an on-demand ISR entry.
@@ -23,7 +26,7 @@ export function generateStaticParams() {
   return demoContentVisible() ? articles.map((a) => ({ slug: a.slug })) : [];
 }
 
-export async function generateMetadata({
+async function articleMetadataBody({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -40,7 +43,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+async function ArticlePageBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const article = demoContentVisible() ? articleBySlug(slug) : undefined;
   if (!article) notFound();
@@ -247,4 +250,27 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       </article>
     </>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const manual = await getManualNewsBySlug(slug);
+  if (manual && manual.status === "published") {
+    return {
+      title: manual.title,
+      description: manual.description || manual.title,
+      alternates: { canonical: `/news/${slug}` },
+      openGraph: { title: manual.title, description: manual.description || manual.title, type: "article" },
+    };
+  }
+  return articleMetadataBody({ params });
+}
+
+export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = await params;
+  const slug = decodeSlug(rawSlug);
+  const manual = await getManualNewsBySlug(slug);
+  if (manual && manual.status === "published") return <AdminNewsDetail article={manual} />;
+  return <ArticlePageBody params={params} />;
 }
