@@ -1,0 +1,88 @@
+PASS: favorites saved across reload and cleared
+PASS: calendar filter updates stable query URL
+{
+  "routesAndViewports": [
+    {
+      "path": "/",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/matches",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/my-day",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/scout",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/watch",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/news",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/learn",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/admin/login",
+      "width": 390,
+      "violations": []
+    },
+    {
+      "path": "/",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/matches",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/my-day",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/scout",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/watch",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/news",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/learn",
+      "width": 1280,
+      "violations": []
+    },
+    {
+      "path": "/admin/login",
+      "width": 1280,
+      "violations": []
+    }
+  ],
+  "runtimeErrors": []
+}
+PASS: route rendering, responsive widths, API denial/validation, SEO, and automated accessibility checks

@@ -1,60 +1,15 @@
-/**
- * NEMO Sports · news service (public read path)
- * ─────────────────────────────────────────────
- * Cache-based lazy refresh: the public feed never blocks on RSS. If the
- * newest article is older than `FEED_STALE_AFTER_MIN`, one background
- * refresh is kicked off (coalesced per process) while the cached feed is
- * served immediately with its staleness disclosed.
- *
- * On Vercel, /api/cron/fetch-news keeps the store warm; this fallback keeps
- * every other host (and Hobby-plan cron limits) working with zero config.
+/** Public read path: moderation-consistent store reads, honest source-check freshness.
+ * Updates run only through awaited cron/admin jobs, never fire-and-forget.
  */
-
-import { ingestAllSources } from "./pipeline";
 import { feedCategories, listArticles, listSources, type ArticleFilter } from "./store";
-import { invalidateSearchIndex } from "@/lib/search-service";
 import type { NewsArticle } from "./types";
 
 export const FEED_STALE_AFTER_MIN = 30;
 
-/** In-memory feed cache: key → { data, fetchedAt }. */
-const feedCache = new Map<string, { items: NewsArticle[]; total: number; fetchedAt: number }>();
-const FEED_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
-
-let refreshInFlight: Promise<unknown> | null = null;
-let lastRefreshAt = 0;
-const REFRESH_COALESCE_MS = 60_000; // max one background refresh per minute
-
-function cacheKey(f: ArticleFilter): string {
-  return JSON.stringify({
-    c: f.category ?? "",
-    t: f.team ?? "",
-    p: f.player ?? "",
-    comp: f.competition ?? "",
-    l: f.limit ?? 24,
-    o: f.offset ?? 0,
-  });
-}
-
-async function maybeRefresh(): Promise<void> {
-  const now = Date.now();
-  if (refreshInFlight || now - lastRefreshAt < REFRESH_COALESCE_MS) return;
-  lastRefreshAt = now;
-  refreshInFlight = ingestAllSources()
-    .then(() => invalidateSearchIndex())
-    .catch(() => {})
-    .finally(() => {
-      refreshInFlight = null;
-      feedCache.clear(); // refreshed store → drop cached feeds
-    });
-  // Intentionally not awaited: serve cache now, refresh behind.
-  void refreshInFlight;
-}
-
 export interface NewsFeed {
   items: NewsArticle[];
   total: number;
-  /** newest article's fetch time (ISO) — for "last updated" UI */
+  /** most recent successful source check (ISO) — for "last updated" UI */
   lastUpdated: string | null;
   /** true when the feed is older than FEED_STALE_AFTER_MIN */
   stale: boolean;
@@ -62,29 +17,18 @@ export interface NewsFeed {
 }
 
 export async function getNewsFeed(filter: ArticleFilter = {}): Promise<NewsFeed> {
-  const key = cacheKey(filter);
-  const now = Date.now();
-  const cached = feedCache.get(key);
-  if (cached && now - cached.fetchedAt < FEED_CACHE_TTL_MS) {
-    return buildFeed(cached.items, cached.total);
-  }
-
+  // Read the durable store directly: moderation must survive replica changes
+  // and cannot remain visible in a five-minute per-process feed cache.
   const { items, total } = await listArticles({ ...filter, limit: filter.limit ?? 24 });
-  feedCache.set(key, { items, total, fetchedAt: now });
-
-  // Staleness check on the GLOBAL newest article, not this slice.
-  const newest = await listArticles({ limit: 1 });
-  const newestAt = newest.items[0]?.fetchedDate ?? null;
-  const ageMin = newestAt ? (now - Date.parse(newestAt)) / 60000 : Infinity;
-  if (ageMin > FEED_STALE_AFTER_MIN) void maybeRefresh();
-
   return buildFeed(items, total);
 }
 
 async function buildFeed(items: NewsArticle[], total: number): Promise<NewsFeed> {
-  const newest = await listArticles({ limit: 1 });
-  const lastUpdated = newest.items[0]?.fetchedDate ?? null;
-  const stale = lastUpdated ? Date.now() - Date.parse(lastUpdated) > FEED_STALE_AFTER_MIN * 60000 : true;
+  const health = await newsHealthSummary();
+  const lastUpdated = health.lastFetchAt;
+  const sources = (await listSources()).filter((s) => s.enabled);
+  const stale = sources.length === 0 || sources.some((s) => !s.lastSuccessfulFetch ||
+    s.consecutiveFailures > 0 || Date.now() - Date.parse(s.lastSuccessfulFetch) > FEED_STALE_AFTER_MIN * 60000);
   const categories = await feedCategories();
   return { items, total, lastUpdated, stale, categories };
 }

@@ -81,7 +81,6 @@ export default function ScoreRail() {
                 <Link
                   key={match.id}
                   href={`/matches/${encodeURIComponent(match.slug)}`}
-                  aria-label={`${isPreview ? "بيانات معاينة، " : ""}${match.homeName} ${isPreview ? "ضد" : hasScore ? `${match.homeScore} مقابل ${match.awayScore}` : "ضد"} ${match.awayName}${live ? `، ${match.clock ?? "مباشر"}` : ""}`}
                   className={`flex min-h-11 shrink-0 items-center gap-2 rounded-[3px] border px-2.5 py-1.5 transition focus-ring ${live ? "border-live/40 bg-live/10 hover:bg-live/20" : "border-white/10 bg-white/[0.04] hover:border-gold-500/50"}`}
                 >
                   {match.competition ? <span className="hidden max-w-24 truncate text-[10px] font-semibold text-white/45 md:block">{match.competition}</span> : null}

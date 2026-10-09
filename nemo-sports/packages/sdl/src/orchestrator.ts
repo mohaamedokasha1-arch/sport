@@ -287,11 +287,13 @@ export class SportsDataLayer {
     call: (provider: SportsDataProvider) => Promise<ProviderResult<T>>;
     /** optional canonical-cache key when it differs from the request key */
     canonicalKey?: string;
+    /** Restrict provider-local IDs to their originating provider. */
+    provider?: ProviderName;
     /** merge provider output into canonical entities before returning */
     apply?: (data: T, provider: ProviderName) => Promise<T>;
   }): Promise<SdlResult<T>> {
     const policy = this.policy[input.dataType];
-    const canonicalKey = input.canonicalKey ?? `sdl:canonical:${input.dataType}:${requestKey("canon", input.endpoint, input.params)}`;
+    const canonicalKey = (input.canonicalKey ?? `sdl:canonical:${input.dataType}:${requestKey("canon", input.endpoint, input.params)}`) + (input.provider ? `:provider:${input.provider}` : "");
     const attempts: Attempt[] = [];
     const raised: Conflict[] = [];
 
@@ -317,11 +319,8 @@ export class SportsDataLayer {
       };
     }
 
-    const chain = this.chainFor(input.sport, input.competition ?? null, input.dataType);
-    if (!chain.length) {
-      this.logger.log({ at: nowIso(), level: "error", area: "provider", message: `no available provider for ${input.dataType}`, dataType: input.dataType });
-      return { ok: false, error: { kind: "no_provider_configured", message: `No available provider for ${input.dataType}`, dataType: input.dataType, attempts } };
-    }
+    const chain = this.chainFor(input.sport, input.competition ?? null, input.dataType)
+      .filter((link) => !input.provider || link.provider === input.provider);
 
     for (const link of chain) {
       const provider = this.providers.get(link.provider)!;
@@ -406,6 +405,8 @@ export class SportsDataLayer {
         value: { data: stale.data, provider: stale.provider, role: "fallback", fromCache: true, stale: true, fetchedAt: stale.at, attempts, degraded: true, conflicts: raised },
       };
     }
+
+    if (!chain.length) return { ok: false, error: { kind: "no_provider_configured", message: `No available provider for ${input.dataType}`, dataType: input.dataType, attempts } };
 
     // Preserve the typed not_found when the chain's *authoritative* answers all
     // agree the entity does not exist — callers rely on it for honest 404s.

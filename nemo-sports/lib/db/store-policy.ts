@@ -7,7 +7,7 @@
  *    with an Arabic message and nothing is kept in process memory.
  *  - When DATABASE_URL is NOT configured, the in-process store is used only
  *    outside production (local development / tests). In production it is
- *    refused unless ADMIN_ALLOW_MEMORY_STORE=1 is set explicitly, because
+ *    always refused, even if a legacy memory-store override is set, because
  *    memory is lost on restart and is not shared between server instances.
  *
  * Errors carry an operator-safe Arabic message only; SQL text, stack traces
@@ -39,7 +39,7 @@ export function storeErrorMessage(e: unknown): string {
 export function memoryStoreAllowed(): boolean {
   if (process.env.DATABASE_URL) return false;
   if (process.env.NODE_ENV !== "production") return true;
-  return process.env.ADMIN_ALLOW_MEMORY_STORE === "1";
+  return false;
 }
 
 /**

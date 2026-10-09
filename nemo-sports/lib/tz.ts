@@ -72,3 +72,18 @@ export function siteDay(input: string | number | Date): number {
   const p = siteParts(input);
   return Date.UTC(p.year, p.month - 1, p.date);
 }
+
+/** Valid calendar keys only (reject overflow dates such as February 31). */
+export function isDateKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value;
+}
+
+export function siteDateKey(input: string | number | Date = Date.now()): string {
+  return new Date(siteDay(input)).toISOString().slice(0, 10);
+}
+
+export function shiftDateKey(day: string, days: number): string {
+  if (!isDateKey(day)) throw new Error("Invalid calendar day");
+  return new Date(Date.parse(day) + days * 86400000).toISOString().slice(0, 10);
+}

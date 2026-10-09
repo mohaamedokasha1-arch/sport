@@ -21,6 +21,8 @@ import { getSiteSettings, updateSiteSettings } from "@/lib/site-settings";
 import { logActivity, listActivity } from "@/lib/activity";
 import { persistOrThrow, memoryStoreAllowed, StoreWriteError, STORE_WRITE_FAILED_AR, STORE_MEMORY_DISABLED_AR } from "@/lib/db/store-policy";
 
+if (process.env.DATABASE_URL) throw new Error("Admin offline tests refuse a configured database");
+process.env.NEMO_TEST_MEMORY_ONLY = "1";
 process.env.ADMIN_SESSION_SECRET = "unit-test-secret-0123456789";
 
 let passed = 0;
@@ -297,7 +299,7 @@ async function main() {
       }
     }
   };
-  await test("memory store allowed in development, refused in production by default", async () => {
+  await test("memory store allowed in development, always refused in production", async () => {
     await withEnv({ DATABASE_URL: undefined, NODE_ENV: "development", ADMIN_ALLOW_MEMORY_STORE: undefined }, () => {
       assert.equal(memoryStoreAllowed(), true);
     });
@@ -305,7 +307,7 @@ async function main() {
       assert.equal(memoryStoreAllowed(), false);
     });
     await withEnv({ DATABASE_URL: undefined, NODE_ENV: "production", ADMIN_ALLOW_MEMORY_STORE: "1" }, () => {
-      assert.equal(memoryStoreAllowed(), true);
+      assert.equal(memoryStoreAllowed(), false);
     });
   });
   await test("production without a database rejects writes with a clear Arabic message", async () => {

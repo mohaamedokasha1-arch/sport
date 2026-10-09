@@ -104,34 +104,19 @@ export function fingerprint(canonicalUrl: string, title: string): string {
 /** Google News wraps publisher URLs in news.google.com/articles/… links. */
 export function isGoogleNewsWrapper(url: string): boolean {
   try {
-    return new URL(url).hostname.toLowerCase().includes("news.google.com");
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname === "news.google.com" && !u.username && !u.password && !u.port;
   } catch {
     return false;
   }
 }
 
-/** Best-effort publisher URL resolution (follows one redirect, 5s budget). */
-export async function resolvePublisherUrl(googleUrl: string): Promise<string> {
-  if (!isGoogleNewsWrapper(googleUrl)) return googleUrl;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
-    try {
-      const res = await fetch(googleUrl, {
-        method: "HEAD",
-        redirect: "follow",
-        signal: ctrl.signal,
-        headers: { "user-agent": "Mozilla/5.0 (compatible; NEMO-Sports/1.0; +https://nemo-sports.vercel.app)" },
-      });
-      const finalUrl = res.url;
-      if (finalUrl && !isGoogleNewsWrapper(finalUrl)) return finalUrl;
-    } finally {
-      clearTimeout(t);
-    }
-  } catch {
-    // fall through — keep the Google News link (still a valid source link)
-  }
-  return googleUrl;
+/** Keep the public RSS link. Never chase publisher redirects server-side:
+ * feeds can point to private addresses and a redirect is not an SSRF boundary.
+ * Google wrappers remain visibly attributed discovery links, not verified URLs.
+ */
+export async function resolvePublisherUrl(url: string): Promise<string> {
+  return url;
 }
 
 export interface ValidationResult {

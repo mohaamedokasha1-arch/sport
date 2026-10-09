@@ -227,7 +227,7 @@ async function deleteOverrideAction(form: FormData): Promise<void> {
   "use server";
   const actor = await requirePermission("matches");
   const slug = String(form.get("slug") ?? "").trim();
-  await deleteOverride(slug);
+  try { await deleteOverride(slug); } catch (error) { redirect(`/admin/matches?tab=overrides&err=${encodeURIComponent(storeErrorMessage(error))}`); }
   await logActivity({ action: "override.delete", entityType: "match", entityId: slug, actor: actor.username, role: actor.role });
   await invalidateMatch(slug).catch(() => 0);
   refreshMatchSurfaces(slug);

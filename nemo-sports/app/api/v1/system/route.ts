@@ -1,3 +1,4 @@
+import { requirePermission } from "@/lib/admin-session";
 import { NextResponse } from "next/server";
 import { diagnostics } from "@/lib/sdl-gateway";
 
@@ -21,6 +22,7 @@ export const runtime = "nodejs";
  * Still to come (§12.2): per-user roles and MFA, replacing the shared secret.
  */
 export async function GET() {
+  try { await requirePermission("providers"); } catch { return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 }); }
   const d = await diagnostics();
   return NextResponse.json(
     {

@@ -16,14 +16,11 @@ export const maxDuration = 60;
  *
  * HOBBY-PLAN NOTE: Vercel's free tier REJECTS any cron more frequent than
  * once-daily at deploy time, so vercel.json schedules this daily (03:30 UTC).
- * Intraday freshness comes from the traffic-driven lazy refresh in
- * lib/news/service.ts (coalesced, 30-min staleness trigger) — the zero-cost
- * architecture works fully on Hobby. Upgrade paths for tighter cadence:
- *   · Vercel Pro → change the schedule to every-15-minutes, or
- *   · free external scheduler (e.g. cron-job.org) → GET this URL with
- *     ?token=$NEMO_INGEST_TOKEN as often as every 5 min.
- * Per-source refresh intervals + backoff are honoured inside the pipeline,
- * so extra triggers are cheap: due sources fetch, the rest skip.
+ * Public reads no longer launch unawaited work. For a tighter cadence use an
+ * authorized scheduler sending a Bearer header, subject to hosting limits and
+ * feed permissions. DATABASE_URL is required for durable production ingestion.
+ * Each job is bounded and uses a Postgres advisory lock; unfinished sources
+ * stay due. Repeated triggers honor each source's interval and failure backoff.
  */
 
 function expectedSecrets(): string[] {
@@ -70,12 +67,12 @@ export async function GET(request: Request) {
     // with DATABASE_URL set means the database is misconfigured (see server logs).
     const storage = await newsBackend();
     return NextResponse.json(
-      { ok: true, storage, ...stats },
-      { status: 200, headers: { "cache-control": "no-store" } },
+      { ok: stats.perSource.every((s) => s.ok), storage, ...stats },
+      { status: stats.perSource.every((s) => s.ok) ? 200 : 502, headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: { code: "ingest_failed", message: e instanceof Error ? e.message : String(e) } },
+      { ok: false, error: { code: "ingest_failed", message: "News ingestion failed; check database and provider health." } },
       { status: 500, headers: { "cache-control": "no-store" } },
     );
   }

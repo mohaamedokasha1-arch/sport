@@ -203,7 +203,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     const explicit = this.baseUrlOverride ?? process.env.SPORTSCORE_BASE_URL;
     if (explicit) return explicit.replace(/\/+$/, "");
     const origin = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
-    if (origin) return `https://${origin.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/api/v1/sportscore-relay`;
+    if (origin && process.env.NEMO_SPORTSCORE_RELAY_ENABLED === "1") return `https://${origin.replace(/^https?:\/\//, "").replace(/\/+$/, "")}/api/v1/sportscore-relay`;
     return "https://sportscore.com/api/widget";
   }
 
@@ -217,7 +217,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
    */
   override auth(): { headers: Record<string, string>; query?: Record<string, string> } {
     return {
-      headers: { "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36" },
+      headers: { "user-agent": "NEMO-Sports/1.0" },
       query: { src: this.src },
     };
   }
@@ -356,6 +356,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
           minute,
           additionalMinute: null,
           teamProviderId: sideHome ? home : away,
+          playerName: str(inc.player) ?? str(inc.player_in),
           playerProviderId: str(inc.player) ?? str(inc.player_in) ?? null,
           secondaryPlayerProviderId: str(inc.assist) ?? (inc.is_sub ? str(inc.player_out) : null),
           description,

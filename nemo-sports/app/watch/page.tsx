@@ -12,7 +12,7 @@ import { hasMatchIdentity, matchDetail as sdlMatchDetail } from "@/lib/sdl-gatew
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "البث المباشر — جدول النواقل الرسميين",
+  title: "NEMO Watch Guide — دليل المشاهدة",
   description:
     "جدول المباريات المتاحة للبث عبر نواقل رسميين مرخّصين فقط، مع الإفصاح عن الجهة الناقلة والمناطق المسموح بها.",
   alternates: { canonical: "/watch" },
@@ -94,7 +94,7 @@ export default async function WatchPage() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
           <p className="eyebrow mb-1">البث المرخّص</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">البث المباشر</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">NEMO Watch Guide · دليل المشاهدة</h1>
         </div>
         <p className="text-[12px] text-muted">
           <span className="num font-bold">{rows.length}</span> مباراة مربوطة ببث رسمي ·{" "}
@@ -111,7 +111,7 @@ export default async function WatchPage() {
 
       <div className="mb-8 grid gap-4 md:grid-cols-3">
         {[
-          { icon: "✅", title: "روابط رسمية فقط", text: "لا نعرض إلا مصادر تأكدنا من امتلاكها حقوق البث في منطقتها." },
+          { icon: "✅", title: "روابط رسمية فقط", text: "الروابط من سجل الإدارة. النطاق المعتمد وحده لا يثبت حقوق مباراة أو توفر مشاهدة مجانية." },
           { icon: "🚫", title: "لا إعادة بث", text: "لا نخزّن ولا نعيد بث أي إشارة، ولا نستخدم روابط غير مرخّصة إطلاقًا." },
           { icon: "🌍", title: "إفصاح جغرافي", text: "نوضّح اسم الناقل والمناطق المسموح بها قبل الضغط على أي رابط." },
         ].map((c) => (
@@ -136,7 +136,7 @@ export default async function WatchPage() {
             message="يُدار سجل النواقل الرسميين من لوحة التحرير، ولا يظهر أي ناقل قبل توثيق حقوقه ومناطقه."
           />
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
@@ -151,13 +151,13 @@ export default async function WatchPage() {
               <tbody>
                 {broadcasters.map((p) => (
                   <tr key={p.id} className="border-b border-line last:border-0 hover:bg-navy-850/[0.03] dark:hover:bg-white/[0.04]">
-                    <td className="px-3 py-2.5 font-bold">{p.broadcasterName}</td>
+                    <td className="px-3 py-2.5 font-bold"><a href={p.broadcastWebsite} target="_blank" rel="noopener noreferrer" className="underline">{p.broadcasterName}</a></td>
                     <td className="px-3 py-2.5 text-muted">{p.platform}</td>
                     <td className="px-3 py-2.5 text-muted">{p.competitionName}</td>
                     <td className="px-3 py-2.5 text-muted">{p.regions.length > 0 ? p.regions.join("، ") : "—"}</td>
                     <td className="px-3 py-2.5">
                       <span className={`rounded-[3px] px-2 py-0.5 text-[10px] font-extrabold ${p.freeAccess ? "bg-win/15 text-win" : "bg-gold-500/15 text-gold-600 dark:text-gold-400"}`}>
-                        {p.freeAccess ? "مجاني" : p.requiresSubscription ? "اشتراك" : "—"}
+                        {p.platform === "Website" ? "دليل — ليس بثًا" : p.freeAccess ? "مجاني وفق السجل" : p.requiresSubscription ? "اشتراك وفق السجل" : "غير محدد"}
                       </span>
                     </td>
                     <td className="num px-3 py-2.5 text-center text-muted">{dateAr(p.updatedAt)}</td>
@@ -168,7 +168,7 @@ export default async function WatchPage() {
           </div>
         )}
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          لا يُنشر أي رابط بث قبل توثيق الترخيص في لوحة التحكم (اسم المصدر، نوع الترخيص،
+          السجل على مستوى البطولة وليس ضمانًا لبث مباراة بعينها. آخر تحديث للسجل ليس فحصًا مباشرًا لصلاحية الرابط. لا يُنشر أي رابط بث قبل توثيق الترخيص في لوحة التحكم (اسم المصدر، نوع الترخيص،
           المناطق، مصدر التحقق، حالة الموافقة). الناقلون قيد المراجعة لا يظهرون للزوار.
         </p>
       </section>
@@ -256,7 +256,7 @@ function LegacyDemoWatch() {
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
           <p className="eyebrow mb-1">البث المرخّص</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">البث المباشر</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">NEMO Watch Guide · دليل المشاهدة</h1>
         </div>
         <p className="text-[12px] text-muted">
           <span className="num font-bold">{broadcastable.length}</span> سجلًا في بيانات المعاينة
@@ -273,7 +273,7 @@ function LegacyDemoWatch() {
 
       <div className="mb-8 grid gap-4 md:grid-cols-3">
         {[
-          { icon: "✅", title: "روابط رسمية فقط", text: "لا نعرض إلا مصادر تأكدنا من امتلاكها حقوق البث في منطقتها." },
+          { icon: "✅", title: "روابط رسمية فقط", text: "الروابط من سجل الإدارة. النطاق المعتمد وحده لا يثبت حقوق مباراة أو توفر مشاهدة مجانية." },
           { icon: "🚫", title: "لا إعادة بث", text: "لا نخزّن ولا نعيد بث أي إشارة، ولا نستخدم روابط غير مرخّصة إطلاقًا." },
           { icon: "🌍", title: "إفصاح جغرافي", text: "نوضّح اسم الناقل والمناطق المسموح بها قبل الضغط على أي رابط." },
         ].map((c) => (
@@ -291,7 +291,7 @@ function LegacyDemoWatch() {
 
       <section className="mt-10">
         <SectionHead eyebrow="النواقل المرخّصون" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
-        <div className="card overflow-hidden">
+        <div className="card overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
@@ -330,7 +330,7 @@ function LegacyDemoWatch() {
           </table>
         </div>
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          لا يُنشر أي رابط بث قبل توثيق الترخيص في لوحة التحكم (اسم المصدر، نوع الترخيص،
+          السجل على مستوى البطولة وليس ضمانًا لبث مباراة بعينها. آخر تحديث للسجل ليس فحصًا مباشرًا لصلاحية الرابط. لا يُنشر أي رابط بث قبل توثيق الترخيص في لوحة التحكم (اسم المصدر، نوع الترخيص،
           المناطق، نسخة العقد، حالة الموافقة). الناقلون قيد المراجعة لا يظهرون للزوار.
         </p>
       </section>

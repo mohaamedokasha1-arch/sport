@@ -1,26 +1,6 @@
-/**
- * GET /api/v1/sportscore-relay/<endpoint>/?query…
- *   e.g. /api/v1/sportscore-relay/matches/?sport=football&limit=50
- *
- * Edge-runtime relay to the SportScore widget API. The endpoint rides the
- * PATH (exactly how SportscoreAdapter builds URLs: baseUrl + /<endpoint>/ +
- * query), so the adapter needs no special-casing — its default baseUrl on
- * Vercel simply points here.
- *
- * WHY THIS EXISTS: sportscore.com's edge protection 403s/challenges requests
- * arriving from Vercel serverless (Node/undici) ranges — verified live with
- * absent, bot and full browser User-Agents. Edge functions originate from a
- * different network and mostly pass.
- *
- * SOURCE PROTECTION IS PRESERVED: users never talk to SportScore directly —
- * this relay is part of OUR backend, consumed only by the SDL (two cache
- * layers + coalescing + rate limits sit in front of it), with an extra CDN
- * cache layer here (s-maxage=30).
- *
- * Security: strict single-segment allowlist (the 8 documented widget
- * endpoints), query passthrough, forced src=nemo-sports, JSON-only origin.
+/** Bounded compatibility relay. Does not evade upstream access controls.
+ * Disabled unless explicitly enabled by an operator with permission to use it.
  */
-
 export const runtime = "edge";
 
 const ALLOWED = new Set([
@@ -35,6 +15,9 @@ const ALLOWED = new Set([
 ]);
 
 export async function GET(request: Request, ctx: { params: Promise<{ path?: string[] }> }): Promise<Response> {
+  if (process.env.NEMO_SPORTSCORE_RELAY_ENABLED !== "1") {
+    return Response.json({ error: "relay not enabled" }, { status: 503, headers: { "cache-control": "no-store" } });
+  }
   const { path } = await ctx.params;
   const segments = path ?? [];
   const endpoint = segments.length === 1 ? segments[0] : "";
@@ -43,6 +26,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ path?: stri
   }
 
   const incoming = new URL(request.url);
+  if (incoming.search.length > 2048) return Response.json({ error: "query too long" }, { status: 400 });
   const target = new URL(`https://sportscore.com/api/widget/${endpoint}/`);
   for (const [k, v] of incoming.searchParams.entries()) {
     if (k !== "src") target.searchParams.set(k, v);
@@ -52,10 +36,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ path?: stri
   let upstream: Response;
   try {
     upstream = await fetch(target, {
+      signal: AbortSignal.timeout(8000),
+      redirect: "error",
       headers: {
         accept: "application/json",
         "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+          "NEMO-Sports/1.0",
       },
     });
   } catch {

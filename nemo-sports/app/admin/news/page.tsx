@@ -38,6 +38,7 @@ async function addSourceAction(form: FormData): Promise<void> {
     refreshInterval: Number(form.get("refreshInterval") ?? 30),
   });
   await logActivity({ action: "news.source.create", entityType: "rss_source", entityId: created.id, after: { query } });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -50,6 +51,7 @@ async function toggleSourceAction(form: FormData): Promise<void> {
   if (!s) return;
   await updateSource(id, { enabled: !s.enabled });
   await logActivity({ action: "news.source.toggle", entityType: "rss_source", entityId: id, after: { enabled: !s.enabled } });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -60,6 +62,7 @@ async function deleteSourceAction(form: FormData): Promise<void> {
   const id = String(form.get("id") ?? "");
   await deleteSource(id);
   await logActivity({ action: "news.source.delete", entityType: "rss_source", entityId: id });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -73,6 +76,7 @@ async function testFetchAction(form: FormData): Promise<void> {
   await runSource(s, { force: true });
   invalidateSearchIndex();
   await logActivity({ action: "news.source.fetch", entityType: "rss_source", entityId: id });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -83,6 +87,7 @@ async function fetchAllAction(): Promise<void> {
   await ingestAllSources();
   invalidateSearchIndex();
   await logActivity({ action: "news.ingest.run" });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -94,6 +99,7 @@ async function hideArticleAction(form: FormData): Promise<void> {
   await setArticleStatus(id, "hidden");
   invalidateSearchIndex();
   await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "hidden" } });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -105,6 +111,7 @@ async function publishArticleAction(form: FormData): Promise<void> {
   await setArticleStatus(id, "published");
   invalidateSearchIndex();
   await logActivity({ action: "news.article.status", entityType: "news_article", entityId: id, after: { status: "published" } });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }
@@ -116,6 +123,7 @@ async function removeArticleAction(form: FormData): Promise<void> {
   await deleteArticle(id);
   invalidateSearchIndex();
   await logActivity({ action: "news.article.delete", entityType: "news_article", entityId: id });
+  revalidatePath("/news");
   revalidatePath("/admin/news");
   revalidatePath("/admin/activity");
 }

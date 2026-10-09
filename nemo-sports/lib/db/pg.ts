@@ -15,7 +15,7 @@ import type { Pool, PoolClient } from "pg";
 
 export type PgDriver = SqlClient & { end: () => Promise<void> };
 
-type PoolCtor = new (config: { connectionString: string; max?: number; idleTimeoutMillis?: number }) => Pool;
+type PoolCtor = new (config: { connectionString: string; max?: number; idleTimeoutMillis?: number; connectionTimeoutMillis?: number; statement_timeout?: number }) => Pool;
 
 /** `pg` is loaded lazily so a deployment without a database never pays for it. */
 async function loadPg(): Promise<PoolCtor | null> {
@@ -40,7 +40,7 @@ async function getPool(): Promise<Pool | null> {
     loadFailed = true;
     return null;
   }
-  pool = new PgPool({ connectionString: url, max: Number(process.env.PG_POOL_MAX ?? 5), idleTimeoutMillis: 30_000 });
+  pool = new PgPool({ connectionString: url, max: Number(process.env.PG_POOL_MAX ?? 5), idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5000, statement_timeout: 10000 });
   return pool;
 }
 

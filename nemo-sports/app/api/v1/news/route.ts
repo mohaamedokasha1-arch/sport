@@ -14,6 +14,9 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = url.searchParams;
+  for (const [key, value] of q) {
+    if (value.length > 160 || (["limit", "offset"].includes(key) && (!/^\d+$/.test(value) || Number(value) > 10000))) return NextResponse.json({ ok: false, error: "Invalid query" }, { status: 400 });
+  }
   const limit = Math.min(100, Math.max(1, Number(q.get("limit") ?? 24) || 24));
   const offset = Math.max(0, Number(q.get("offset") ?? 0) || 0);
 
@@ -57,13 +60,13 @@ export async function GET(request: Request) {
         status: 200,
         headers: {
           // CDN-cacheable briefly; staleness is disclosed in-body.
-          "cache-control": "public, s-maxage=120, stale-while-revalidate=300",
+          "cache-control": feed.stale ? "no-store" : "public, s-maxage=60",
         },
       },
     );
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: { code: "news_unavailable", message: e instanceof Error ? e.message : String(e) } },
+      { ok: false, error: { code: "news_unavailable", message: "News temporarily unavailable" } },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   }

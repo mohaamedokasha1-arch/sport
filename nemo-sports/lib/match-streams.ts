@@ -168,6 +168,7 @@ let ddlDone = false;
 const STREAMS_FILE = path.join(process.cwd(), "db", "match-streams.json");
 
 function loadDiskStreams(): MatchStreamSource[] {
+  if (process.env.NEMO_TEST_MEMORY_ONLY === "1") return [];
   try {
     if (fs.existsSync(STREAMS_FILE)) {
       const raw = fs.readFileSync(STREAMS_FILE, "utf-8");
@@ -181,6 +182,7 @@ function loadDiskStreams(): MatchStreamSource[] {
 }
 
 function saveDiskStreams(list: MatchStreamSource[]): void {
+  if (process.env.NEMO_TEST_MEMORY_ONLY === "1" || process.env.NODE_ENV === "production") return;
   try {
     const dir = path.dirname(STREAMS_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -289,6 +291,7 @@ export async function listMatchStreams(admin = false): Promise<MatchStreamSource
       // fall through
     }
   }
+  if (process.env.DATABASE_URL) return [];
   const all = memory();
   return admin ? [...all] : all.filter(isPubliclyVisible);
 }
@@ -331,33 +334,14 @@ export async function streamForMatch(key: {
   if (all.length === 0) return null;
 
   const slug = String(key.slug ?? "").trim().toLowerCase();
-  const slugBase = slug.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
+  // Exact IDs only. Never strip dates or match merely by two team names:
+  // both strategies attach a link to later meetings / reverse fixtures.
   if (slug) {
-    const bySlug = all.find((s) => {
-      const sSlug = s.matchSlug.trim().toLowerCase();
-      const sSlugBase = sSlug.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
-      return (
-        sSlug === slug ||
-        sSlugBase === slugBase ||
-        s.slugs.some((x) => {
-          const xLower = x.trim().toLowerCase();
-          return xLower === slug || xLower.replace(/-20\d{2}-\d{2}-\d{2}$/, "") === slugBase;
-        })
-      );
-    });
-    if (bySlug) return bySlug;
+    return all.find((s) => s.matchSlug.trim().toLowerCase() === slug ||
+      s.slugs.some((x) => x.trim().toLowerCase() === slug)) ?? null;
   }
-
-  const h = norm(String(key.home ?? ""));
-  const a = norm(String(key.away ?? ""));
-  if (h && a) {
-    const byTeams = all.find((s) => {
-      const homeSet = [s.homeName, ...s.homeAliases].filter(Boolean).map(norm);
-      const awaySet = [s.awayName, ...s.awayAliases].filter(Boolean).map(norm);
-      return (homeSet.includes(h) && awaySet.includes(a)) || (homeSet.includes(a) && awaySet.includes(h));
-    });
-    if (byTeams) return byTeams;
-  }
+  // Legacy alias-only records remain stored for admin rebinding; they cannot
+  // safely establish the identity of a particular match on a public page.
 
   return null;
 }

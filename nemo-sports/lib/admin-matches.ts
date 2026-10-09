@@ -369,6 +369,7 @@ let memInitialized = false;
 const MATCHES_FILE = path.join(process.cwd(), "db", "admin-matches.json");
 
 function loadDiskMatches(): AdminMatch[] {
+  if (process.env.NEMO_TEST_MEMORY_ONLY === "1") return [];
   try {
     if (fs.existsSync(MATCHES_FILE)) {
       const raw = fs.readFileSync(MATCHES_FILE, "utf-8");
@@ -382,6 +383,7 @@ function loadDiskMatches(): AdminMatch[] {
 }
 
 function saveDiskMatches(list: AdminMatch[]): void {
+  if (process.env.NEMO_TEST_MEMORY_ONLY === "1" || process.env.NODE_ENV === "production") return;
   try {
     const dir = path.dirname(MATCHES_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -415,7 +417,7 @@ async function pg() {
       try {
         for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) await db.run(stmt, []);
         const existing = await db.select<{ c: string }>("SELECT COUNT(*)::text AS c FROM admin_matches", []);
-        if (existing[0]?.c === "0") {
+        if (existing[0]?.c === "0" && process.env.NEMO_BOOTSTRAP_LEGACY_DATA === "1") {
           for (const m of INITIAL_ADMIN_MATCHES) {
             await db.run(
               `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, is_published, created_by)
@@ -534,14 +536,13 @@ export async function listAdminMatches(filter: AdminMatchFilter = {}): Promise<A
 export async function getAdminMatchBySlug(slug: string): Promise<AdminMatch | null> {
   const list = await allMatches();
   const target = decodeSlug(slug).trim().toLowerCase();
-  const targetBase = target.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
-  return (
-    list.find((m) => {
-      const s = m.slug.toLowerCase();
-      const sBase = s.replace(/-20\d{2}-\d{2}-\d{2}$/, "");
-      return s === target || sBase === targetBase || m.id === target;
-    }) ?? null
-  );
+  const exact = list.find((m) => m.slug.toLowerCase() === target || m.id === target);
+  if (exact) return exact;
+  // Backward-compatible undated aliases only if there is one unambiguous record.
+  // A requested date must never resolve to a different meeting.
+  if (/-20\d{2}-\d{2}-\d{2}$/.test(target)) return null;
+  const aliases = list.filter((m) => m.slug.toLowerCase().replace(/-20\d{2}-\d{2}-\d{2}$/, "") === target);
+  return aliases.length === 1 ? aliases[0] : null;
 }
 
 export async function getAdminMatchById(id: string): Promise<AdminMatch | null> {
@@ -597,6 +598,7 @@ export function adminMatchToFixture(m: AdminMatch): NormalizedFixture {
     awayLogoUrl: m.awayLogo || null,
     competitionName: m.competitionName || null,
     sourceUrl: null,
+    editorialUpdatedAt: m.updatedAt,
   };
 }
 

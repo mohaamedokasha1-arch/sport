@@ -1,3 +1,4 @@
+import { persistOrThrow, StoreWriteError, STORE_WRITE_FAILED_AR, storeErrorMessage } from "@/lib/db/store-policy";
 /**
  * NEMO Sports · legal broadcast registry (official broadcasters ONLY)
  * ───────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export function validateBroadcastLink(link: string): { ok: boolean; reason: stri
   try {
     const u = new URL(link.trim());
     if (u.protocol !== "https:") return { ok: false, reason: "broadcast links must be https" };
+    if (u.username || u.password || (u.port && u.port !== "443")) return { ok: false, reason: "credentials and nonstandard ports are not allowed" };
     host = u.hostname.toLowerCase().replace(/^www\./, "");
   } catch {
     return { ok: false, reason: "invalid URL" };
@@ -257,11 +259,13 @@ export async function listBroadcasters(admin = false): Promise<BroadcasterEntry[
           : "SELECT * FROM broadcasts WHERE status = 'approved' AND enabled = true ORDER BY competition_name, broadcaster_name",
         [],
       );
-      return rows.map(fromRow);
+      const entries = rows.map(fromRow);
+      return admin ? entries : entries.filter((b) => validateBroadcastLink(b.broadcastWebsite).ok);
     } catch {
       // fall through
     }
   }
+  if (process.env.DATABASE_URL) return [];
   const all = memory();
   return admin ? [...all] : all.filter((b) => b.status === "approved" && b.enabled);
 }
@@ -297,6 +301,9 @@ export interface BroadcasterInput {
 export async function createBroadcaster(input: BroadcasterInput): Promise<{ ok: true; entry: BroadcasterEntry } | { ok: false; error: string }> {
   const check = validateBroadcastLink(input.broadcastWebsite);
   if (!check.ok) return { ok: false, error: check.reason };
+  if (!input.competitionId.trim() || !input.broadcasterName.trim() || !input.verificationSource.trim()) return { ok: false, error: "البطولة واسم الناقل ومصدر التحقق مطلوبة" };
+  if (input.freeAccess && input.requiresSubscription) return { ok: false, error: "لا يمكن تأكيد المجانية والاشتراك معًا" };
+  if (input.platform && !["TV", "Website", "Mobile App", "Streaming", "Other"].includes(input.platform)) return { ok: false, error: "منصة غير صالحة" };
   const t = now();
   const entry: BroadcasterEntry = {
     id: `bc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
@@ -317,6 +324,10 @@ export async function createBroadcaster(input: BroadcasterInput): Promise<{ ok: 
     updatedAt: t,
   };
   const db = await pg();
+  if (!db) {
+    try { await persistOrThrow(null, async () => {}); }
+    catch (e) { return { ok: false, error: storeErrorMessage(e) }; }
+  }
   if (db) {
     try {
       await db.run(
@@ -330,7 +341,7 @@ export async function createBroadcaster(input: BroadcasterInput): Promise<{ ok: 
       );
       return { ok: true, entry };
     } catch {
-      // fall through
+      return { ok: false, error: STORE_WRITE_FAILED_AR };
     }
   }
   memory().push(entry);
@@ -338,13 +349,18 @@ export async function createBroadcaster(input: BroadcasterInput): Promise<{ ok: 
 }
 
 export async function setBroadcasterStatus(id: string, status: BroadcastStatus): Promise<boolean> {
+  if (!["approved", "pending", "rejected"].includes(status)) return false;
   const db = await pg();
+  if (!db) {
+    try { await persistOrThrow(null, async () => {}); }
+    catch (e) { throw e; }
+  }
   if (db) {
     try {
       await db.run("UPDATE broadcasts SET status = $2, updated_at = now() WHERE id = $1", [id, status]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   const list = memory();
@@ -356,12 +372,16 @@ export async function setBroadcasterStatus(id: string, status: BroadcastStatus):
 
 export async function deleteBroadcaster(id: string): Promise<boolean> {
   const db = await pg();
+  if (!db) {
+    try { await persistOrThrow(null, async () => {}); }
+    catch (e) { throw e; }
+  }
   if (db) {
     try {
       await db.run("DELETE FROM broadcasts WHERE id = $1", [id]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   const list = memory();

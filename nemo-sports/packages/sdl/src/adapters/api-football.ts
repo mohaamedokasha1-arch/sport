@@ -252,6 +252,7 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
         minute: m.minute,
         additionalMinute: m.additional,
         teamProviderId: e.team?.id != null ? String(e.team.id) : null,
+        playerName: str(e.player?.name),
         playerProviderId: e.player?.id != null ? String(e.player.id) : null,
         secondaryPlayerProviderId: e.assist?.id != null ? String(e.assist.id) : null,
         description: str(e.comments) ?? str(e.detail),

@@ -98,6 +98,8 @@ export type NormalizedFixture = {
   competitionName?: string | null;
   /** provider-side permalink for the match (attribution / deep-link) */
   sourceUrl?: string | null;
+  /** Explicit editorial provenance when a manual record is merged into a feed. */
+  editorialUpdatedAt?: string;
 };
 
 export type NormalizedEvent = {
@@ -108,6 +110,7 @@ export type NormalizedEvent = {
   additionalMinute: number | null;
   teamProviderId: string | null;
   playerProviderId: string | null;
+  playerName?: string | null;
   secondaryPlayerProviderId: string | null;
   description: string | null;
 };

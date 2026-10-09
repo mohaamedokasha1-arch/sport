@@ -417,3 +417,14 @@ LIVE فعلًا · شريط النتائج · البحث العربي · احت�
 
 - [docs/DATABASE.md](docs/DATABASE.md) — تجهيز Postgres وRedis
 - [docs/NEWS_SCHEDULING.md](docs/NEWS_SCHEDULING.md) — جدولة تحديث الأخبار
+
+
+## October 9, 2026 implementation and verification
+
+See [the implementation report](docs/IMPLEMENTATION_2026-10-09.md) for the
+current audit, feature inventory, executed tests, release blockers and rollback.
+New routes: `/my-day`, `/scout`, `/learn`, and `/api/v1/calendar/[slug]`.
+No production deployment, credentials, or data were changed by this work.
+
+Additional checks: `npm run typecheck`, `npm run repairs:test`.
+Browser and isolated Postgres verification instructions are in the report.

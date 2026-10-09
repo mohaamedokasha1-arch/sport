@@ -15,8 +15,8 @@
  *   · source fails to load → a proper error panel (retry + open-in-new-tab)
  *                           instead of an empty box.
  *
- * The iframe keeps `allowfullscreen` (plus autoplay/pip permissions); no
- * sandbox attribute is applied so the provider player can function normally.
+ * The iframe keeps `allowfullscreen` (plus autoplay/pip permissions); sandboxing
+ * blocks top navigation and unsolicited popups while allowing player scripts.
  */
 
 import { useEffect, useState } from "react";
@@ -121,6 +121,7 @@ function PlayerCard({
             width={640}
             height={360}
             frameBorder={0}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
             allowFullScreen
             scrolling="no"

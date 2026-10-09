@@ -1,0 +1,1195 @@
+
+> nemo-sports@0.1.0 check
+> npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && node scripts/smoke.mjs
+
+
+> nemo-sports@0.1.0 typecheck
+> tsc --noEmit
+
+
+> nemo-sports@0.1.0 sdl:test
+> tsc -p packages/sdl/tsconfig.test.json && node --test "packages/sdl/dist-test/test/*.test.js"
+
+TAP version 13
+# Subtest: api-football: fixture envelope is normalized into canonical fixture fields
+ok 1 - api-football: fixture envelope is normalized into canonical fixture fields
+  ---
+  duration_ms: 24.857089
+  type: 'test'
+  ...
+# Subtest: api-football: HTTP 200 with an errors array is a failure, not data
+ok 2 - api-football: HTTP 200 with an errors array is a failure, not data
+  ---
+  duration_ms: 0.838182
+  type: 'test'
+  ...
+# Subtest: api-football: 429 and 401 map to typed errors
+ok 3 - api-football: 429 and 401 map to typed errors
+  ---
+  duration_ms: 1.110764
+  type: 'test'
+  ...
+# Subtest: api-football: events, standings and status maps are canonical
+ok 4 - api-football: events, standings and status maps are canonical
+  ---
+  duration_ms: 2.121996
+  type: 'test'
+  ...
+# Subtest: api-football: top scorers keep provider names and omit unknown goal totals
+ok 5 - api-football: top scorers keep provider names and omit unknown goal totals
+  ---
+  duration_ms: 1.035175
+  type: 'test'
+  ...
+# Subtest: api-football: unavailable match statistics are omitted while genuine zeroes remain zero
+ok 6 - api-football: unavailable match statistics are omitted while genuine zeroes remain zero
+  ---
+  duration_ms: 0.897499
+  type: 'test'
+  ...
+# Subtest: sportmonks: composed includes map to canonical fixtures
+ok 7 - sportmonks: composed includes map to canonical fixtures
+  ---
+  duration_ms: 1.727711
+  type: 'test'
+  ...
+# Subtest: sportmonks: pagination follows next_page while has_more is true, then stops
+ok 8 - sportmonks: pagination follows next_page while has_more is true, then stops
+  ---
+  duration_ms: 1.330395
+  type: 'test'
+  ...
+# Subtest: sportmonks: event type ids map to canonical event types
+ok 9 - sportmonks: event type ids map to canonical event types
+  ---
+  duration_ms: 0.904025
+  type: 'test'
+  ...
+# Subtest: sportmonks: live polling uses the documented livescores feeds
+ok 10 - sportmonks: live polling uses the documented livescores feeds
+  ---
+  duration_ms: 1.703073
+  type: 'test'
+  ...
+# Subtest: sportmonks: bearer auth header is sent
+ok 11 - sportmonks: bearer auth header is sent
+  ---
+  duration_ms: 0.522908
+  type: 'test'
+  ...
+# Subtest: sportradar: live schedule feed becomes canonical fixtures with prefixed ids intact
+ok 12 - sportradar: live schedule feed becomes canonical fixtures with prefixed ids intact
+  ---
+  duration_ms: 0.777692
+  type: 'test'
+  ...
+# Subtest: sportradar: a date range is capped so one request cannot fan out unbounded
+ok 13 - sportradar: a date range is capped so one request cannot fan out unbounded
+  ---
+  duration_ms: 5.584859
+  type: 'test'
+  ...
+# Subtest: sportradar: summary timeline and statistics are normalized
+ok 14 - sportradar: summary timeline and statistics are normalized
+  ---
+  duration_ms: 1.085552
+  type: 'test'
+  ...
+# Subtest: thesportsdb: artwork comes with attribution and never without it
+ok 15 - thesportsdb: artwork comes with attribution and never without it
+  ---
+  duration_ms: 1.48889
+  type: 'test'
+  ...
+# Subtest: thesportsdb: v2 sends the key as a header, v1 puts it in the path
+ok 16 - thesportsdb: v2 sends the key as a header, v1 puts it in the path
+  ---
+  duration_ms: 0.59308
+  type: 'test'
+  ...
+# Subtest: every adapter declares capabilities and never throws on an unsupported data type
+ok 17 - every adapter declares capabilities and never throws on an unsupported data type
+  ---
+  duration_ms: 0.988308
+  type: 'test'
+  ...
+# Subtest: a hung provider times out instead of blocking the platform
+ok 18 - a hung provider times out instead of blocking the platform
+  ---
+  duration_ms: 60.215407
+  type: 'test'
+  ...
+# Subtest: no conflict when the value is unchanged or absent
+ok 19 - no conflict when the value is unchanged or absent
+  ---
+  duration_ms: 1.295197
+  type: 'test'
+  ...
+# Subtest: critical: a secondary provider cannot overwrite the primary's score
+ok 20 - critical: a secondary provider cannot overwrite the primary's score
+  ---
+  duration_ms: 2.126714
+  type: 'test'
+  ...
+# Subtest: critical: the primary provider's correction is accepted
+ok 21 - critical: the primary provider's correction is accepted
+  ---
+  duration_ms: 0.223575
+  type: 'test'
+  ...
+# Subtest: most_recent_wins: a newer value is accepted, an older one is rejected
+ok 22 - most_recent_wins: a newer value is accepted, an older one is rejected
+  ---
+  duration_ms: 0.318817
+  type: 'test'
+  ...
+# Subtest: manual_review: neither value wins until an editor decides
+ok 23 - manual_review: neither value wins until an editor decides
+  ---
+  duration_ms: 0.208951
+  type: 'test'
+  ...
+# Subtest: the same disagreement is not duplicated on every poll
+ok 24 - the same disagreement is not duplicated on every poll
+  ---
+  duration_ms: 0.244681
+  type: 'test'
+  ...
+# Subtest: open conflicts are ordered by severity
+ok 25 - open conflicts are ordered by severity
+  ---
+  duration_ms: 0.204292
+  type: 'test'
+  ...
+# Subtest: low-severity stat conflicts auto-resolve and leave the queue
+ok 26 - low-severity stat conflicts auto-resolve and leave the queue
+  ---
+  duration_ms: 0.127756
+  type: 'test'
+  ...
+# Subtest: rate limiter allows calls until a window is exhausted
+ok 27 - rate limiter allows calls until a window is exhausted
+  ---
+  duration_ms: 1.230094
+  type: 'test'
+  ...
+# Subtest: rate limiter enforces concurrency separately from quotas
+ok 28 - rate limiter enforces concurrency separately from quotas
+  ---
+  duration_ms: 0.543528
+  type: 'test'
+  ...
+# Subtest: throttle threshold is configurable and defaults to 85%
+ok 29 - throttle threshold is configurable and defaults to 85%
+  ---
+  duration_ms: 2.022369
+  type: 'test'
+  ...
+# Subtest: per-second windows reset on the next second
+ok 30 - per-second windows reset on the next second
+  ---
+  duration_ms: 1102.437876
+  type: 'test'
+  ...
+# Subtest: identical name resolves by fingerprint and is auto-verified
+ok 31 - identical name resolves by fingerprint and is auto-verified
+  ---
+  duration_ms: 4.926413
+  type: 'test'
+  ...
+# Subtest: spelling variant links to the same canonical entity
+ok 32 - spelling variant links to the same canonical entity
+  ---
+  duration_ms: 0.901491
+  type: 'test'
+  ...
+# Subtest: an unmapped provider id replays the exact mapping on the second call
+ok 33 - an unmapped provider id replays the exact mapping on the second call
+  ---
+  duration_ms: 0.560645
+  type: 'test'
+  ...
+# Subtest: a weak match never auto-links — the entity is created instead
+ok 34 - a weak match never auto-links — the entity is created instead
+  ---
+  duration_ms: 0.507033
+  type: 'test'
+  ...
+# Subtest: a borderline match links but is flagged for admin review
+ok 35 - a borderline match links but is flagged for admin review
+  ---
+  duration_ms: 0.670311
+  type: 'test'
+  ...
+# Subtest: pending() returns only unverified mappings for the admin queue
+ok 36 - pending() returns only unverified mappings for the admin queue
+  ---
+  duration_ms: 0.937098
+  type: 'test'
+  ...
+# Subtest: relink moves a provider id to the correct canonical entity without deleting ids
+ok 37 - relink moves a provider id to the correct canonical entity without deleting ids
+  ---
+  duration_ms: 0.785518
+  type: 'test'
+  ...
+# Subtest: players and competitions resolve through the same path
+ok 38 - players and competitions resolve through the same path
+  ---
+  duration_ms: 0.909478
+  type: 'test'
+  ...
+# Subtest: matches are deduped by competition + kickoff window + teams
+ok 39 - matches are deduped by competition + kickoff window + teams
+  ---
+  duration_ms: 1.069869
+  type: 'test'
+  ...
+# Subtest: match mapping is replayed for the same provider id
+ok 40 - match mapping is replayed for the same provider id
+  ---
+  duration_ms: 0.737709
+  type: 'test'
+  ...
+# Subtest: competition identifiers: codes, slugs, names and ids all resolve to the official code
+ok 41 - competition identifiers: codes, slugs, names and ids all resolve to the official code
+  ---
+  duration_ms: 1.656486
+  type: 'test'
+  ...
+# Subtest: auth: the token is sent as X-Auth-Token and never appears in the URL
+ok 42 - auth: the token is sent as X-Auth-Token and never appears in the URL
+  ---
+  duration_ms: 45.58686
+  type: 'test'
+  ...
+# Subtest: getStandings: TOTAL table only, real team names, honest numeric fields
+ok 43 - getStandings: TOTAL table only, real team names, honest numeric fields
+  ---
+  duration_ms: 2.487056
+  type: 'test'
+  ...
+# Subtest: getTopScorers: player/team display metadata is attached without leaving provider shapes
+ok 44 - getTopScorers: player/team display metadata is attached without leaving provider shapes
+  ---
+  duration_ms: 1.512549
+  type: 'test'
+  ...
+# Subtest: plan restriction: 403 on scorers is not_supported (chain continues), never auth
+ok 45 - plan restriction: 403 on scorers is not_supported (chain continues), never auth
+  ---
+  duration_ms: 3.625669
+  type: 'test'
+  ...
+# Subtest: getFixtures: a day request carries the date + monitored competitions, scores stay null when unplayed
+ok 46 - getFixtures: a day request carries the date + monitored competitions, scores stay null when unplayed
+  ---
+  duration_ms: 4.380148
+  type: 'test'
+  ...
+# Subtest: getFixtures: an unscoped request covers the configured window (dateTo is exclusive in v4)
+ok 47 - getFixtures: an unscoped request covers the configured window (dateTo is exclusive in v4)
+  ---
+  duration_ms: 1.377543
+  type: 'test'
+  ...
+# Subtest: getLiveMatches: an empty live board is an honest empty list, not an invented fixture
+ok 48 - getLiveMatches: an empty live board is an honest empty list, not an invented fixture
+  ---
+  duration_ms: 1.074091
+  type: 'test'
+  ...
+# Subtest: getMatchDetail: non-numeric ids fail fast instead of calling the API
+ok 49 - getMatchDetail: non-numeric ids fail fast instead of calling the API
+  ---
+  duration_ms: 0.672476
+  type: 'test'
+  ...
+# Subtest: unknown competitions are not guessed: the chain may fall through to another provider
+ok 50 - unknown competitions are not guessed: the chain may fall through to another provider
+  ---
+  duration_ms: 0.771096
+  type: 'test'
+  ...
+# Subtest: quota headers are observed so the SDL can back off before a 429
+ok 51 - quota headers are observed so the SDL can back off before a 429
+  ---
+  duration_ms: 1.861411
+  type: 'test'
+  ...
+# Subtest: composition root: the key registers the provider, raises its budget and leads the static chains
+ok 52 - composition root: the key registers the provider, raises its budget and leads the static chains
+  ---
+  duration_ms: 15.223603
+  type: 'test'
+  ...
+# Subtest: runtime composition root honors NEMO_SPORTSCORE_ENABLED=0
+ok 53 - runtime composition root honors NEMO_SPORTSCORE_ENABLED=0
+  ---
+  duration_ms: 0.588521
+  type: 'test'
+  ...
+# Subtest: through the SDL: repeated requests are served from cache — one upstream call, not two
+ok 54 - through the SDL: repeated requests are served from cache — one upstream call, not two
+  ---
+  duration_ms: 3.611453
+  type: 'test'
+  ...
+# Subtest: composition root: without the key the provider is absent from every chain
+ok 55 - composition root: without the key the provider is absent from every chain
+  ---
+  duration_ms: 0.362583
+  type: 'test'
+  ...
+# Subtest: over real HTTP: auth header, normalization and cache behave as in production
+ok 56 - over real HTTP: auth header, normalization and cache behave as in production
+  ---
+  duration_ms: 39.983481
+  type: 'test'
+  ...
+# Subtest: over real HTTP: an unreachable provider yields a typed failure, never data
+ok 57 - over real HTTP: an unreachable provider yields a typed failure, never data
+  ---
+  duration_ms: 1.021224
+  type: 'test'
+  ...
+# Subtest: slugify is stable, lowercase and hyphenated
+ok 58 - slugify is stable, lowercase and hyphenated
+  ---
+  duration_ms: 2.480029
+  type: 'test'
+  ...
+# Subtest: competition upsert applies the bilingual dictionary and keeps the slug
+ok 59 - competition upsert applies the bilingual dictionary and keeps the slug
+  ---
+  duration_ms: 1.99787
+  type: 'test'
+  ...
+# Subtest: team upsert is idempotent per provider id and preserves the editor slug
+ok 60 - team upsert is idempotent per provider id and preserves the editor slug
+  ---
+  duration_ms: 1.883388
+  type: 'test'
+  ...
+# Subtest: match upsert creates a canonical match with provenance in extension
+ok 61 - match upsert creates a canonical match with provenance in extension
+  ---
+  duration_ms: 1.679669
+  type: 'test'
+  ...
+# Subtest: a secondary provider cannot rewrite the primary provider's score
+ok 62 - a secondary provider cannot rewrite the primary provider's score
+  ---
+  duration_ms: 2.875977
+  type: 'test'
+  ...
+# Subtest: the primary provider can update its own score
+ok 63 - the primary provider can update its own score
+  ---
+  duration_ms: 1.283189
+  type: 'test'
+  ...
+# Subtest: standings are written with a computed goal difference
+ok 64 - standings are written with a computed goal difference
+  ---
+  duration_ms: 0.907775
+  type: 'test'
+  ...
+# Subtest: a secondary provider cannot change standings points
+ok 65 - a secondary provider cannot change standings points
+  ---
+  duration_ms: 0.648513
+  type: 'test'
+  ...
+# Subtest: top scorers are stored per season with a stable id
+ok 66 - top scorers are stored per season with a stable id
+  ---
+  duration_ms: 0.695724
+  type: 'test'
+  ...
+# Subtest: normalizeName folds Arabic variants to one key
+ok 67 - normalizeName folds Arabic variants to one key
+  ---
+  duration_ms: 1.487503
+  type: 'test'
+  ...
+# Subtest: compactKey ignores spacing differences
+ok 68 - compactKey ignores spacing differences
+  ---
+  duration_ms: 0.285264
+  type: 'test'
+  ...
+# Subtest: similarity ranks an exact match highest and rejects unrelated names
+ok 69 - similarity ranks an exact match highest and rejects unrelated names
+  ---
+  duration_ms: 0.307242
+  type: 'test'
+  ...
+# Subtest: rankCandidates applies the threshold and sorts by score
+ok 70 - rankCandidates applies the threshold and sorts by score
+  ---
+  duration_ms: 0.513668
+  type: 'test'
+  ...
+# Subtest: fingerprint is stable and differs for different input
+ok 71 - fingerprint is stable and differs for different input
+  ---
+  duration_ms: 0.499767
+  type: 'test'
+  ...
+# Subtest: requestKey ignores parameter order and empty values
+ok 72 - requestKey ignores parameter order and empty values
+  ---
+  duration_ms: 0.285253
+  type: 'test'
+  ...
+# Subtest: seededId is a stable, valid v4-shaped id
+ok 73 - seededId is a stable, valid v4-shaped id
+  ---
+  duration_ms: 9.222648
+  type: 'test'
+  ...
+# Subtest: dayKey and withinMinutes work across timezones
+ok 74 - dayKey and withinMinutes work across timezones
+  ---
+  duration_ms: 0.171565
+  type: 'test'
+  ...
+# Subtest: polling: live matches are real-time, finished matches stop
+ok 75 - polling: live matches are real-time, finished matches stop
+  ---
+  duration_ms: 0.396913
+  type: 'test'
+  ...
+# Subtest: polling: kickoff window elevates a scheduled fixture
+ok 76 - polling: kickoff window elevates a scheduled fixture
+  ---
+  duration_ms: 0.402183
+  type: 'test'
+  ...
+# Subtest: polling: throttling doubles intervals and caps real-time polling
+ok 77 - polling: throttling doubles intervals and caps real-time polling
+  ---
+  duration_ms: 0.169983
+  type: 'test'
+  ...
+# Subtest: cache policy: live data TTLs are seconds, static data TTLs are hours
+ok 78 - cache policy: live data TTLs are seconds, static data TTLs are hours
+  ---
+  duration_ms: 0.255884
+  type: 'test'
+  ...
+# Subtest: fetch returns normalized data from the primary provider
+ok 79 - fetch returns normalized data from the primary provider
+  ---
+  duration_ms: 4.402069
+  type: 'test'
+  ...
+# Subtest: failover: when the primary fails the fallback serves the request
+ok 80 - failover: when the primary fails the fallback serves the request
+  ---
+  duration_ms: 1.178049
+  type: 'test'
+  ...
+# Subtest: health: three consecutive failures mark the provider down and drop it from the chain
+ok 81 - health: three consecutive failures mark the provider down and drop it from the chain
+  ---
+  duration_ms: 2.890438
+  type: 'test'
+  ...
+# Subtest: health: consecutive successes clear failover
+ok 82 - health: consecutive successes clear failover
+  ---
+  duration_ms: 1.974791
+  type: 'test'
+  ...
+# Subtest: cache: the second identical call never reaches a provider
+ok 83 - cache: the second identical call never reaches a provider
+  ---
+  duration_ms: 1.147401
+  type: 'test'
+  ...
+# Subtest: targeted invalidation forces a refetch without touching other keys
+ok 84 - targeted invalidation forces a refetch without touching other keys
+  ---
+  duration_ms: 1.047583
+  type: 'test'
+  ...
+# Subtest: rate limit: exceeding the daily budget skips the provider instead of calling it
+ok 85 - rate limit: exceeding the daily budget skips the provider instead of calling it
+  ---
+  duration_ms: 8028.103855
+  type: 'test'
+  ...
+# Subtest: graceful degradation: with every provider down the last good value is served
+ok 86 - graceful degradation: with every provider down the last good value is served
+  ---
+  duration_ms: 0.751841
+  type: 'test'
+  ...
+# Subtest: hard failure only when there is no provider and no cached value
+ok 87 - hard failure only when there is no provider and no cached value
+  ---
+  duration_ms: 0.62248
+  type: 'test'
+  ...
+# Subtest: not_found survives a network failure elsewhere in the chain
+ok 88 - not_found survives a network failure elsewhere in the chain
+  ---
+  duration_ms: 0.724866
+  type: 'test'
+  ...
+# Subtest: all_providers_failed when every attempt was inconclusive
+ok 89 - all_providers_failed when every attempt was inconclusive
+  ---
+  duration_ms: 0.443424
+  type: 'test'
+  ...
+# Subtest: not_found survives a rate-limited sibling provider
+ok 90 - not_found survives a rate-limited sibling provider
+  ---
+  duration_ms: 0.536505
+  type: 'test'
+  ...
+# Subtest: attempts expose the typed provider error code
+ok 91 - attempts expose the typed provider error code
+  ---
+  duration_ms: 0.301944
+  type: 'test'
+  ...
+# Subtest: coalescer: concurrent identical requests share one call
+ok 92 - coalescer: concurrent identical requests share one call
+  ---
+  duration_ms: 10.37332
+  type: 'test'
+  ...
+# Subtest: coalescer: different keys are independent
+ok 93 - coalescer: different keys are independent
+  ---
+  duration_ms: 0.300729
+  type: 'test'
+  ...
+# Subtest: diagnostics expose providers, cost, cache and conflict state
+ok 94 - diagnostics expose providers, cost, cache and conflict state
+  ---
+  duration_ms: 0.729984
+  type: 'test'
+  ...
+# Subtest: apply hook normalizes into the canonical store before caching
+ok 95 - apply hook normalizes into the canonical store before caching
+  ---
+  duration_ms: 0.513319
+  type: 'test'
+  ...
+# Subtest: provider-pinned requests cannot reuse another provider's canonical cache or fail over IDs
+ok 96 - provider-pinned requests cannot reuse another provider's canonical cache or fail over IDs
+  ---
+  duration_ms: 0.790795
+  type: 'test'
+  ...
+# Subtest: circuit-open chains still return the last good data with original freshness
+ok 97 - circuit-open chains still return the last good data with original freshness
+  ---
+  duration_ms: 11.791429
+  type: 'test'
+  ...
+# Subtest: schema.sql covers every column the store writes
+    # Subtest: sports: every mapped column exists
+    ok 1 - sports: every mapped column exists
+      ---
+      duration_ms: 0.886812
+      type: 'test'
+      ...
+    # Subtest: countries: every mapped column exists
+    ok 2 - countries: every mapped column exists
+      ---
+      duration_ms: 0.117691
+      type: 'test'
+      ...
+    # Subtest: competitions: every mapped column exists
+    ok 3 - competitions: every mapped column exists
+      ---
+      duration_ms: 0.137029
+      type: 'test'
+      ...
+    # Subtest: seasons: every mapped column exists
+    ok 4 - seasons: every mapped column exists
+      ---
+      duration_ms: 0.07502
+      type: 'test'
+      ...
+    # Subtest: venues: every mapped column exists
+    ok 5 - venues: every mapped column exists
+      ---
+      duration_ms: 0.113728
+      type: 'test'
+      ...
+    # Subtest: teams: every mapped column exists
+    ok 6 - teams: every mapped column exists
+      ---
+      duration_ms: 0.0796
+      type: 'test'
+      ...
+    # Subtest: players: every mapped column exists
+    ok 7 - players: every mapped column exists
+      ---
+      duration_ms: 0.066148
+      type: 'test'
+      ...
+    # Subtest: matches: every mapped column exists
+    ok 8 - matches: every mapped column exists
+      ---
+      duration_ms: 0.227348
+      type: 'test'
+      ...
+    # Subtest: standings: every mapped column exists
+    ok 9 - standings: every mapped column exists
+      ---
+      duration_ms: 0.163352
+      type: 'test'
+      ...
+    # Subtest: top_scorers: every mapped column exists
+    ok 10 - top_scorers: every mapped column exists
+      ---
+      duration_ms: 0.251053
+      type: 'test'
+      ...
+    # Subtest: match_events: every mapped column exists
+    ok 11 - match_events: every mapped column exists
+      ---
+      duration_ms: 0.072055
+      type: 'test'
+      ...
+    # Subtest: match_stats: every mapped column exists
+    ok 12 - match_stats: every mapped column exists
+      ---
+      duration_ms: 0.067159
+      type: 'test'
+      ...
+    # Subtest: provider_entity_map: every mapped column exists
+    ok 13 - provider_entity_map: every mapped column exists
+      ---
+      duration_ms: 0.056423
+      type: 'test'
+      ...
+    1..13
+ok 98 - schema.sql covers every column the store writes
+  ---
+  duration_ms: 4.61677
+  type: 'suite'
+  ...
+# Subtest: PgCanonicalStore
+    # Subtest: upserts a sport with one parameter per column, then reads it back
+    ok 1 - upserts a sport with one parameter per column, then reads it back
+      ---
+      duration_ms: 2.555998
+      type: 'test'
+      ...
+    # Subtest: round-trips a team including nested social JSON
+    ok 2 - round-trips a team including nested social JSON
+      ---
+      duration_ms: 0.531558
+      type: 'test'
+      ...
+    # Subtest: stores timestamps as ISO strings and periods as JSON
+    ok 3 - stores timestamps as ISO strings and periods as JSON
+      ---
+      duration_ms: 0.668633
+      type: 'test'
+      ...
+    # Subtest: encodes form as a compact string and decodes it back
+    ok 4 - encodes form as a compact string and decodes it back
+      ---
+      duration_ms: 0.936627
+      type: 'test'
+      ...
+    # Subtest: counts rows with COUNT(*)::text
+    ok 5 - counts rows with COUNT(*)::text
+      ---
+      duration_ms: 0.35192
+      type: 'test'
+      ...
+    # Subtest: returns null for an unknown id instead of throwing
+    ok 6 - returns null for an unknown id instead of throwing
+      ---
+      duration_ms: 0.138671
+      type: 'test'
+      ...
+    # Subtest: writes and reads match events
+    ok 7 - writes and reads match events
+      ---
+      duration_ms: 0.352356
+      type: 'test'
+      ...
+    # Subtest: maps provider ids to canonical ids and lists pending review
+    ok 8 - maps provider ids to canonical ids and lists pending review
+      ---
+      duration_ms: 0.577903
+      type: 'test'
+      ...
+    # Subtest: runs a unit of work through withTransaction
+    ok 9 - runs a unit of work through withTransaction
+      ---
+      duration_ms: 1.38844
+      type: 'test'
+      ...
+    1..9
+ok 99 - PgCanonicalStore
+  ---
+  duration_ms: 7.846693
+  type: 'suite'
+  ...
+# Subtest: RedisKvStore
+    # Subtest: round-trips a value and reports its expiry
+    ok 1 - round-trips a value and reports its expiry
+      ---
+      duration_ms: 1.078125
+      type: 'test'
+      ...
+    # Subtest: returns null for a missing key
+    ok 2 - returns null for a missing key
+      ---
+      duration_ms: 0.140278
+      type: 'test'
+      ...
+    # Subtest: treats a logically expired entry as a miss and evicts it
+    ok 3 - treats a logically expired entry as a miss and evicts it
+      ---
+      duration_ms: 0.201363
+      type: 'test'
+      ...
+    # Subtest: treats a corrupt entry as a miss rather than throwing
+    ok 4 - treats a corrupt entry as a miss rather than throwing
+      ---
+      duration_ms: 1.399683
+      type: 'test'
+      ...
+    # Subtest: applies the key prefix on every operation
+    ok 5 - applies the key prefix on every operation
+      ---
+      duration_ms: 0.31427
+      type: 'test'
+      ...
+    # Subtest: invalidates by prefix with SCAN and reports the count
+    ok 6 - invalidates by prefix with SCAN and reports the count
+      ---
+      duration_ms: 0.380858
+      type: 'test'
+      ...
+    # Subtest: lists keys under a prefix with the prefix stripped back off
+    ok 7 - lists keys under a prefix with the prefix stripped back off
+      ---
+      duration_ms: 0.797853
+      type: 'test'
+      ...
+    # Subtest: degrades to a miss when Redis is down - the request must never fail
+    ok 8 - degrades to a miss when Redis is down - the request must never fail
+      ---
+      duration_ms: 0.431616
+      type: 'test'
+      ...
+    # Subtest: reports remaining TTL, and 0 when the client cannot answer
+    ok 9 - reports remaining TTL, and 0 when the client cannot answer
+      ---
+      duration_ms: 0.397527
+      type: 'test'
+      ...
+    # Subtest: exposes a health probe for the admin dashboard without throwing
+    ok 10 - exposes a health probe for the admin dashboard without throwing
+      ---
+      duration_ms: 0.810273
+      type: 'test'
+      ...
+    1..10
+ok 100 - RedisKvStore
+  ---
+  duration_ms: 7.177655
+  type: 'suite'
+  ...
+# Subtest: mapStatus: real status values map onto the canonical vocabulary
+ok 101 - mapStatus: real status values map onto the canonical vocabulary
+  ---
+  duration_ms: 1.129919
+  type: 'test'
+  ...
+# Subtest: matchSlugFromUrl: extracts the provider match slug from the permalink
+ok 102 - matchSlugFromUrl: extracts the provider match slug from the permalink
+  ---
+  duration_ms: 0.244161
+  type: 'test'
+  ...
+# Subtest: getLiveMatches: returns only live fixtures with real names and minute
+ok 103 - getLiveMatches: returns only live fixtures with real names and minute
+  ---
+  duration_ms: 1.82777
+  type: 'test'
+  ...
+# Subtest: getFixtures: full feed normalizes (finished + upcoming, no invented fields)
+ok 104 - getFixtures: full feed normalizes (finished + upcoming, no invented fields)
+  ---
+  duration_ms: 0.875209
+  type: 'test'
+  ...
+# Subtest: getMatchDetail: real detail payload → normalized fixture with HT periods
+ok 105 - getMatchDetail: real detail payload → normalized fixture with HT periods
+  ---
+  duration_ms: 0.618633
+  type: 'test'
+  ...
+# Subtest: getMatchEvents: incidents → canonical events (goal, card, sub with in/out)
+ok 106 - getMatchEvents: incidents → canonical events (goal, card, sub with in/out)
+  ---
+  duration_ms: 3.154583
+  type: 'test'
+  ...
+# Subtest: getMatchStats: empty provider stats → empty array (no invented numbers)
+ok 107 - getMatchStats: empty provider stats → empty array (no invented numbers)
+  ---
+  duration_ms: 0.706072
+  type: 'test'
+  ...
+# Subtest: getMatchLineups: real XI/bench → normalized lineups with formation
+ok 108 - getMatchLineups: real XI/bench → normalized lineups with formation
+  ---
+  duration_ms: 3.618722
+  type: 'test'
+  ...
+# Subtest: getStandings: real UCL rows → normalized (points, status)
+ok 109 - getStandings: real UCL rows → normalized (points, status)
+  ---
+  duration_ms: 0.869547
+  type: 'test'
+  ...
+# Subtest: getStandings: provider error body ('No current season') → typed not_found
+ok 110 - getStandings: provider error body ('No current season') → typed not_found
+  ---
+  duration_ms: 0.785031
+  type: 'test'
+  ...
+# Subtest: getTopScorers: real scorers → normalized (goals, appearances)
+ok 111 - getTopScorers: real scorers → normalized (goals, appearances)
+  ---
+  duration_ms: 0.876407
+  type: 'test'
+  ...
+# Subtest: getPlayerStats: real player stats → normalized; rating scale NOT invented
+ok 112 - getPlayerStats: real player stats → normalized; rating scale NOT invented
+  ---
+  duration_ms: 0.652026
+  type: 'test'
+  ...
+# Subtest: network failure → typed network error (never a fabricated payload)
+ok 113 - network failure → typed network error (never a fabricated payload)
+  ---
+  duration_ms: 0.255105
+  type: 'test'
+  ...
+# Subtest: self-identification: src=nemo-sports is sent on every request
+ok 114 - self-identification: src=nemo-sports is sent on every request
+  ---
+  duration_ms: 0.351626
+  type: 'test'
+  ...
+1..114
+# tests 143
+# suites 3
+# pass 143
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10331.283527
+
+> nemo-sports@0.1.0 repairs:test
+> tsx --test scripts/verify-repairs.test.ts
+
+TAP version 13
+# Subtest: Cairo calendar boundaries use summer and winter IANA offsets
+ok 1 - Cairo calendar boundaries use summer and winter IANA offsets
+  ---
+  duration_ms: 13.953763
+  type: 'test'
+  ...
+# Subtest: date keys reject overflow and navigate leap days
+ok 2 - date keys reject overflow and navigate leap days
+  ---
+  duration_ms: 0.446628
+  type: 'test'
+  ...
+# Subtest: arbitrary date, team, status and competition filters compose
+ok 3 - arbitrary date, team, status and competition filters compose
+  ---
+  duration_ms: 2.044501
+  type: 'test'
+  ...
+# Subtest: past kickoff never fabricates live status
+ok 4 - past kickoff never fabricates live status
+  ---
+  duration_ms: 0.18206
+  type: 'test'
+  ...
+# Subtest: query validation rejects duplicates, invalid dates, huge keys and unsupported sports
+ok 5 - query validation rejects duplicates, invalid dates, huge keys and unsupported sports
+  ---
+  duration_ms: 0.455505
+  type: 'test'
+  ...
+# Subtest: sports gate excludes geography, business and property headlines
+ok 6 - sports gate excludes geography, business and property headlines
+  ---
+  duration_ms: 0.599683
+  type: 'test'
+  ...
+# Subtest: Google wrapper recognition is exact and never fetches a redirect
+ok 7 - Google wrapper recognition is exact and never fetches a redirect
+  ---
+  duration_ms: 0.240039
+  type: 'test'
+  ...
+# Subtest: ingestion rejects undated/non-sports stories, retains uncertain ones for review, deduplicates
+ok 8 - ingestion rejects undated/non-sports stories, retains uncertain ones for review, deduplicates
+  ---
+  duration_ms: 27.580067
+  type: 'test'
+  ...
+# Subtest: broadcast allowlist rejects credentials, custom ports and lookalikes
+ok 9 - broadcast allowlist rejects credentials, custom ports and lookalikes
+  ---
+  duration_ms: 0.53105
+  type: 'test'
+  ...
+# Subtest: a dated stream cannot leak to rematches or reversed teams
+ok 10 - a dated stream cannot leak to rematches or reversed teams
+  ---
+  duration_ms: 1.427102
+  type: 'test'
+  ...
+# Subtest: broadcast persistence fails closed in production and status is validated
+ok 11 - broadcast persistence fails closed in production and status is validated
+  ---
+  duration_ms: 0.851711
+  type: 'test'
+  ...
+# Subtest: preferences validate, deduplicate and never cross provider ID namespaces
+ok 12 - preferences validate, deduplicate and never cross provider ID namespaces
+  ---
+  duration_ms: 0.942655
+  type: 'test'
+  ...
+# Subtest: Scout excludes incomplete, negative, duplicate and non-final results
+ok 13 - Scout excludes incomplete, negative, duplicate and non-final results
+  ---
+  duration_ms: 1.221737
+  type: 'test'
+  ...
+# Subtest: calendar uses UTC, stable UID, no invented duration and injection-safe folded text
+ok 14 - calendar uses UTC, stable UID, no invented duration and injection-safe folded text
+  ---
+  duration_ms: 0.737067
+  type: 'test'
+  ...
+# Subtest: Newsroom groups similar same-day titles without deleting publisher records
+ok 15 - Newsroom groups similar same-day titles without deleting publisher records
+  ---
+  duration_ms: 0.477605
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 345.90378
+
+> nemo-sports@0.1.0 admin:test
+> tsx scripts/verify-admin.ts
+
+RBAC
+  ✓ super_admin can do everything
+  ✓ editor cannot touch users, settings, teams, competitions
+  ✓ editor can manage matches, streams and news
+  ✓ admin cannot manage users or site settings
+  ✓ unknown role has no permissions
+  ✓ super-admin-only paths are protected
+Sessions
+  ✓ valid session verifies with identity and role
+  ✓ tampered role is rejected (signature)
+  ✓ expired session is rejected
+  ✓ garbage cookie is rejected
+Users & passwords
+  ✓ create editor with bcrypt-hashed password
+  ✓ short password and bad username are rejected
+  ✓ credentials verify case-insensitively; wrong password fails
+  ✓ deactivated account cannot log in
+  ✓ cannot delete the last active super admin
+Matches & scheduling
+  ✓ Cairo wall-clock time converts to the right UTC instant
+  ✓ create a match (draft by default off, published on)
+  ✓ invalid match input is rejected with a readable error
+  ✓ published match becomes a public fixture (status mapped)
+  ✓ hidden match disappears from public fixtures but is not deleted
+Live streams
+  ✓ embed URL allowlist: official https passes
+  ✓ embed URL allowlist: http, unknown host, javascript:, markup are rejected
+  ✓ new stream starts as draft and is NOT public
+  ✓ publishing makes the stream visible on the match and in /live cards
+  ✓ stream bound to one match never leaks onto another
+  ✓ disabling hides the stream but keeps its data
+  ✓ editing the URL re-validates it (unofficial URL refused)
+  ✓ deleting a stream removes only the link; the match survives
+Teams, players, competitions, news, settings
+  ✓ team requires Arabic name; slug generated and unique
+  ✓ player stats parse from 'name: value' lines and invented fields stay empty
+  ✓ competition creates and lists when published
+  ✓ manual news requires a real source and an http(s) source URL
+  ✓ news body is plain text: script tags are kept as text, paragraphs split
+  ✓ manual news: draft is not public; published is
+  ✓ settings: unknown timezone rejected; live publishing switch persists
+  ✓ activity log records actor and never stores passwords
+Storage policy (no silent data loss)
+  ✓ memory store allowed in development, always refused in production
+  ✓ production without a database rejects writes with a clear Arabic message
+  ✓ database configured but unavailable: write is rejected, never kept in memory
+[admin-store] database write failed: Error
+  ✓ failed SQL write surfaces an operator-safe message without SQL or secrets
+  ✓ successful database write reports persisted (no memory copy)
+
+41 passed, 0 failed
+
+> nemo-sports@0.1.0 news:test
+> tsx scripts/verify-news.ts
+
+
+news pipeline verification (offline)
+
+  ✓ feed URL
+  ✓ parse: 2 items — 2 items
+  ✓ parse: 1 skipped (no link)
+  ✓ parse: source extracted
+  ✓ cleanText strips tags+entities
+  ✓ canonicalizeUrl strips tracking
+  ✓ canonicalizeUrl rejects non-http
+  ✓ extractDomain
+  ✓ toIsoDate
+  ✓ fingerprint stable
+  ✓ validateArticle accepts fresh
+  ✓ validateArticle rejects future
+  ✓ similarity identical = 100
+  ✓ similarity near-dup high
+  ✓ similarity unrelated low
+  ✓ dedup: exact URL
+  ✓ dedup: canonical URL (tracking differs)
+  ✓ dedup: title near-dup same source+date
+  ✓ dedup: different story not dup
+  ✓ categorize: Egyptian/CAF article — CAF Champions League
+  ✓ categorize: NBA → Basketball — Basketball
+  ✓ categorize: fallback Sports — Sports
+  ✓ entities: Al Ahly team — ["al-ahly","caf-champions-league","champions-league"]
+  ✓ entities: CAF competition
+  ✓ entities: Salah player
+  ✓ entities: Liverpool team
+  ✓ entities: no false positives
+  ✓ entities: EPL resolves to the English Premier League
+  ✓ entities: EPL is not mislabeled as the Egyptian League
+  ✓ entity links: unverified real team/player ids stay labels
+  ✓ entity links: supported real competition uses canonical route
+  ✓ entity links: unsupported real competition stays a label
+  ✓ entity links: demo entities use marked preview pages
+  ✓ entity links: demo preview does not claim sports data providers
+  ✓ broadcast: official ok
+  ✓ broadcast: pirate rejected
+  ✓ broadcast: http rejected
+
+✅ NEWS PIPELINE — ALL CHECKS PASSED
+
+
+> nemo-sports@0.1.0 search:test
+> tsx scripts/verify-search.ts
+
+search: Arabic ↔ English names
+  ✓ هالاند finds Erling Haaland
+  ✓ Haaland still finds Erling Haaland
+  ✓ صلاح finds Mohamed Salah
+  ✓ محمد صلاح finds Mohamed Salah
+  ✓ مبابي finds Kylian Mbappé
+  ✓ Mbappe (no accent) finds Kylian Mbappé
+  ✓ مانشستر سيتي finds Manchester City team
+  ✓ الاهلي finds Al Ahly (ه/ة/أ folding)
+  ✓ ريال مدريد finds Real Madrid
+search: European letters
+  ✓ Groß matches Pascal Groß
+  ✓ Gross matches Pascal Groß (ß→ss)
+  ✓ Odegaard matches Martin Ødegaard
+search: honest no-result cases
+  ✓ unknown Arabic name returns no hit
+  ✓ one-letter query is never a match
+  ✓ no invented alias for an unlisted player
+normalization
+  ✓ tashkeel and tatweel removed
+competitions: one canonical path per competition
+  ✓ PL alias resolves to premier-league
+  ✓ english-premier-league alias resolves to premier-league
+  ✓ canonical path resolves to itself
+  ✓ every canonical path is unique
+
+✅ SEARCH CHECKS PASSED (20)
+
+NEMO Sports smoke check → http://127.0.0.1:3000
+
+  ✓ 13/13 privileged routes refuse anonymous access
+  · ADMIN_ACCESS_TOKEN not set — skipping the authorized-path checks
+  · testing 0 detail pages from sitemap
+  · content mode → REAL provider data
+  ✓ home → attribution reflects available source
+  ✓ /api/live → 0 matches (production: must be empty, never fabricated)
+  ✓ /api/live?scope=rail → 4 items (upcoming)
+  ✓ /api/search (arabic) → 0 hits (preview=false; demo news hidden)
+  ✓ /api/search short query → empty results
+  ✓ /api/v1 → contract v1, 8 endpoints
+  ✓ /api/v1/live → 0 fixtures from no_provider_configured (source=none)
+  ✓ /api/v1/live → no credential material in payload
+  ✓ /api/v1/matches → 5 fixtures (source=provider)
+  ✓ /api/v1/matches?events= → 0 canonical events (source=none)
+  ✓ /api/v1/football-data/status → configured=false, registered=false, budget 8/min, cache layers 2
+  ✓ /api/v1/football-data/standings → 503 Data temporarily unavailable
+  ✓ /api/v1/football-data/matches → 200 5 canonical rows
+  ✓ /api/v1/football-data/scorers → 503 Data temporarily unavailable
+  ✓ /api/v1/football-data/matches?date= (invalid) → 400
+  ✓ /api/v1/system → guarded (set ADMIN_ACCESS_TOKEN to inspect)
+  ✓ /this-page-does-not-exist → robots directives agree (noindex + noindex, follow)
+  ✓ /teams/nope → robots directives agree (noindex + noindex, follow)
+  ✓ /news/nope → robots directives agree (noindex + noindex, follow)
+  ✓ home contains "مباشر الآن"
+  ✓ home contains "مباريات اليوم"
+  ✓ home contains "نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط"
+  ✓ home contains "dir="rtl""
+  ✓ home contains "NEMO"
+  ✓ /api/v1/system → infrastructure: canonical=undefined, cache=undefined, pg=down, redis=down
+  ✓ /api/v1/ingest → 503 not_configured
+  ✓ /api/v1/news → 200 0 articles (stale=true)
+  ✓ /api/cron/fetch-news → 503 not_configured (must refuse anonymous)
+  ✓ footer → provider attribution present for live data
+  ✓ client bundle → no provider hostname in 11 shipped chunks
+  ✓ indexability agrees across surfaces → robots noindex, sitemap withholds data sections (9 urls, mode=unknown)
+  ✓ no empty data page is indexable
+  ✓ /matches/999999999 → 404
+  ✓ /matches/1 → 404
+  ✓ /matches/0 → 404
+  ✓ /players/nope-not-a-player → 404 (expected a stable 404, not 500)
+  ✓ /players/999999 → 404 (expected a stable 404, not 500)
+  ✓ /teams/nope → 404 (expected a stable 404, not 500)
+  ✓ /competitions/nope → 404 (expected a stable 404, not 500)
+  ✓ /news/nope → 404 (expected a stable 404, not 500)
+  ✓ security header x-content-type-options
+  ✓ security header x-frame-options
+  ✓ security header referrer-policy
+  ✓ security header content-security-policy
+  ✓ security header permissions-policy
+  ✓ /live → provider panel rendered
+  ✓ /teams → honest unavailable state
+
+✅ ALL GREEN — 37 routes checked
+

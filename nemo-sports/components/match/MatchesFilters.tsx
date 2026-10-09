@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { isDateKey, shiftDateKey, siteDateKey } from "@/lib/tz";
 import { useEffect, useState } from "react";
 
 
@@ -46,6 +47,7 @@ export default function MatchesFilters({
   const sport = params.get("sport") ?? initialSport;
   const comp = params.get("competition") ?? initialComp;
   const date = params.get("date") ?? initialDate;
+  const selectedDay = isDateKey(date) ? date : shiftDateKey(siteDateKey(), date === "yesterday" ? -1 : date === "tomorrow" ? 1 : 0);
   const status = params.get("status") ?? initialStatus;
   const view = (params.get("view") as "grid" | "list") ?? initialView;
 
@@ -109,6 +111,11 @@ export default function MatchesFilters({
             <span className="num ms-1.5 text-[10px]">{counts[`date:${d.id}`] ?? 0}</span>
           </button>
         ))}
+        <label className="text-xs">تاريخ محدد (القاهرة)
+          <input type="date" value={isDateKey(date) ? date : ""} onChange={(e) => e.target.value && set("date", e.target.value)} className="focus-ring ms-2 min-h-11 rounded border border-line bg-surface p-2" />
+        </label>
+        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, -1))}>اليوم السابق</button>
+        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, 1))}>اليوم التالي</button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">

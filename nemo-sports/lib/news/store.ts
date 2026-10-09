@@ -1,3 +1,4 @@
+import { persistOrThrow, StoreWriteError, STORE_WRITE_FAILED_AR } from "@/lib/db/store-policy";
 /**
  * NEMO Sports · news store (Postgres when configured, memory otherwise)
  * ─────────────────────────────────────────────────────────────────────
@@ -194,7 +195,7 @@ let warnedUnusable = false;
 function warnUnusable(reason: string) {
   if (warnedUnusable) return;
   warnedUnusable = true;
-  console.error(`[news] DATABASE_URL is set but Postgres is unusable; news is stored in memory only (lost on restart). ${reason}`);
+  console.error(`[news] DATABASE_URL is set but Postgres is unusable; durable writes are refused. ${reason}`);
 }
 
 async function pg() {
@@ -291,7 +292,15 @@ function newSourceId(query: string, country: string, language: string): string {
   return `rss_${slug}`;
 }
 
+function validateSourceInput(input: Partial<SourceInput>): void {
+  if (input.query !== undefined && (!input.query.trim() || input.query.length > 200)) throw new Error("Invalid source query");
+  if (input.country !== undefined && !["US", "EG", "GB", "ES", "IT", "SA", "AE", "FR", "DE"].includes(input.country.toUpperCase())) throw new Error("Invalid source country");
+  if (input.language !== undefined && !["ar", "en"].includes(input.language)) throw new Error("Invalid source language");
+  for (const value of [input.priority, input.refreshInterval]) if (value !== undefined && !Number.isFinite(value)) throw new Error("Invalid source interval or priority");
+}
+
 export async function createSource(input: SourceInput): Promise<RSSSource> {
+  validateSourceInput(input);
   const now = new Date().toISOString();
   const s: RSSSource = {
     id: newSourceId(input.query, input.country ?? "US", input.language ?? "en"),
@@ -315,6 +324,7 @@ export async function createSource(input: SourceInput): Promise<RSSSource> {
     updatedAt: now,
   };
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run(
@@ -333,7 +343,9 @@ export async function createSource(input: SourceInput): Promise<RSSSource> {
 }
 
 export async function updateSource(id: string, patch: Partial<SourceInput>): Promise<RSSSource | null> {
+  validateSourceInput(patch);
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       const cur = await getSource(id);
@@ -358,7 +370,7 @@ export async function updateSource(id: string, patch: Partial<SourceInput>): Pro
       );
       return next;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -383,12 +395,13 @@ export async function updateSource(id: string, patch: Partial<SourceInput>): Pro
 
 export async function deleteSource(id: string): Promise<boolean> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run("DELETE FROM rss_sources WHERE id = $1", [id]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -400,6 +413,7 @@ export async function recordSourceSuccess(
   info: { articleCount: number; etag?: string | null; lastModified?: string | null },
 ): Promise<void> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run(
@@ -409,7 +423,7 @@ export async function recordSourceSuccess(
       );
       return;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -431,6 +445,7 @@ export async function recordSourceSuccess(
 export async function recordSourceFailure(id: string, error: string): Promise<void> {
   // Exponential backoff: 5 → 10 → 20 → 30 (cap) minutes.
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       const rows = await db.select<{ consecutive_failures: number }>(
@@ -446,7 +461,7 @@ export async function recordSourceFailure(id: string, error: string): Promise<vo
       );
       return;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -522,6 +537,7 @@ export async function recentByDomain(domain: string, days = 3, limit = 60): Prom
 
 export async function insertArticle(a: NewsArticle): Promise<void> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run(
@@ -539,7 +555,7 @@ export async function insertArticle(a: NewsArticle): Promise<void> {
       );
       return;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -608,12 +624,13 @@ export async function getArticle(id: string): Promise<NewsArticle | null> {
 
 export async function setArticleStatus(id: string, status: NewsArticle["status"]): Promise<boolean> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run("UPDATE news_articles SET status = $2, updated_at = now() WHERE id = $1", [id, status]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -625,12 +642,13 @@ export async function setArticleStatus(id: string, status: NewsArticle["status"]
 
 export async function deleteArticle(id: string): Promise<boolean> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run("DELETE FROM news_articles WHERE id = $1", [id]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
@@ -660,6 +678,7 @@ export async function countArticlesBySource(sourceId: string): Promise<number> {
 /** Enforce per-source cap + retention. Returns removed count. */
 export async function pruneSource(sourceId: string): Promise<number> {
   const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
   if (db) {
     try {
       await db.run(
@@ -675,7 +694,7 @@ export async function pruneSource(sourceId: string): Promise<number> {
       for (const r of rows) await db.run("DELETE FROM news_articles WHERE id = $1", [r.id]);
       return rows.length;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   seedMemory();
