@@ -412,3 +412,8 @@ LIVE فعلًا · شريط النتائج · البحث العربي · احت�
 | تحديد معدل للطلبات الواردة | الموجود يحدّ طلبات **الصادرة** إلى المزوّدين فقط داخل SDL |
 | الإبلاغ عن الأخطاء | `app/error.tsx` يسجّل في `console.error` فقط |
 | `dangerouslySetInnerHTML` في `app/faq/page.tsx` | آمن اليوم (المحتوى ثابت في الوحدة) لكنه يصير ثغرة XSS مخزَّنة فور صيرورة الأسئلة قابلة للتحرير من اللوحة |
+
+## 6. الوثائق ذات الصلة
+
+- [docs/DATABASE.md](docs/DATABASE.md) — تجهيز Postgres وRedis
+- [docs/NEWS_SCHEDULING.md](docs/NEWS_SCHEDULING.md) — جدولة تحديث الأخبار
