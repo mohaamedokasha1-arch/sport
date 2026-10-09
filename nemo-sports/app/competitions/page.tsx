@@ -3,6 +3,7 @@ import Link from "next/link";
 import CompetitionCard from "@/components/competition/CompetitionCard";
 import SectionHead from "@/components/ui/SectionHead";
 import { competitions, sports } from "@/lib/core-data";
+import { canonicalCompetitions } from "@/lib/competition-catalog";
 import { footballDataCompetitions } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { AdminCompetitionsSection } from "@/components/public/AdminPublished";
@@ -26,7 +27,7 @@ function CompetitionsPageBody() {
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {supported.map((competition) => (
             <li key={competition.code}>
-              <Link href={`/competitions/${encodeURIComponent(competition.slug ?? competition.code)}`} className="card flex min-h-20 items-center gap-3 p-4 transition hover:border-gold-500/50 focus-ring">
+              <Link href={`/competitions/${encodeURIComponent(canonicalCompetitions.find((c) => c.code === competition.code)?.canonicalSlug ?? competition.slug ?? competition.code)}`} className="card flex min-h-20 items-center gap-3 p-4 transition hover:border-gold-500/50 focus-ring">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-navy-850 text-[11px] font-extrabold text-gold-400">{competition.code}</span>
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] font-bold">{competition.nameAr}</span>

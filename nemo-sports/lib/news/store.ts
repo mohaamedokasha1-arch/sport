@@ -8,7 +8,7 @@
  * holds the same DDL for `npm run db:setup` review.
  */
 
-import { getDb } from "@/lib/db/pg";
+import { getDb, sanitizeDbMessage } from "@/lib/db/pg";
 import { defaultSources } from "./sources";
 import type { NewsArticle, NewsEntityRef, RSSSource } from "./types";
 
@@ -184,12 +184,27 @@ function articleFromRow(r: ArticleRow): NewsArticle {
 /* ── backend detection ───────────────────────────────────────── */
 
 let schemaEnsured = false;
+let warnedUnusable = false;
+
+/**
+ * DATABASE_URL set but unusable (wrong host/port/password, unreachable, no
+ * driver). Without this warning the store silently serves memory: the admin
+ * sees "success" and the data disappears on the next restart.
+ */
+function warnUnusable(reason: string) {
+  if (warnedUnusable) return;
+  warnedUnusable = true;
+  console.error(`[news] DATABASE_URL is set but Postgres is unusable; news is stored in memory only (lost on restart). ${reason}`);
+}
 
 async function pg() {
   if (!process.env.DATABASE_URL) return null;
   try {
     const db = await getDb();
-    if (!db) return null;
+    if (!db) {
+      warnUnusable("driver or connection could not start");
+      return null;
+    }
     if (!schemaEnsured) {
       schemaEnsured = true;
       try {
@@ -208,13 +223,15 @@ async function pg() {
             );
           }
         }
-      } catch {
+      } catch (e) {
         // A read-only / restricted DB must not break reads; fall through to memory.
+        warnUnusable(sanitizeDbMessage(e instanceof Error ? e.message : String(e)));
         return null;
       }
     }
     return db;
-  } catch {
+  } catch (e) {
+    warnUnusable(sanitizeDbMessage(e instanceof Error ? e.message : String(e)));
     return null;
   }
 }
