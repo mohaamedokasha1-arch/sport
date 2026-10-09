@@ -4,7 +4,6 @@ import CompetitionCard from "@/components/competition/CompetitionCard";
 import SectionHead from "@/components/ui/SectionHead";
 import { competitions, sports } from "@/lib/core-data";
 import { canonicalCompetitions } from "@/lib/competition-catalog";
-import { footballDataCompetitions } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { AdminCompetitionsSection } from "@/components/public/AdminPublished";
 
@@ -16,7 +15,8 @@ export const metadata: Metadata = {
 
 function CompetitionsPageBody() {
   if (!demoContentVisible()) {
-    const supported = footballDataCompetitions(true);
+    // Every catalogue entry is a competition whose provider slug was verified.
+    const supported = canonicalCompetitions;
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-6 border-b-2 border-line pb-3">
@@ -26,8 +26,8 @@ function CompetitionsPageBody() {
         </header>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {supported.map((competition) => (
-            <li key={competition.code}>
-              <Link href={`/competitions/${encodeURIComponent(canonicalCompetitions.find((c) => c.code === competition.code)?.canonicalSlug ?? competition.slug ?? competition.code)}`} className="card flex min-h-20 items-center gap-3 p-4 transition hover:border-gold-500/50 focus-ring">
+            <li key={competition.canonicalSlug}>
+              <Link href={`/competitions/${encodeURIComponent(competition.canonicalSlug)}`} className="card flex min-h-20 items-center gap-3 p-4 transition hover:border-gold-500/50 focus-ring">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-navy-850 text-[11px] font-extrabold text-gold-400">{competition.code}</span>
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] font-bold">{competition.nameAr}</span>

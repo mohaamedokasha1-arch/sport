@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SportScoreAdapter, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
+import { SportScoreAdapter, competitionSlug, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
 
 // compiled tests run from dist-test/test/ — fixtures live in test/fixtures/
 const here = join(__dirname, "../../test");
@@ -84,6 +84,31 @@ test("getFixtures: full feed normalizes (finished + upcoming, no invented fields
   assert.ok(upcoming);
   assert.equal(upcoming.homeScore, null); // null stays null — never 0
   assert.equal(upcoming.status, "scheduled");
+});
+
+test("competitionSlug: display names and slugs compare equal (no substring matching)", () => {
+  assert.equal(competitionSlug("English Premier League"), "english-premier-league");
+  assert.equal(competitionSlug("CAF Champions League"), "caf-champions-league");
+  assert.equal(competitionSlug("CONCACAF League Champions Cup"), "concacaf-league-champions-cup");
+  assert.notEqual(competitionSlug("CAF Champions League"), competitionSlug("CAF Confederation Cup"));
+});
+
+test("getFixtures: a competition slug returns that competition's fixtures (display-name payload)", async () => {
+  const t = stubTransport({ "matches?football:50": fx("feed.json") });
+  const res = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "concacaf-league-champions-cup" });
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.equal(res.data.length, 1, "the captured feed holds exactly one CONCACAF League Champions Cup fixture");
+  assert.equal(res.data[0].competitionProviderId, "CONCACAF League Champions Cup");
+  assert.equal(res.data[0].providerId, "cruz-azul-vs-inter-miami-cf");
+});
+
+test("getFixtures: the exact display name still matches, and other competitions never leak in", async () => {
+  const t = stubTransport({ "matches?football:50": fx("feed.json") });
+  const exact = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "USL Championship" });
+  assert.ok(exact.ok && exact.data.length === 1 && exact.data[0].competitionProviderId === "USL Championship");
+  const absent = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "english-premier-league" });
+  assert.ok(absent.ok && absent.data.length === 0, "a competition absent from the feed yields [] — never another competition's matches");
 });
 
 test("getMatchDetail: real detail payload → normalized fixture with HT periods", async () => {

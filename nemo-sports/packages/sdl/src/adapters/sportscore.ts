@@ -144,6 +144,16 @@ export function mapStatus(status: string | null | undefined, statusText: string 
   return { status: "scheduled", minute: null };
 }
 
+/** "English Premier League" → "english-premier-league" (same form SportScore uses for standings slugs). */
+export function competitionSlug(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /** "/football/match/cruz-azul-vs-inter-miami-cf/" → "cruz-azul-vs-inter-miami-cf" */
 export function matchSlugFromUrl(url: string | null | undefined): string | null {
   const m = String(url ?? "").match(/\/match\/([^/]+)\/?$/);
@@ -320,7 +330,13 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
       });
     }
     if (input.competitionProviderId) {
-      list = list.filter((f) => f.competitionProviderId === input.competitionProviderId);
+      // The feed carries the competition DISPLAY name ("English Premier League"),
+      // while NEMO routes address competitions by SportScore SLUG
+      // ("english-premier-league"). Compare both in slug form, which is an exact
+      // equivalence (no substring matching), so a page never receives another
+      // competition's fixtures.
+      const wanted = competitionSlug(input.competitionProviderId);
+      list = list.filter((f) => f.competitionProviderId === input.competitionProviderId || competitionSlug(f.competitionProviderId) === wanted);
     }
     return { ok: true, data: list, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }

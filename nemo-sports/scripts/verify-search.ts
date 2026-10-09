@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { matchesSearchText, normalizeSearchText, searchMatchWeight } from "../lib/search-text";
 import { arabicAliasesFor } from "../lib/name-aliases";
-import { competitionByPath, canonicalCompetitions } from "../lib/competition-catalog";
+import { competitionByPath, canonicalCompetitions, fixtureBelongsToCompetition } from "../lib/competition-catalog";
 
 let passed = 0;
 function check(name: string, fn: () => void) {
@@ -58,6 +58,36 @@ check("canonical path resolves to itself", () =>
 check("every canonical path is unique", () => {
   const paths = canonicalCompetitions.map((c) => c.canonicalSlug);
   assert.equal(new Set(paths).size, paths.length);
+});
+
+console.log("competitions: verified provider slugs and existing public paths");
+check("Saudi Pro League uses the verified SportScore slug (not saudi-pro-league)", () =>
+  assert.equal(competitionByPath("saudi-pro-league")?.providerId, "saudi-professional-league"));
+check("existing /competitions/egyptian-league path resolves to the Egyptian Premier League", () =>
+  assert.equal(competitionByPath("egyptian-league")?.providerId, "egyptian-premier-league"));
+check("existing /competitions/caf-champions-league path resolves to the CAF Champions League", () =>
+  assert.equal(competitionByPath("caf-champions-league")?.providerId, "caf-champions-league"));
+check("new competitions resolve by canonical path", () => {
+  for (const path of ["uefa-europa-league", "caf-confederation-cup", "concacaf-league-champions-cup", "usl-championship", "brazilian-serie-a", "japanese-j1-league"]) {
+    assert.equal(competitionByPath(path)?.canonicalSlug, path);
+  }
+});
+check("every canonical competition has a canonical path and a provider slug", () => {
+  for (const c of canonicalCompetitions) {
+    assert.ok(c.canonicalSlug && c.providerId, `${c.code} missing a path or providerId`);
+  }
+});
+check("provider display names belong to the right competition only", () => {
+  const cafCl = competitionByPath("caf-champions-league");
+  const cafCc = competitionByPath("caf-confederation-cup");
+  const uel = competitionByPath("uefa-europa-league");
+  const ucl = competitionByPath("champions-league");
+  assert.ok(cafCl && cafCc && uel && ucl);
+  assert.equal(fixtureBelongsToCompetition({ competitionName: "CAF Champions League" }, cafCl), true);
+  assert.equal(fixtureBelongsToCompetition({ competitionName: "CAF Champions League" }, cafCc), false);
+  assert.equal(fixtureBelongsToCompetition({ competitionName: "UEFA Champions League" }, uel), false);
+  assert.equal(fixtureBelongsToCompetition({ competitionName: "UEFA Europa League" }, uel), true);
+  assert.equal(fixtureBelongsToCompetition({ competitionName: "UEFA Europa League" }, ucl), false);
 });
 
 console.log(`\n✅ SEARCH CHECKS PASSED (${passed})`);
