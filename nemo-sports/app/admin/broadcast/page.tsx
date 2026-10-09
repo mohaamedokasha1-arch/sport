@@ -3,11 +3,13 @@ import { redirect } from "next/navigation";
 import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
 import {
+  broadcastDomainPolicy,
   coverageStats,
   createBroadcaster,
   deleteBroadcaster,
   listBroadcasters,
   setBroadcasterStatus,
+  STREAM_POLICY_AR,
   validateBroadcastLink,
   type BroadcastStatus,
 } from "@/lib/broadcasts";
@@ -19,6 +21,7 @@ import {
   validateEmbedUrl,
 } from "@/lib/match-streams";
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
+import StreamPolicyNotice from "@/components/admin/StreamPolicyNotice";
 import { logActivity } from "@/lib/activity";
 import { competitions } from "@/lib/core-data";
 import { requirePermission, requireUser } from "@/lib/admin-session";
@@ -170,10 +173,11 @@ export default async function AdminBroadcast({
   const sp = await searchParams;
   const testUrl = typeof sp.test === "string" ? sp.test : "";
   const testResult = testUrl ? validateBroadcastLink(testUrl) : null;
+  const policyAr = STREAM_POLICY_AR[broadcastDomainPolicy()];
   const streamError = typeof sp.streamError === "string" ? sp.streamError : "";
   // Upcoming-match actions can prefill the exact provider match identity and
-  // both team aliases. The operator must still supply an authorized HTTPS
-  // embed URL; the public stream registry validates its official domain.
+  // both team aliases. The operator still supplies the HTTPS embed URL; the
+  // public stream registry re-validates it under the active domain policy.
   const matchId = typeof sp.match === "string" ? sp.match.trim().slice(0, 160) : "";
   const homeName = typeof sp.home === "string" ? sp.home.trim().slice(0, 120) : "";
   const awayName = typeof sp.away === "string" ? sp.away.trim().slice(0, 120) : "";
@@ -189,7 +193,7 @@ export default async function AdminBroadcast({
     <div>
       <AdminHead
         title="البث والترخيص"
-        subtitle="لا يُنشر أي رابط بث قبل توثيق الترخيص — النواقل الرسميون فقط، بلا استثناء"
+        subtitle="سجل النواقل ومصادر بث المباريات · قبول الروابط يتبع سياسة النطاقات المفعّلة أدناه"
       />
 
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
@@ -205,16 +209,13 @@ export default async function AdminBroadcast({
         ))}
       </div>
 
-      <p className="mb-5 rounded-[6px] border border-live/40 bg-live/10 px-4 py-3 text-[13px] leading-6 text-white/85">
-        ⛔ سياسة صارمة: روابط البث الرسمية الموثّقة فقط. أي رابط خارج نطاقات النواقل الرسميين
-        يُرفض تلقائيًا ولا يمكن نشره — لا بث مقرصن، لا IPTV، لا إضافات غير مرخّصة.
-      </p>
+      <StreamPolicyNotice context="broadcast" />
 
       {canStreams ? (
       <Panel title="مصادر بث المباريات (ربط لكل مباراة)" aside={<Pill tone={streams.length ? "warn" : "idle"}>{streams.length} مصدر</Pill>}>
         <p className="mb-4 text-[11px] leading-relaxed text-white/50">
-          يُربط كل مشغّل بمعرّف مباراة أو slug محدد ولا يمكن أن يظهر على مباراة أخرى. لا يُقبل
-          إلا نطاق رسمي موثّق عبر قائمة النواقل المعتمدة؛ لا روابط IPTV أو مصادر مجهولة.
+          يُربط كل مشغّل بمعرّف مباراة أو slug محدد ولا يمكن أن يظهر على مباراة أخرى. أي رابط{" "}
+          <span className="num" dir="ltr">https</span> يدخله المشغّل يُقبل وفق السياسة المفعّلة أعلاه.
         </p>
         {streamError ? (
           <p role="alert" className="mb-4 rounded-[3px] border border-live/40 bg-live/10 px-3 py-2 text-[12px] font-bold text-red-200">
@@ -264,7 +265,7 @@ export default async function AdminBroadcast({
           <Field label="اسم المصدر">
             <input name="label" className={inputCls} placeholder="الناقل الرسمي" required maxLength={160} />
           </Field>
-          <Field label="رابط المشغّل الرسمي (https فقط)">
+          <Field label="رابط المشغّل (https فقط)">
             <input name="embedUrl" className={inputCls} placeholder="https://official.example/player" required maxLength={1000} dir="ltr" />
           </Field>
           <Field label="Slugs المباراة (افصل بفاصلة)">
@@ -349,10 +350,10 @@ export default async function AdminBroadcast({
                 ))}
               </select>
             </Field>
-            <Field label="اسم الناقل الرسمي">
+            <Field label="اسم الناقل">
               <input name="broadcasterName" className={inputCls} placeholder="مثال: أون سبورت" required maxLength={120} />
             </Field>
-            <Field label="الرابط الرسمي (https فقط)">
+            <Field label="رابط الناقل (https فقط)">
               <input name="broadcastWebsite" className={inputCls} placeholder="https://…" required dir="ltr" />
             </Field>
             <Field label="المنصة">
@@ -391,9 +392,9 @@ export default async function AdminBroadcast({
             </div>
           </form>
           <p className="mt-3 text-[11px] leading-relaxed text-white/45">
-            checklist إلزامي قبل التوثيق: التحقق من ملكية الحقوق في المنطقة · قراءة شروط
-            الاستخدام · التأكد من سماحها بالربط/التضمين · حفظ مصدر التوثيق. الروابط من
-            نطاقات غير معتمدة تُرفض تلقائيًا.
+            checklist مقترح قبل النشر: التحقق من ملكية الحقوق في المنطقة · قراءة شروط
+            الاستخدام · التأكد من سماحها بالربط/التضمين · حفظ مصدر التوثيق. الحفظ غير مقيّد
+            بنطاق معيّن — المسؤولية عن حقوق كل رابط تقع على المشغّل.
           </p>
         </Panel>
         ) : null}
@@ -413,13 +414,19 @@ export default async function AdminBroadcast({
           </form>
           {testResult ? (
             <p className={`mt-3 rounded-[3px] border px-3 py-2 text-[12px] font-bold ${testResult.ok ? "border-win/40 bg-win/10 text-win" : "border-live/40 bg-live/10 text-live"}`}>
-              {testResult.ok ? "✓ نطاق رسمي معتمد" : `✗ مرفوض: ${testResult.reason}`}
+              {testResult.ok ? `✓ رابط مقبول — ${testResult.reason}` : `✗ مرفوض: ${testResult.reason}`}
             </p>
           ) : (
             <p className="mt-3 text-[11px] leading-relaxed text-white/45">
-              يتحقق من أن الرابط https ومن نطاق رسمي معتمد قبل إضافته للسجل.
+              يفحص الرابط قبل إضافته للسجل: <span className="num" dir="ltr">https</span> وصالح تقنيًا دائمًا،
+              والنطاق حسب السياسة المفعّلة ({policyAr}).
             </p>
           )}
+          {testResult?.warning ? (
+            <p className="mt-2 rounded-[3px] border border-gold-500/25 bg-gold-500/5 px-3 py-2 text-[11px] leading-relaxed text-gold-200">
+              ⚠️ {testResult.warning}
+            </p>
+          ) : null}
         </Panel>
       </div>
     </div>

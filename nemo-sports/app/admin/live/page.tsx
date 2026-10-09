@@ -6,6 +6,7 @@ import { AdminHead, Btn, Panel, Pill, Stat, Table, Field, inputCls } from "@/com
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
 import LiveStreamForm from "@/components/admin/LiveStreamForm";
+import StreamPolicyNotice from "@/components/admin/StreamPolicyNotice";
 import { requirePermission } from "@/lib/admin-session";
 import {
   createLiveStream,
@@ -25,6 +26,7 @@ import {
   type LiveStreamType,
 } from "@/lib/live-stream-consts";
 import { getSiteSettings } from "@/lib/site-settings";
+import { broadcastDomainPolicy, STREAM_POLICY_AR } from "@/lib/broadcasts";
 import { logActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
 
@@ -205,7 +207,7 @@ export default async function AdminLive({
     <div>
       <AdminHead
         title="البث المباشر"
-        subtitle="سير العمل: اختيار المباراة → رابط Embed رسمي → معاينة → حفظ/نشر"
+        subtitle="سير العمل: اختيار المباراة → رابط الـEmbed → معاينة → حفظ/نشر"
         action={
           <Link href="/admin/live?new=1#stream-form">
             <Btn>+ إضافة بث</Btn>
@@ -222,10 +224,7 @@ export default async function AdminLive({
         <Stat label="موقوف" value={String(stats.disabled)} hint="إخفاء مؤقت" />
       </div>
 
-      <p className="mb-5 rounded-[6px] border border-live/40 bg-live/10 px-4 py-3 text-[13px] leading-6 text-white/85">
-        ⛔ سياسة صارمة: يُقبل فقط رابط Embed/bث تملك حق استخدامه أو تضمينه قانونًا، ومن نطاق ناقل رسمي
-        موثّق. أي رابط آخر — IPTV أو مصادر مجهولة — يُرفض تلقائيًا ولا يمكن نشره.
-      </p>
+      <StreamPolicyNotice context="live" />
 
       {err ? (
         <p role="alert" className="mb-4 rounded-[6px] border border-live/50 bg-live/10 px-4 py-3 text-[13px] font-bold text-live">
@@ -274,7 +273,7 @@ export default async function AdminLive({
         {filtered.length === 0 ? (
           <p className="rounded-[3px] border border-dashed border-navy-700 px-3 py-5 text-center text-[12px] text-white/45">
             {streams.length === 0
-              ? "لا توجد بثوث مسجّلة. هذا هو الوضع الآمن الافتراضي — استخدم «+ إضافة بث» لربط بث رسمي بمباراة."
+              ? "لا توجد بثوث مسجّلة — استخدم «+ إضافة بث» لربط بث بمباراة."
               : "لا توجد بثوث مطابقة للبحث/التصفية."}
           </p>
         ) : (
@@ -387,6 +386,7 @@ export default async function AdminLive({
               prefill={prefill}
               defaultLabel={settings.live.defaultStreamLabel}
               publishingEnabled={settings.live.publishingEnabled}
+              policyLabel={STREAM_POLICY_AR[broadcastDomainPolicy()]}
             />
             <p className="mt-4 text-[11px] leading-relaxed text-white/45">
               سير العمل: Dashboard ← <Link href="/admin/live" className="text-gold-400">Live Streams</Link> ←

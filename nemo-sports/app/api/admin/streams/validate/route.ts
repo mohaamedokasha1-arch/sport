@@ -15,10 +15,13 @@ function clientKey(request: NextRequest): string {
 }
 
 /**
- * Validate an embed URL before preview/publish. Only official, allowlisted
- * https domains pass — the same rule the public pages enforce. Used by the
- * "معاينة" button in /admin/live; the actual iframe is rendered client-side
- * only after this check passes.
+ * Validate an embed URL before preview/publish. Applies the safety checks
+ * (https, no markup/script, no credentials, no private host) plus the ACTIVE
+ * domain policy from lib/stream-policy.ts — by default `open`, meaning any
+ * https host the operator enters is accepted. Used by the "معاينة" button in
+ * /admin/live; the actual iframe is rendered client-side only after this check
+ * passes. A `warning` may come back alongside `ok: true` (host outside the
+ * reference list) — it is informational and never blocks.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -63,5 +66,8 @@ export async function POST(request: NextRequest) {
       { status: 422, headers: { "cache-control": "no-store" } },
     );
   }
-  return NextResponse.json({ ok: true, reason: result.reason }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json(
+    { ok: true, reason: result.reason, host: result.host, policy: result.policy, warning: result.warning ?? undefined },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

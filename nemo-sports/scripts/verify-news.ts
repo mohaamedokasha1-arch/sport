@@ -148,7 +148,10 @@ async function main() {
 
   // broadcasts
   assert("broadcast: official ok", validateBroadcastLink("https://www.onsport.tv/live").ok);
-  assert("broadcast: pirate rejected", !validateBroadcastLink("https://buffstream.xyz/match").ok);
+  // Default policy is `open`: any https host an operator enters is accepted.
+  assert("broadcast: open policy accepts an unlisted host", validateBroadcastLink("https://buffstream.xyz/match").ok);
+  // The curated mode is still available and still rejects it.
+  assert("broadcast: allowlist policy rejects an unlisted host", !validateBroadcastLink("https://buffstream.xyz/match", { policy: "allowlist" }).ok);
   assert("broadcast: http rejected", !validateBroadcastLink("http://www.onsport.tv/live").ok);
 
   console.log(failures === 0 ? "\n✅ NEWS PIPELINE — ALL CHECKS PASSED\n" : `\n❌ ${failures} CHECK(S) FAILED\n`);

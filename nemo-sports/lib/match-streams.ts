@@ -17,9 +17,12 @@
  *     lib/broadcasts.ts. The write helpers at the bottom are used by the
  *     authenticated admin panel (/admin/live): adding a stream for another
  *     match later requires no page change.
- *   · Only official domains from lib/broadcasts.ts can be registered. There
- *     is no paid API or re-hosting: the iframe loads the verified provider's
- *     own player page directly in the visitor's browser.
+ *   · Link acceptance is governed by lib/stream-policy.ts. By default
+ *     (`NEMO_STREAM_DOMAIN_POLICY=open`) any https embed an authorized admin
+ *     enters is accepted — the operator owns the rights question. Setting the
+ *     policy to `allowlist` restores the curated official-domain mode. Either
+ *     way: no paid API and no re-hosting — the iframe loads the provider's own
+ *     player page directly in the visitor's browser.
  *
  * Lifecycle (admin spec §8): every stream carries a status —
  *   draft     → saved but NEVER visible publicly
@@ -39,7 +42,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
-import { validateBroadcastLink } from "@/lib/broadcasts";
+import { validateBroadcastLink, type StreamDomainPolicy, type StreamPolicyOptions } from "@/lib/broadcasts";
 
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
 
@@ -107,17 +110,27 @@ function splitList(value: string | null | undefined): string[] {
 
 /* ── validation (shared with future admin/data-source writes) ─────── */
 
-export function validateEmbedUrl(raw: string): { ok: boolean; reason: string } {
-  const trimmed = String(raw ?? "").trim();
-  // Never accept markup/script content in the URL field: a plain https URL
-  // only — no HTML, no javascript: URIs, no embedded quotes.
-  if (/[<>"'`]/.test(trimmed) || /<\s*script/i.test(trimmed)) {
-    return { ok: false, reason: "رابط غير صالح — لا يُسمح بعلامات HTML أو سكربتات" };
-  }
-  const check = validateBroadcastLink(trimmed);
-  return check.ok
-    ? { ok: true, reason: "نطاق رسمي معتمد" }
-    : { ok: false, reason: `لا يمكن تسجيل مشغّل غير رسمي: ${check.reason}` };
+export interface EmbedUrlCheck {
+  ok: boolean;
+  reason: string;
+  host: string;
+  policy: StreamDomainPolicy;
+  /** Non-blocking note shown next to the field; never prevents saving. */
+  warning: string | null;
+}
+
+/**
+ * Validate an embed URL coming from the admin panel (or an ingest fixture).
+ *
+ * The domain restriction is a policy switch, not a hardcoded gate:
+ * `NEMO_STREAM_DOMAIN_POLICY=open` (the default) accepts any https host the
+ * operator enters, so a legally held embed from a domain that is not on the
+ * reference list saves and publishes without being refused. Safety checks
+ * (https, no markup/script, no credentials, no private host) still apply.
+ * Pass `{ policy: "allowlist" }` to force the curated mode.
+ */
+export function validateEmbedUrl(raw: string, options: StreamPolicyOptions = {}): EmbedUrlCheck {
+  return validateBroadcastLink(raw, options);
 }
 
 /* ── seed: match-specific sources (each one belongs to ONE match) ─── */
@@ -270,7 +283,7 @@ function fromRow(r: Row): MatchStreamSource {
   };
 }
 
-/** A stream is publicly visible only when enabled, in a public status, and on an official domain. */
+/** A stream is publicly visible only when enabled, in a public status, and its URL still passes validation. */
 export function isPubliclyVisible(s: MatchStreamSource): boolean {
   return s.enabled && PUBLIC_STATUSES.has(s.status) && validateEmbedUrl(s.embedUrl).ok;
 }
@@ -284,8 +297,9 @@ export async function listMatchStreams(admin = false): Promise<MatchStreamSource
     try {
       const rows = await db.select<Row>("SELECT * FROM match_streams ORDER BY created_at", []);
       const entries = rows.map(fromRow);
-      // Existing rows are treated as untrusted too; a legacy or manually
-      // inserted URL must not bypass the official-domain rule on public pages.
+      // Rows are re-validated on read: a legacy or manually inserted URL that
+      // no longer passes validation (bad scheme, markup, private host) stays
+      // out of public pages even if it was written before this check existed.
       return admin ? entries : entries.filter(isPubliclyVisible);
     } catch {
       // fall through
