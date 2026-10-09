@@ -72,7 +72,7 @@
 الترتيب الصحيح (مُغلَّف في أمر واحد):
 
 ```bash
-# محليًا — يتطلب psql:
+# لا يحتاج psql. آمن لإعادة التشغيل (يتخطى schema.sql إن كانت الجداول موجودة):
 DATABASE_URL='رابط-الـpooler' npm run db:setup
 ```
 
@@ -80,7 +80,7 @@ DATABASE_URL='رابط-الـpooler' npm run db:setup
 (الرياضات + سلاسل الأولويات + حدود المعدل + قواعد الصراعات) ←
 `db/migration-0002-news.sql` (جداول الأخبار + `broadcasts`).
 
-**بدون `psql`؟** الصق محتويات الملفات الثلاثة بنفس الترتيب في **Neon SQL
+**بدون Node؟** الصق محتويات الملفات الثلاثة بنفس الترتيب في **Neon SQL
 Editor** (أو Supabase SQL Editor) ونفّذها.
 
 > جدولا `broadcasts` و`match_streams` يُنشآن **تلقائيًا عند أول إقلاع** للتطبيق

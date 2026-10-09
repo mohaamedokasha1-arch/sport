@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ingestAllSources } from "@/lib/news/pipeline";
 import { invalidateSearchIndex } from "@/lib/search-service";
+import { newsBackend } from "@/lib/news/store";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -65,8 +66,11 @@ export async function GET(request: Request) {
       ...(only ? { sourceIds: [only] } : {}),
     });
     invalidateSearchIndex();
+    // `storage` tells the scheduler's operator whether this run persisted. "memory"
+    // with DATABASE_URL set means the database is misconfigured (see server logs).
+    const storage = await newsBackend();
     return NextResponse.json(
-      { ok: true, ...stats },
+      { ok: true, storage, ...stats },
       { status: 200, headers: { "cache-control": "no-store" } },
     );
   } catch (e) {

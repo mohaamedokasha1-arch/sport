@@ -13,7 +13,8 @@
    ```bash
    DATABASE_URL='...' npx tsx scripts/verify-db.ts
    ```
-2. **توكن الجدولة مضبوط** في متغيرات Vercel البيئية (Production):
+2. **الحقول التي يجب أن تراها في الرد:** `"storage":"postgres"` (لا `memory`)، و`perSource` فيه مصادر `ok:true`.
+3. **توكن الجدولة مضبوط** في متغيرات Vercel البيئية (Production):
    - `NEMO_INGEST_TOKEN`: قيمة عشوائية طويلة. أنشئها محليًا بالأمر
      `openssl rand -hex 32`. **لا تضعها في الكود أو في Git.**
 
@@ -56,6 +57,7 @@ curl -s https://nemo-sports.vercel.app/api/v1/news | head -c 400
 |---|---|---|
 | `401 unauthorized` | التوكن غير مطابق | تحقق من الترويسة والقيمة |
 | `503 not_configured` | لم يُضبط `NEMO_INGEST_TOKEN` أو `CRON_SECRET` | أضفه في Vercel ثم أعد النشر |
+| `200` مع `storage: "memory"` | قاعدة البيانات غير مستخدمة رغم ضبط `DATABASE_URL` (إعداد خاطئ). **الأخبار لن تبقى.** | راجع سجلات Vercel لرسالة `[news] DATABASE_URL is set but…` |
 | `200 ok:true` | المسار نفّذ دورة الجلب. **لا يعني أن المصادر نجحت.** | راجع `perSource`: كل مصدر له `ok` و`error` خاص به |
 | `200` مع `perSource` كله `ok:false` | فشل كل المصادر (شبكة، حظر، أو تغيّر في المصدر) | راجع `error` لكل مصدر، واختبر الاتصال من Vercel |
 | `500 ingest_failed` | خطأ في خط الأنابيب | راجع سجلات Vercel للدالة |
