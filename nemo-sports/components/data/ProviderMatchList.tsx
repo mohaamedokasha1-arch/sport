@@ -76,6 +76,7 @@ export default function ProviderMatchList({
                 className={`card focus-ring flex items-center gap-3 px-3 py-2.5 transition hover:border-gold-500/50 ${live ? "border-live-red/40" : ""}`}
               >
                 <div className="min-w-0 flex-1">
+                  {f.editorialUpdatedAt && <p className="mb-1 text-[10px] text-muted">إدخال تحريري · ليس تحققًا آليًا من المزود</p>}
                   {showCompetition && f.competitionName ? (
                     <p className="mb-1 truncate text-[10.5px] text-muted">{f.competitionName}</p>
                   ) : null}

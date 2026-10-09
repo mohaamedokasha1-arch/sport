@@ -9,12 +9,12 @@ import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import { filterMatches, matchCounts } from "@/lib/filters";
 import { competitions, PUBLIC_SPORTS, sports } from "@/lib/core-data";
-import { fixtures as sdlFixtures, liveMatches as sdlLive } from "@/lib/sdl-gateway";
+import { fixtures as sdlFixtures, fixturesForCairoDate, liveMatches as sdlLive } from "@/lib/sdl-gateway";
 import { applyDemoOverrides } from "@/lib/match-overrides";
 import { demoContentVisible } from "@/lib/site";
 import { filterProviderMatches, providerMatchCounts, sortProviderMatches } from "@/lib/provider-match-filter";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
-import { siteDay } from "@/lib/tz";
+import { siteDay, siteDateKey, isDateKey, shiftDateKey } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 export const metadata: Metadata = {
@@ -44,8 +44,10 @@ export default async function MatchesPage({
 
   const isSupportedSport = !query.sport || PUBLIC_SPORTS.some((sport) => sport.slug === query.sport);
   const requestedSports = query.sport ? [query.sport] : PUBLIC_SPORTS.map((sport) => sport.slug);
+  const requestedDate = isDateKey(query.date) ? query.date : ["today", "yesterday", "tomorrow"].includes(query.date)
+    ? shiftDateKey(siteDateKey(), query.date === "yesterday" ? -1 : query.date === "tomorrow" ? 1 : 0) : null;
   const feedResults = isSupportedSport
-    ? await Promise.all(requestedSports.map((sport) => sdlFixtures({ sport })))
+    ? await Promise.all(requestedSports.map((sport) => requestedDate ? fixturesForCairoDate({ sport, date: requestedDate }) : sdlFixtures({ sport })))
     : [];
   const liveResults = isSupportedSport && query.status === "live"
     ? await Promise.all(requestedSports.map((sport) => sdlLive(sport)))
@@ -106,6 +108,7 @@ export default async function MatchesPage({
           />
         </Suspense>
 
+        {successfulFeeds.some((r) => r.ok && (r.stale || r.degraded)) && <p role="status" className="mt-4 text-sm text-muted">بعض البيانات قديمة أو التغطية غير مكتملة. لا تعتبر هذه القائمة جدولًا كاملًا.</p>}
         <div className="mt-5">
           {filtered.length > 0 ? (
             <ProviderMatchList fixtures={filtered} view={query.view} />

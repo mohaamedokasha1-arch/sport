@@ -6,7 +6,7 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "check": "npm run sdl:test && npm run news:test && npm run search:test && node scripts/smoke.mjs",
+    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && node scripts/smoke.mjs",
     "sdl:typecheck": "tsc -p packages/sdl/tsconfig.json --noEmit",
     "sdl:test": "tsc -p packages/sdl/tsconfig.test.json && node --test \"packages/sdl/dist-test/test/*.test.js\"",
     "test": "npm run sdl:test",
@@ -16,7 +16,9 @@
     "news:test": "tsx scripts/verify-news.ts",
     "search:test": "tsx scripts/verify-search.ts",
     "admin:hash": "node scripts/hash-admin-password.mjs",
-    "admin:test": "tsx scripts/verify-admin.ts"
+    "admin:test": "tsx scripts/verify-admin.ts",
+    "repairs:test": "tsx --test scripts/verify-repairs.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

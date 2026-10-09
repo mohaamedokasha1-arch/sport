@@ -1,0 +1,105 @@
+
+> nemo-sports@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.27
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 9.0s
+   Linting and checking validity of types ...
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/27) ...
+   Generating static pages (6/27) 
+   Generating static pages (13/27) 
+   Generating static pages (20/27) 
+ ✓ Generating static pages (27/27)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS  Revalidate  Expire
+┌ ○ /                                    1.18 kB         124 kB          1m      1y
+├ ○ /_not-found                            220 B         103 kB
+├ ○ /about                                 193 B         106 kB
+├ ○ /account                               193 B         106 kB
+├ ƒ /admin                                 193 B         106 kB
+├ ƒ /admin/activity                        220 B         103 kB
+├ ƒ /admin/ads                             220 B         103 kB
+├ ƒ /admin/articles                        220 B         103 kB
+├ ƒ /admin/broadcast                     1.33 kB         104 kB
+├ ƒ /admin/competitions                    339 B         106 kB
+├ ƒ /admin/live                          5.04 kB         111 kB
+├ ƒ /admin/live-matches                    193 B         106 kB
+├ ƒ /admin/login                         1.86 kB         105 kB
+├ ƒ /admin/matches                         339 B         106 kB
+├ ƒ /admin/news                            193 B         106 kB
+├ ƒ /admin/news/manual                     339 B         106 kB
+├ ƒ /admin/players                         339 B         106 kB
+├ ƒ /admin/providers                       220 B         103 kB
+├ ƒ /admin/seo                             220 B         103 kB
+├ ƒ /admin/settings                        220 B         103 kB
+├ ƒ /admin/standings                       193 B         106 kB
+├ ƒ /admin/teams                           339 B         106 kB
+├ ƒ /admin/upcoming-matches                193 B         106 kB
+├ ƒ /admin/users                           311 B         103 kB
+├ ƒ /api/admin/auth/login                  220 B         103 kB
+├ ƒ /api/admin/auth/logout                 220 B         103 kB
+├ ƒ /api/admin/matches/options             220 B         103 kB
+├ ƒ /api/admin/streams/validate            220 B         103 kB
+├ ƒ /api/cron/fetch-news                   220 B         103 kB
+├ ƒ /api/live                              220 B         103 kB
+├ ƒ /api/search                            220 B         103 kB
+├ ƒ /api/v1                                220 B         103 kB
+├ ƒ /api/v1/calendar/[slug]                220 B         103 kB
+├ ƒ /api/v1/football-data/matches          220 B         103 kB
+├ ƒ /api/v1/football-data/scorers          220 B         103 kB
+├ ƒ /api/v1/football-data/standings        220 B         103 kB
+├ ƒ /api/v1/football-data/status           220 B         103 kB
+├ ƒ /api/v1/ingest                         220 B         103 kB
+├ ƒ /api/v1/live                           220 B         103 kB
+├ ƒ /api/v1/matches                        220 B         103 kB
+├ ƒ /api/v1/news                           220 B         103 kB
+├ ƒ /api/v1/sportscore-relay/[...path]     220 B         103 kB
+├ ƒ /api/v1/system                         220 B         103 kB
+├ ○ /broadcast-rights                      220 B         103 kB
+├ ○ /competitions                          193 B         106 kB
+├ ● /competitions/[slug]                 1.46 kB         124 kB
+├ ○ /contact                               193 B         106 kB
+├ ○ /copyright                             220 B         103 kB
+├ ○ /faq                                   193 B         106 kB
+├ ○ /fixtures                              693 B         123 kB          2m      1y
+├ ○ /icon.svg                                0 B            0 B
+├ ○ /learn                                 193 B         106 kB
+├ ○ /live                                2.62 kB         109 kB         30s      1y
+├ ƒ /match/[slug]                          220 B         103 kB
+├ ƒ /matches                             13.5 kB         136 kB
+├ ● /matches/[slug]                      8.34 kB         127 kB
+├ ƒ /my-day                              4.92 kB         111 kB
+├ ƒ /news                                  193 B         106 kB
+├ ● /news/[slug]                           193 B         106 kB
+├ ƒ /players                               193 B         106 kB
+├ ● /players/[slug]                      1.08 kB         107 kB
+├ ○ /privacy                               220 B         103 kB
+├ ƒ /results                               693 B         123 kB
+├ ○ /robots.txt                            220 B         103 kB
+├ ƒ /scout                               5.06 kB         111 kB
+├ ƒ /search                              2.83 kB         109 kB
+├ ƒ /sitemap.xml                           220 B         103 kB
+├ ○ /standings                             193 B         106 kB          5m      1y
+├ ƒ /teams                                 193 B         106 kB
+├ ● /teams/[slug]                         1.1 kB         124 kB
+├ ○ /terms                                 220 B         103 kB
+├ ○ /today                                 220 B         103 kB
+└ ○ /watch                                 193 B         106 kB          1m      1y
++ First Load JS shared by all             103 kB
+  ├ chunks/1255-5cd2fe06309409a0.js      46.5 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js  54.2 kB
+  └ other shared chunks (total)          1.93 kB
+
+
+ƒ Middleware                               36 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

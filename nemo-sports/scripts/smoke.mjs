@@ -31,6 +31,9 @@ const pages = [
   "/search?q=ahly",
   "/search?q=الأهلي",
   "/account",
+  "/my-day",
+  "/scout",
+  "/learn",
   "/about",
   "/contact",
   "/faq",
@@ -180,9 +183,11 @@ async function main() {
   const demoOn = !realMode && !emptyMode;
   const modeName = realMode ? "REAL provider data" : demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)";
   console.log(`  · content mode → ${modeName}`);
+  const fixtureMeta = await (await fetch(`${BASE}/api/v1/matches`)).json();
+  const editorialOnly = fixtureMeta.meta?.provider === "admin";
   if (realMode) {
-    const powered = homeHtml.includes("SportScore");
-    console.log(`  ${powered ? "✓" : "✗"} home → SportScore attribution visible`);
+    const powered = editorialOnly ? homeHtml.includes("الإدارة") || homeHtml.includes("تحريري") : /SportScore|Football-Data|API.Football|Sportmonks|Sportradar|TheSportsDB/.test(homeHtml);
+    console.log(`  ${powered ? "✓" : "✗"} home → attribution reflects available source`);
     if (!powered) failures++;
   }
 
@@ -424,7 +429,7 @@ async function main() {
   const sportScoreBadge = home.includes("Powered by SportScore") && home.includes("https://sportscore.com/");
   const footballDataBadge = home.includes("Powered by Football-Data.org") && home.includes("https://www.football-data.org/");
   const anySportsProviderBadge = sportScoreBadge || footballDataBadge;
-  const attributionOk = realMode ? anySportsProviderBadge : !anySportsProviderBadge;
+  const attributionOk = realMode && !editorialOnly ? anySportsProviderBadge : !anySportsProviderBadge;
   console.log(`  ${attributionOk ? "✓" : "✗"} footer → provider attribution ${realMode ? "present for live data" : "not claimed without a configured source"}`);
   if (!attributionOk) failures++;
 

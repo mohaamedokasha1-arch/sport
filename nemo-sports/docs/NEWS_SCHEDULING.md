@@ -1,3 +1,9 @@
+> **2026-10-09 implementation update:** Public reads no longer start traffic-driven
+> background refreshes. Only awaited cron/admin jobs update the feed. Production
+> ingestion requires Postgres; the process/transaction locks and 40-second job
+> budget are described in [the current implementation report](IMPLEMENTATION_2026-10-09.md).
+> Older descriptions below of lazy refresh are historical, not current behavior.
+
 # NEMO Sports · جدولة تحديث الأخبار
 
 > **المشكلة:** خطة Vercel المجانية (Hobby) تسمح بمهمة cron واحدة يوميًا فقط،

@@ -1,3 +1,4 @@
+import { validateMatchQuery } from "@/lib/match-query";
 import { NextResponse } from "next/server";
 import { liveMatches } from "@/lib/sdl-gateway";
 
@@ -12,6 +13,8 @@ export const runtime = "nodejs";
  * where the data came from so the client can degrade honestly.
  */
 export async function GET(req: Request) {
+  const error = validateMatchQuery(new URL(req.url).searchParams);
+  if (error) return NextResponse.json({ ok: false, error: { code: "invalid_input", message: error }, data: [] }, { status: 400 });
   const sport = new URL(req.url).searchParams.get("sport") ?? "football";
   const result = await liveMatches(sport);
 

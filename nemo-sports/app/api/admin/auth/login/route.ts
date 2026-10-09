@@ -27,6 +27,8 @@ function rateLimited(key: string): boolean {
 
 function recordFailure(key: string): void {
   const now = Date.now();
+  for (const [id, value] of failures) if (value.resetAt <= now) failures.delete(id);
+  if (failures.size >= 10000 && !failures.has(key)) failures.delete(failures.keys().next().value!);
   const current = failures.get(key);
   if (!current || current.resetAt <= now) {
     failures.set(key, { count: 1, resetAt: now + WINDOW_MS });
@@ -40,6 +42,17 @@ function clearFailures(key: string): void {
 }
 
 export async function POST(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (origin) {
+    let validOrigin = false;
+    try {
+      const parsed = new URL(origin);
+      // Next may use its internal listener hostname in request.url. Compare
+      // with the browser-facing Host instead, preserving same-origin ports.
+      validOrigin = ["https:", "http:"].includes(parsed.protocol) && parsed.host === request.headers.get("host");
+    } catch { /* malformed Origin */ }
+    if (!validOrigin) return NextResponse.json({ ok: false, error: "Invalid origin" }, { status: 403 });
+  }
   const key = clientKey(request);
   if (rateLimited(key)) {
     return NextResponse.json(
@@ -62,6 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "طلب غير صالح." }, { status: 400 });
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ ok: false, error: "Invalid input" }, { status: 400 });
   const input = body as { username?: unknown; password?: unknown };
   const username = typeof input.username === "string" ? input.username.trim() : "";
   const password = typeof input.password === "string" ? input.password : "";

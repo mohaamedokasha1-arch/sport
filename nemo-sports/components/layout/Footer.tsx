@@ -1,3 +1,4 @@
+import { dataServable } from "@/lib/sdl-gateway";
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import PoweredBy from "@/components/ui/PoweredBy";
@@ -37,6 +38,7 @@ const groups = [
       { href: "/news?category=انتقالات", label: "الانتقالات" },
       { href: "/standings", label: "الترتيب والإحصائيات" },
       { href: "/search", label: "البحث" },
+      { href: "/learn", label: "دليل فهم الإحصاءات" },
     ],
   },
   {
@@ -53,7 +55,8 @@ const groups = [
   },
 ];
 
-export default function Footer() {
+export default async function Footer() {
+  const servable = await dataServable();
   return (
     <footer className="mt-16 border-t-2 border-gold-500/40 bg-navy-900 text-white">
       <div className="mx-auto grid max-w-[1280px] gap-10 px-4 py-12 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
@@ -117,8 +120,8 @@ export default function Footer() {
             تُعرض شعارات الجهات الرياضية عند توفرها من مصدر البيانات، وتبقى مملوكة لأصحابها؛ لا نستضيف بثًا غير مرخّص.
           </span>
           <span className="flex flex-wrap items-center gap-2">
-            {footballDataAttributionEnabled ? <PoweredByFootballData /> : null}
-            {sportScoreAttributionEnabled ? <PoweredBy /> : null}
+            {servable && footballDataAttributionEnabled ? <PoweredByFootballData /> : null}
+            {servable && sportScoreAttributionEnabled ? <PoweredBy /> : null}
           </span>
           <AttributionFooter exclude={["SportScore", "Football-Data.org"]} className="w-full border-t border-white/10 pt-3" />
         </div>

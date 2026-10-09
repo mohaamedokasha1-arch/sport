@@ -9,10 +9,10 @@ import NewsCard from "@/components/news/NewsCard";
 import CompetitionCard from "@/components/competition/CompetitionCard";
 import Trending from "@/components/home/Trending";
 import SectionHead from "@/components/ui/SectionHead";
-import { cachePolicyFor, liveMatches as sdlLive, fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { fixturesForCairoDate, cachePolicyFor, liveMatches as sdlLive, fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
-import { siteDay } from "@/lib/tz";
+import { siteDay, siteDateKey } from "@/lib/tz";
 import {
   articles,
   competitions,
@@ -35,10 +35,11 @@ const LIVE_STATUSES = new Set(["live", "halftime", "extra_time", "extra_time_hal
 
 export default async function HomePage() {
   const now = Date.now();
-  const [liveResult, fixtureResult, scorerResult] = await Promise.all([
+  const [liveResult, fixtureResult, scorerResult, todayResult] = await Promise.all([
     sdlLive("football"),
     sdlFixtures({ sport: "football" }),
     footballTopScorers("english-premier-league"),
+    fixturesForCairoDate({ sport: "football", date: siteDateKey(now) }),
   ]);
 
   const liveData = liveResult.ok && liveResult.source === "provider" ? liveResult : null;
@@ -50,7 +51,7 @@ export default async function HomePage() {
   const todayKey = siteDay(now);
   const tomorrowKey = todayKey + 86_400_000;
   const providerFixtures = fixtureData ? fixtureData.data.filter(hasMatchIdentity) : [];
-  const todayFixtures = providerFixtures
+  const todayFixtures = (todayResult.ok && todayResult.source === "provider" ? todayResult.data.filter(hasMatchIdentity) : [])
     .filter((fixture) => siteDay(fixture.scheduledAt) === todayKey)
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
     .slice(0, 12);

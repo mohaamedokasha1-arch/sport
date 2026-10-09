@@ -1,3 +1,4 @@
+import { reportKind } from "@/lib/news/relevance";
 import Link from "next/link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
@@ -35,11 +36,12 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
           </span>
           {breaking ? (
             <span className="ms-auto shrink-0 rounded-[3px] bg-live px-1.5 py-0.5 text-[9px] font-extrabold text-white">
-              عاجل
+              حديث النشر
             </span>
           ) : null}
         </div>
 
+        <p className="mb-2 text-[11px] text-muted">{reportKind(article.title) === "rumor" ? "تقرير / احتمال غير مؤكد" : "خبر منقول"} · التصنيف الآلي لا يثبت صحة الخبر</p>
         {/* headline → original publisher */}
         <h3 className="text-[15px] font-bold leading-snug">
           <a
@@ -107,7 +109,7 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
           </a>
         </div>
         <p className="mt-1.5 border-t border-line pt-1.5 text-[10px] text-muted">
-          المصدر: {article.sourceName} · ملخص تلقائي — النص الكامل لدى الناشر الأصلي
+          المصدر: {article.sourceName} · مقتطف RSS — النص الكامل لدى الناشر الأصلي
         </p>
       </div>
     </article>

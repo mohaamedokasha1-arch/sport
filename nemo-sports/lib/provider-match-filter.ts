@@ -1,7 +1,7 @@
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { matchesSearchText } from "@/lib/search-text";
-import { siteDay } from "@/lib/tz";
+import { siteDay, siteDateKey, isDateKey } from "@/lib/tz";
 
 export type ProviderMatchQuery = {
   sport?: string;
@@ -18,6 +18,8 @@ export const isFixtureUpcoming = (fixture: NormalizedFixture) => fixture.status 
 export const isFixtureFinished = (fixture: NormalizedFixture) => fixture.status === "finished";
 
 function onDate(fixture: NormalizedFixture, date: string | undefined, now: number): boolean {
+  if (!Number.isFinite(Date.parse(fixture.scheduledAt))) return false;
+  if (date && isDateKey(date)) return siteDateKey(fixture.scheduledAt) === date;
   const day = Math.round((siteDay(fixture.scheduledAt) - siteDay(now)) / 86_400_000);
   switch (date ?? "today") {
     case "all": return true;

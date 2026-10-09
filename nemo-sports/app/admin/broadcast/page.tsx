@@ -49,6 +49,7 @@ async function addBroadcasterAction(form: FormData): Promise<void> {
     freeAccess: form.get("freeAccess") === "on",
     notes: String(form.get("notes") ?? "").trim() || undefined,
   });
+  if (!created.ok) redirect(`/admin/broadcast?err=${encodeURIComponent(created.error)}`);
   if (created.ok) {
     await logActivity({
       action: "broadcaster.create",
@@ -57,6 +58,7 @@ async function addBroadcasterAction(form: FormData): Promise<void> {
       after: { competitionId, broadcasterName },
     });
   }
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
 }
@@ -66,8 +68,11 @@ async function setStatusAction(form: FormData): Promise<void> {
   await requirePermission("broadcast");
   const id = String(form.get("id") ?? "");
   const status = String(form.get("status") ?? "pending") as BroadcastStatus;
-  await setBroadcasterStatus(id, status);
+  try {
+    if (!await setBroadcasterStatus(id, status)) throw new Error("invalid status or missing broadcaster");
+  } catch (e) { redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`); }
   await logActivity({ action: "broadcaster.status", entityType: "broadcaster", entityId: id, after: { status } });
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
 }
@@ -76,8 +81,9 @@ async function removeAction(form: FormData): Promise<void> {
   "use server";
   await requirePermission("broadcast");
   const id = String(form.get("id") ?? "");
-  await deleteBroadcaster(id);
+  try { await deleteBroadcaster(id); } catch (e) { redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`); }
   await logActivity({ action: "broadcaster.delete", entityType: "broadcaster", entityId: id });
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
 }
@@ -105,6 +111,7 @@ async function saveMatchStreamAction(form: FormData): Promise<void> {
     entityId: id,
     after: { slugs: result.entry.slugs, enabled: result.entry.enabled },
   });
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
   revalidatePath("/watch");
@@ -121,6 +128,7 @@ async function toggleMatchStreamAction(form: FormData): Promise<void> {
     redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`);
   }
   await logActivity({ action: "stream.toggle", entityType: "match_stream", entityId: id, after: { enabled } });
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
   revalidatePath("/watch");
@@ -136,6 +144,7 @@ async function deleteMatchStreamAction(form: FormData): Promise<void> {
     redirect(`/admin/broadcast?err=${encodeURIComponent(storeErrorMessage(e))}`);
   }
   await logActivity({ action: "stream.delete", entityType: "match_stream", entityId: id });
+  revalidatePath("/watch");
   revalidatePath("/admin/broadcast");
   revalidatePath("/admin/activity");
   revalidatePath("/watch");

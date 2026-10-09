@@ -1,3 +1,5 @@
+import { StoreWriteError } from "@/lib/db/store-policy";
+import { getDb } from "@/lib/db/pg";
 /**
  * NEMO Sports · news ingestion pipeline
  * ─────────────────────────────────────
@@ -23,6 +25,7 @@ import {
   validateArticle,
 } from "./normalize";
 import { checkDuplicate, type DedupCandidate } from "./dedup";
+import { sportsRelevance } from "./relevance";
 import { categorizeArticle } from "./categorize";
 import { matchEntities } from "./entities";
 import {
@@ -31,7 +34,6 @@ import {
   insertArticle,
   listSources,
   logFetch,
-  pruneSource,
   recentByDomain,
   recordSourceFailure,
   recordSourceSuccess,
@@ -39,7 +41,7 @@ import {
 import type { IngestStats, NewsArticle, RSSSource } from "./types";
 
 const FETCH_TIMEOUT_MS = 10_000;
-const USER_AGENT = "Mozilla/5.0 (compatible; NEMO-Sports/1.0; +https://nemo-sports.vercel.app)";
+const USER_AGENT = "NEMO-Sports/1.0 (+https://nemo-sports.vercel.app)";
 
 export interface SourceRunResult {
   sourceId: string;
@@ -87,12 +89,24 @@ async function fetchFeed(source: RSSSource): Promise<{
     };
     if (source.etag) headers["if-none-match"] = source.etag;
     if (source.lastModified) headers["if-modified-since"] = source.lastModified;
-    const res = await fetch(url, { headers, signal: ctrl.signal, redirect: "follow" });
+    const res = await fetch(url, { headers, signal: ctrl.signal, redirect: "error" });
     if (res.status === 304) {
       return { status: 304, xml: "", etag: source.etag ?? null, lastModified: source.lastModified ?? null };
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const xml = await res.text();
+    if (Number(res.headers.get("content-length") ?? 0) > 2_000_000) throw new Error("Feed too large");
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("Empty feed");
+    const decoder = new TextDecoder();
+    let xml = ""; let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 2_000_000) { await reader.cancel(); throw new Error("Feed too large"); }
+      xml += decoder.decode(value, { stream: true });
+    }
+    xml += decoder.decode();
     return {
       status: res.status,
       xml,
@@ -153,7 +167,8 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
     base.processed = parsed.items.length;
     base.parseErrors = parsed.errors.length + parsed.skipped;
 
-    for (const raw of parsed.items) {
+    for (const raw of parsed.items.slice(0, 100)) {
+      if (Date.now() - started > 35_000) throw new Error("source processing budget reached; remaining items deferred");
       try {
         // NORMALIZE
         const title = cleanText(raw.title).slice(0, 300);
@@ -163,16 +178,19 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           base.validationFailures++;
           continue;
         }
-        const publicationDate = toIsoDate(raw.pubDate) ?? new Date().toISOString();
+        const publicationDate = toIsoDate(raw.pubDate);
         const domain = isGoogleWrapper(resolvedUrl) ? "news.google.com" : extractDomain(resolvedUrl);
         const sourceName = cleanText(raw.sourceName ?? domain).slice(0, 120) || domain;
 
         // VALIDATE
         const validation = validateArticle({ title, sourceUrl: resolvedUrl, publicationDate });
-        if (!validation.valid) {
+        if (!validation.valid || !publicationDate) {
           base.validationFailures++;
           continue;
         }
+
+        const relevance = sportsRelevance(title, cleanText(raw.description));
+        if (relevance === "reject") { base.validationFailures++; continue; }
 
         // DEDUPLICATE — L1/L2 global, L3–L5 against the domain window
         const existing = await findByCanonicalUrl(canonical);
@@ -233,19 +251,20 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
             entities: entities.length,
             categoryConfidence: cat.confidence,
           }),
-          status: "published",
+          status: relevance === "publish" ? "published" : "hidden",
           sourceBadge: sourceBadge(sourceName),
           createdAt: now,
           updatedAt: now,
         };
         await insertArticle(article);
         base.inserted++;
-      } catch {
+      } catch (error) {
+        if (error instanceof StoreWriteError) throw error;
         base.validationFailures++;
       }
     }
 
-    await pruneSource(source.id);
+    // Retention is an explicit maintenance operation; ingestion never deletes valid data.
     await recordSourceSuccess(source.id, {
       articleCount: await countArticlesBySource(source.id),
       etag: feed.etag,
@@ -279,14 +298,14 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
 
 function isGoogleWrapper(url: string): boolean {
   try {
-    return new URL(url).hostname.includes("news.google.com");
+    return new URL(url).hostname === "news.google.com";
   } catch {
     return false;
   }
 }
 
 /** Run every enabled source in priority order. Skips are cheap (no fetch). */
-export async function ingestAllSources(opts: { force?: boolean; sourceIds?: string[] } = {}): Promise<IngestStats> {
+async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {}): Promise<IngestStats> {
   const startedAt = new Date().toISOString();
   if (process.env.NEMO_NEWS_DISABLE === "1" && !opts.force) {
     return {
@@ -307,7 +326,7 @@ export async function ingestAllSources(opts: { force?: boolean; sourceIds?: stri
   const sources = (await listSources())
     .filter((s) => s.enabled)
     .filter((s) => !opts.sourceIds || opts.sourceIds.includes(s.id))
-    .sort((a, b) => a.priority - b.priority);
+    .sort((a, b) => (a.lastSuccessfulFetch ?? "").localeCompare(b.lastSuccessfulFetch ?? "") || a.priority - b.priority);
 
   const perSource: IngestStats["perSource"] = [];
   let totalProcessed = 0;
@@ -319,6 +338,7 @@ export async function ingestAllSources(opts: { force?: boolean; sourceIds?: stri
   let totalFetches = 0;
 
   for (const source of sources) {
+    if (Date.now() - t0 > 40_000) break; // leave headroom under the route duration budget
     const r = await runSource(source, { force: opts.force });
     if (!r.skipped) totalFetches++;
     totalProcessed += r.processed;
@@ -354,4 +374,25 @@ export async function ingestAllSources(opts: { force?: boolean; sourceIds?: stri
     startedAt,
     finishedAt: new Date().toISOString(),
   };
+}
+
+let ingestion: Promise<IngestStats> | null = null;
+/** One job per process and one transaction-scoped lock across DB replicas.
+ * The lock is released on disconnect/rollback, including serverless shutdown.
+ */
+export function ingestAllSources(opts: { force?: boolean; sourceIds?: string[] } = {}): Promise<IngestStats> {
+  if (ingestion) return ingestion;
+  ingestion = (async () => {
+    const db = await getDb();
+    if (!db) {
+      if (process.env.NODE_ENV === "production") throw new Error("Durable news storage is required");
+      return ingestSources(opts);
+    }
+    return db.transaction(async (tx) => {
+      const [lock] = await tx.select<{ locked: boolean }>("SELECT pg_try_advisory_xact_lock(76321941) AS locked", []);
+      if (!lock?.locked) throw new Error("News ingestion is already running");
+      return ingestSources(opts);
+    });
+  })().finally(() => { ingestion = null; });
+  return ingestion;
 }

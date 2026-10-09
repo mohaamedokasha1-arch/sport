@@ -332,3 +332,32 @@ test("apply hook normalizes into the canonical store before caching", async () =
   assert.equal(applied, 1);
   if (res.ok) assert.equal(res.value.data.length, DEMO_FIXTURES.length);
 });
+
+
+test("provider-pinned requests cannot reuse another provider's canonical cache or fail over IDs", async () => {
+  const { sdl } = setup();
+  const initial = await liveQuery(sdl);
+  assert.equal(initial.ok, true);
+  const pinned = () => sdl.fetch<NormalizedFixture[]>({ sport: "football", dataType: "live_matches", endpoint: "live", params: { sport: "football" }, provider: "demo_b" as ProviderName, call: (p) => p.getLiveMatches({ sport: "football" }) });
+  const other = await pinned();
+  assert.equal(other.ok && other.value.provider, "demo_b");
+  const isolated = setup({ canonicalTtl: 0, rawTtl: 0, staleGrace: 0 });
+  isolated.primary.setFault({ dataType: "live_matches", error: "offline", code: "network" });
+  const result = await isolated.sdl.fetch({ sport: "football", dataType: "live_matches", endpoint: "live", params: {}, provider: "demo", call: (p) => p.getLiveMatches({ sport: "football" }) });
+  assert.equal(result.ok, false, "must not reuse local ID against backup");
+});
+
+test("circuit-open chains still return the last good data with original freshness", async () => {
+  const { sdl } = setup({ canonicalTtl: 0, rawTtl: 0, staleGrace: 120 });
+  const first = await liveQuery(sdl);
+  assert.equal(first.ok, true);
+  for (const provider of ["demo", "demo_b"] as ProviderName[]) {
+    for (let i = 0; i < 3; i++) sdl.health.noteFailure(provider, "offline");
+  }
+  const degraded = await liveQuery(sdl);
+  assert.equal(degraded.ok, true);
+  if (first.ok && degraded.ok) {
+    assert.equal(degraded.value.stale, true);
+    assert.equal(degraded.value.fetchedAt, first.value.fetchedAt);
+  }
+});

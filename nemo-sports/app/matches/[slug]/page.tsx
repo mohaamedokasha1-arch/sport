@@ -1,3 +1,4 @@
+import ShareMatch from "@/components/match/ShareMatch";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -170,7 +171,7 @@ function eventDescriptionAr(description: string | null): string | null {
     offside: "تسلل",
     handball: "لمسة يد",
   };
-  return known[key] ?? null;
+  return known[key] ?? text;
 }
 
 function clockOf(f: NormalizedFixture): string {
@@ -262,7 +263,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
   /* ══ 1) real match (SportScore via SDL or admin-managed fixture) ══════ */
   let f: NormalizedFixture | null = null;
-  let providerName = "provider";
+  let providerName: import("@/lib/sdl-gateway").GatewayProvider = "admin";
   let fromCache = false;
   let stale = false;
   let fetchedAt = new Date().toISOString();
@@ -297,15 +298,15 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
     const [eventsRes, lineupsRes, statsRes, stream, override] = await Promise.all([
-      matchEvents(slug),
-      matchLineups("football", slug),
-      matchStats("football", slug),
+      matchEvents(f.providerId, providerName),
+      matchLineups(f.sport, f.providerId, providerName),
+      matchStats(f.sport, f.providerId, providerName),
       streamForMatch({ slug, home, away }),
       // The fixture itself is already corrected centrally in the gateway;
       // this read only decides whether the "corrected by admin" badge shows.
       getOverride(slug),
     ]);
-    const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data : [];
+    const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data.filter((event) => event.providerMatchId === f!.providerId).sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999) || (a.additionalMinute ?? 0) - (b.additionalMinute ?? 0)) : [];
     const lineups: NormalizedLineup[] = lineupsRes.ok ? lineupsRes.data : [];
     const rawStats: NormalizedStat[] = statsRes.ok ? statsRes.data : [];
     // Pair statistics by period and the provider IDs, not display names.
@@ -346,13 +347,13 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
       startDate: f.scheduledAt,
       eventStatus:
         f.status === "finished"
-          ? "https://schema.org/EventCompleted"
+          ? undefined
           : f.status === "postponed"
             ? "https://schema.org/EventPostponed"
           : f.status === "cancelled"
             ? "https://schema.org/EventCancelled"
             : ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)
-              ? "https://schema.org/EventInProgress"
+              ? undefined
               : "https://schema.org/EventScheduled",
       sport: "Football",
       url: `/matches/${slug}`,
@@ -446,6 +447,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             ) : null}
           </header>
 
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={`/matches/${encodeURIComponent(slug)}`} />
+            {f.status === "scheduled" && !stale && <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>}
+            <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
+          </div>
           {/* live stream — dedicated stream section */}
           {stream && isPubliclyVisible(stream) ? (
             <MatchStreamPlayer
@@ -463,9 +469,9 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </h2>
               <div className="card border-dashed px-4 py-8 text-center bg-navy-900/30">
                 <span className="text-3xl block mb-2" aria-hidden>📺</span>
-                <p className="text-[14px] font-extrabold text-ink">سيتم إتاحة البث عند توفره</p>
+                <p className="text-[14px] font-extrabold text-ink">لا يوجد بث موثّق لهذه المباراة حاليًا</p>
                 <p className="mt-1.5 text-[12px] text-muted max-w-md mx-auto leading-relaxed">
-                  لم يتم تفعيل رابط البث المباشر لهذه المباراة بعد. سيظهر المشغّل الرسمي تلقائيًا فور توفر بث رسمي مرخّص قبل انطلاق المباراة.
+                  وجود ناقل للبطولة لا يثبت توفر مشاهدة مجانية أو مشغّل لهذه المباراة. تحقق من دليل الناقل الرسمي وشروط بلدك.
                 </p>
               </div>
             </section>
@@ -473,11 +479,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
           {/* events timeline */}
           <section className="mt-8">
-            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">أحداث المباراة</h2>
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">NEMO Match Pulse · أحداث المباراة</h2>
             {events.length === 0 ? (
               <p className="card px-4 py-6 text-center text-[12.5px] text-muted">
                 {f.status === "scheduled"
-                  ? "لم تبدأ المباراة بعد — ستظهر الأحداث هنا مباشرة مع بدايتها."
+                  ? "لم تبدأ المباراة بعد — تظهر الأحداث فقط إذا أتاحها المصدر."
                   : "لا توجد أحداث مسجَّلة لهذه المباراة من المصدر حاليًا."}
               </p>
             ) : (
@@ -491,10 +497,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
                   const description = eventDescriptionAr(event.description);
                   return (
                     <li key={event.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
-                      <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}'` : "—"}</span>
+                      <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}${event.additionalMinute ? `+${event.additionalMinute}` : ""}'` : "—"}</span>
                       <span aria-hidden className="w-5 text-center">{EVENT_ICON[event.type] ?? "•"}</span>
                       <span className="min-w-0 flex-1">
                         <span className="font-bold">{EVENT_AR[event.type] ?? "حدث رياضي"}</span>
+                        {event.playerName ? <span> · {event.playerName}</span> : null}
                         {teamName ? <span className="text-muted"> · {teamName}</span> : null}
                         {description ? <span className="text-muted"> · {description}</span> : null}
                       </span>
@@ -505,6 +512,9 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             )}
           </section>
 
+          <p className="mt-3 text-xs text-muted">الأحداث والإحصاءات من مصدر المباراة نفسه. لا نحسب زخمًا تقديريًا من بيانات غير كافية.</p>
+          {statRows.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">إحصاءات المباراة غير متاحة من المصدر حاليًا.</p>}
+          {lineups.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">التشكيلات غير متاحة من المصدر حاليًا.</p>}
           {/* statistics (only when the provider has them) */}
           {statRows.length > 0 ? (
             <section className="mt-8">
@@ -618,7 +628,7 @@ async function DemoMatchView({ slug }: { slug: string }) {
     startDate: match.kickoff,
     eventStatus:
       state.status === "FINISHED"
-        ? "https://schema.org/EventCompleted"
+        ? undefined
         : state.status === "POSTPONED"
           ? "https://schema.org/EventPostponed"
           : state.status === "CANCELLED"

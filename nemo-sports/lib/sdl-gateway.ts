@@ -1,3 +1,4 @@
+import { isDateKey, shiftDateKey, siteDateKey } from "@/lib/tz";
 /**
  * Data gateway — the app's ONLY door into the Sports Data Layer.
  * ──────────────────────────────────────────────────────────────
@@ -173,7 +174,7 @@ async function corrected(
       fromCache: false,
       stale: false,
       degraded: true,
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: adminFixtures.map((f) => f.editorialUpdatedAt ?? "").filter(Boolean).sort()[0] ?? new Date(0).toISOString(),
       source: "provider",
     };
   }
@@ -223,12 +224,14 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
 }
 
 /** Events of one match, in canonical vocabulary. */
-export async function matchEvents(providerMatchId: string): Promise<GatewayResult<NormalizedEvent[]>> {
+export async function matchEvents(providerMatchId: string, provider?: GatewayProvider): Promise<GatewayResult<NormalizedEvent[]>> {
+  if (provider === "admin") return { ok: false, error: { kind: "unsupported", message: "Manual matches have no provider telemetry", dataType: "match_events", attempts: [] } };
   const { sdl } = await sdlContext();
   return wrap(
     await sdl.fetch<NormalizedEvent[]>({
       sport: "football",
       dataType: "match_events",
+      provider,
       endpoint: "events",
       params: { providerMatchId },
       call: (p) => p.getMatchEvents({ providerMatchId }),
@@ -254,7 +257,7 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
       fromCache: false,
       stale: false,
       degraded: false,
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: adminMatch.updatedAt,
       source: "provider",
     };
   }
@@ -275,12 +278,14 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
 }
 
 /** Timeline of one match, in canonical event vocabulary. */
-export async function matchStats(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedStat[]>> {
+export async function matchStats(sport: string, providerMatchId: string, provider?: GatewayProvider): Promise<GatewayResult<NormalizedStat[]>> {
+  if (provider === "admin") return { ok: false, error: { kind: "unsupported", message: "Manual matches have no provider telemetry", dataType: "match_stats", attempts: [] } };
   const { sdl } = await sdlContext();
   return wrap(
     await sdl.fetch<NormalizedStat[]>({
       sport,
       dataType: "match_stats",
+      provider,
       endpoint: "match_stats",
       params: { sport, providerMatchId },
       call: (p) => p.getMatchStats({ providerMatchId, sport }),
@@ -290,12 +295,14 @@ export async function matchStats(sport: string, providerMatchId: string): Promis
 }
 
 /** Starting XIs and benches for one match (when the provider has them). */
-export async function matchLineups(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedLineup[]>> {
+export async function matchLineups(sport: string, providerMatchId: string, provider?: GatewayProvider): Promise<GatewayResult<NormalizedLineup[]>> {
+  if (provider === "admin") return { ok: false, error: { kind: "unsupported", message: "Manual matches have no provider telemetry", dataType: "match_lineups", attempts: [] } };
   const { sdl } = await sdlContext();
   return wrap(
     await sdl.fetch<NormalizedLineup[]>({
       sport,
       dataType: "match_lineups",
+      provider,
       endpoint: "match_lineups",
       params: { sport, providerMatchId },
       call: (p) => p.getMatchLineups({ providerMatchId, sport }),
@@ -562,4 +569,19 @@ export async function dataServable(): Promise<boolean> {
     probeMemo = { at: now, value: probeServable(sdl) };
   }
   return probeMemo.value;
+}
+
+/** Provider date filters use UTC. Cairo days overlap the previous UTC day.
+ * Fetch both, then apply the Cairo boundary; never assume a fixed DST offset.
+ * Incomplete responses are returned as degraded, not a complete schedule.
+ */
+export async function fixturesForCairoDate(input: { sport?: string; date: string; competitionProviderId?: string }): Promise<GatewayResult<NormalizedFixture[]>> {
+  if (!isDateKey(input.date)) return { ok: false, error: { kind: "unsupported", message: "Invalid date", dataType: "fixtures", attempts: [] } };
+  const results = await Promise.all([shiftDateKey(input.date, -1), input.date].map((date) => fixtures({ ...input, date })));
+  const valid = results.filter((r) => r.ok);
+  if (!valid.length) return results[0];
+  const first = valid[0];
+  const same = valid.filter((r) => r.provider === first.provider);
+  const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
+  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort()[0] };
 }

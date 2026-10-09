@@ -38,6 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/about",
     "/contact",
     "/faq",
+    "/learn",
     "/broadcast-rights",
     "/privacy",
     "/terms",
@@ -57,18 +58,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/watch",
   ];
 
-  const now = new Date();
   const entries: MetadataRoute.Sitemap = [
     ...always.map((path, i) => ({
       url: `${SITE_URL}${path}`,
-      lastModified: now,
       changeFrequency: "weekly" as const,
       priority: i === 0 ? 1 : 0.6,
     })),
     ...(indexable
       ? dataSections.map((path) => ({
           url: `${SITE_URL}${path}`,
-          lastModified: now,
           changeFrequency: "daily" as const,
           priority: 0.8,
         }))
@@ -110,7 +108,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         if (i++ >= 200) break;
         entries.push({
           url: `${SITE_URL}/matches/${slug}`,
-          lastModified: now,
           changeFrequency: "hourly",
           priority: 0.9,
         });

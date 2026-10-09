@@ -16,11 +16,11 @@ export default function AccountPage() {
       <section className="card mt-6 p-5" aria-labelledby="account-status">
         <h2 id="account-status" className="text-[15px] font-extrabold">لا يوجد تسجيل دخول أو إشعارات للمستخدمين</h2>
         <p className="mt-2 text-[13px] leading-6 text-muted">
-          لا نجمع كلمات مرور أو بيانات تسجيل دخول عبر هذا الموقع، ولا تتوفر حاليًا تفضيلات فرق أو إشعارات أهداف. أزلنا نماذج المعاينة غير الموصولة حتى لا توحي بوجود خدمة حسابات عاملة.
+          لا نجمع كلمات مرور أو بيانات تسجيل دخول عبر هذا الموقع، ولا تتوفر حاليًا إشعارات أهداف. تتوفر تفضيلات محلية دون حساب في صفحة يومي الكروي. أزلنا نماذج المعاينة غير الموصولة حتى لا توحي بوجود خدمة حسابات عاملة.
         </p>
       </section>
       <p className="mt-5 text-[13px] text-muted">
-        يمكنك متابعة الصفحات العامة دون حساب: <Link href="/matches" className="font-bold text-gold-600 dark:text-gold-400">المباريات</Link> ·{" "}
+        <Link href="/my-day" className="font-bold underline">افتح يومي الكروي لحفظ المفضلات على جهازك</Link>. يمكنك متابعة الصفحات العامة دون حساب: <Link href="/matches" className="font-bold text-gold-600 dark:text-gold-400">المباريات</Link> ·{" "}
         <Link href="/live" className="font-bold text-gold-600 dark:text-gold-400">المباشر</Link> ·{" "}
         <Link href="/faq" className="font-bold text-gold-600 dark:text-gold-400">الأسئلة الشائعة</Link>.
       </p>

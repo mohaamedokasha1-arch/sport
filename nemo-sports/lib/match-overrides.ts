@@ -1,3 +1,4 @@
+import { persistOrThrow, storeErrorMessage, StoreWriteError, STORE_WRITE_FAILED_AR } from "@/lib/db/store-policy";
 /**
  * NEMO Sports · admin match overrides (result/status corrections)
  * ───────────────────────────────────────────────────────────────────
@@ -117,7 +118,7 @@ CREATE TABLE IF NOT EXISTS match_overrides (
 `;
 
 let mem: Map<string, MatchOverride> | null = null;
-let ddlDone = false;
+let schemaReady: Promise<void> | null = null;
 
 function memory(): Map<string, MatchOverride> {
   if (!mem) mem = new Map();
@@ -129,14 +130,10 @@ async function pg() {
   try {
     const db = await getDb();
     if (!db) return null;
-    if (!ddlDone) {
-      ddlDone = true;
-      try {
-        for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) await db.run(stmt, []);
-      } catch {
-        return null;
-      }
+    if (!schemaReady) {
+      schemaReady = db.run(DDL, []).catch((error) => { schemaReady = null; throw error; });
     }
+    await schemaReady;
     return db;
   } catch {
     return null;
@@ -222,6 +219,10 @@ export async function upsertOverride(
   };
 
   const db = await pg();
+  if (!db) {
+    try { await persistOrThrow(null, async () => {}); }
+    catch (error) { return { ok: false, error: storeErrorMessage(error) }; }
+  }
   if (db) {
     try {
       await db.run(
@@ -237,7 +238,7 @@ export async function upsertOverride(
       );
       return { ok: true, entry };
     } catch {
-      // fall through
+      return { ok: false, error: STORE_WRITE_FAILED_AR };
     }
   }
   memory().set(key, entry);
@@ -248,12 +249,16 @@ export async function deleteOverride(slug: string): Promise<boolean> {
   const key = slug.trim();
   if (!key) return false;
   const db = await pg();
+  if (!db) {
+    try { await persistOrThrow(null, async () => {}); }
+    catch (error) { throw error; }
+  }
   if (db) {
     try {
       await db.run("DELETE FROM match_overrides WHERE slug = $1", [key]);
       return true;
     } catch {
-      // fall through
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
     }
   }
   return memory().delete(key);

@@ -39,6 +39,7 @@ else console.log("· schema.sql skipped (core tables already exist)");
 steps.push(["seed.sql", read("seed.sql")]);
 steps.push(["migration-0002-news.sql", read("migration-0002-news.sql")]);
 steps.push(["migration-0003-admin.sql", read("migration-0003-admin.sql")]);
+steps.push(["migration-0004-durable-storage.sql", read("migration-0004-durable-storage.sql")]);
 
 let failed = false;
 for (const [name, sql] of steps) {

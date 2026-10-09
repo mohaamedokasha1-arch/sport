@@ -6,6 +6,8 @@ export const NAV = [
   { href: "/competitions", label: "البطولات" },
   { href: "/teams", label: "الفرق" },
   { href: "/players", label: "اللاعبون" },
+  { href: "/my-day", label: "يومي الكروي" },
+  { href: "/scout", label: "المقارنة" },
   { href: "/news", label: "الأخبار" },
   { href: "/watch", label: "البث" },
 ];

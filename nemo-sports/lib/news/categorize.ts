@@ -23,22 +23,22 @@ export interface NewsCategory {
  */
 export const CATEGORIES: NewsCategory[] = [
   { name: "Football", nameAr: "كرة القدم", keywords: ["football", "soccer", "match", "goal", "player", "team", "league", "كرة القدم"], minConfidence: 60, color: "#2196F3", icon: "⚽" },
-  { name: "Egyptian Football", nameAr: "الكرة المصرية", keywords: ["egypt", "egyptian", "al ahly", "الأهلي", "zamalek", "الزمالك", "egyptian premier league", "الدوري المصري", "pyramids", "ismaily", "الإسماعيلي"], minConfidence: 35, color: "#E91E63", icon: "🇪🇬" },
+  { name: "Egyptian Football", nameAr: "الكرة المصرية", keywords: ["al ahly", "الأهلي", "zamalek", "الزمالك", "egyptian premier league", "الدوري المصري", "pyramids", "ismaily", "الإسماعيلي"], minConfidence: 35, color: "#E91E63", icon: "🇪🇬" },
   { name: "International Football", nameAr: "كرة عالمية", keywords: ["international", "national team", "world cup", "euro", "copa", "منتخب", "كأس العالم"], minConfidence: 40, color: "#FF9800", icon: "🌍" },
-  { name: "Champions League", nameAr: "دوري الأبطال", keywords: ["champions league", "uefa", "european", "final", "دوري أبطال أوروبا"], minConfidence: 35, color: "#1E88E5", icon: "🏆" },
+  { name: "Champions League", nameAr: "دوري الأبطال", keywords: ["champions league", "دوري أبطال أوروبا"], minConfidence: 35, color: "#1E88E5", icon: "🏆" },
   { name: "CAF Champions League", nameAr: "دوري أبطال أفريقيا", keywords: ["caf", "african champions", "confederation africaine", "دوري أبطال أفريقيا", "caf champions"], minConfidence: 35, color: "#D32F2F", icon: "🏆" },
-  { name: "Premier League", nameAr: "الدوري الإنجليزي", keywords: ["premier league", "england", "manchester", "liverpool", "chelsea", "arsenal", "الدوري الإنجليزي"], minConfidence: 35, color: "#6C63FF", icon: "🇬🇧" },
-  { name: "La Liga", nameAr: "الدوري الإسباني", keywords: ["la liga", "spain", "real madrid", "barcelona", "atlético madrid", "atletico", "الدوري الإسباني"], minConfidence: 35, color: "#FFC107", icon: "🇪🇸" },
-  { name: "Serie A", nameAr: "الدوري الإيطالي", keywords: ["serie a", "italy", "juventus", "ac milan", "inter milan", "الدوري الإيطالي"], minConfidence: 35, color: "#00A86B", icon: "🇮🇹" },
+  { name: "Premier League", nameAr: "الدوري الإنجليزي", keywords: ["premier league", "manchester", "liverpool", "chelsea", "arsenal", "الدوري الإنجليزي"], minConfidence: 35, color: "#6C63FF", icon: "🇬🇧" },
+  { name: "La Liga", nameAr: "الدوري الإسباني", keywords: ["la liga", "real madrid", "barcelona", "atlético madrid", "atletico", "الدوري الإسباني"], minConfidence: 35, color: "#FFC107", icon: "🇪🇸" },
+  { name: "Serie A", nameAr: "الدوري الإيطالي", keywords: ["serie a", "juventus", "ac milan", "inter milan", "الدوري الإيطالي"], minConfidence: 35, color: "#00A86B", icon: "🇮🇹" },
   { name: "Transfers", nameAr: "الانتقالات", keywords: ["transfer", "signing", "deal", "move", "loan", "sold", "acquired", "انتقالات", "تعاقد"], minConfidence: 60, color: "#673AB7", icon: "🔄" },
   { name: "Match Reports", nameAr: "تقارير المباريات", keywords: ["report", "recap", "summary", "highlights", "analysis", "result", "تقرير", "ملخص"], minConfidence: 60, color: "#00BCD4", icon: "📊" },
   { name: "Teams", nameAr: "الأندية", keywords: ["team", "club", "squad", "roster", "announcement", "فريق", "نادي"], minConfidence: 60, color: "#4CAF50", icon: "👥" },
   { name: "Players", nameAr: "اللاعبون", keywords: ["player", "footballer", "athlete", "star", "legend", "لاعب"], minConfidence: 60, color: "#8BC34A", icon: "👤" },
   { name: "Basketball", nameAr: "كرة السلة", keywords: ["basketball", "nba", "court", "dunk", "hoop", "كرة السلة"], minConfidence: 35, color: "#FF6F00", icon: "🏀" },
-  { name: "Tennis", nameAr: "التنس", keywords: ["tennis", "wimbledon", "atp", "wta", "serve", "التنس"], minConfidence: 35, color: "#00897B", icon: "🎾" },
-  { name: "Handball", nameAr: "كرة اليد", keywords: ["handball", "ehf", "european championship", "كرة اليد"], minConfidence: 35, color: "#E53935", icon: "🤾" },
-  { name: "Volleyball", nameAr: "الكرة الطائرة", keywords: ["volleyball", "spike", "fivb", "الكرة الطائرة"], minConfidence: 35, color: "#FFB300", icon: "🏐" },
-  { name: "Boxing", nameAr: "الملاكمة", keywords: ["boxing", "boxer", "knockout", "round", "championship", "الملاكمة", "wbc", "wba"], minConfidence: 35, color: "#D32F2F", icon: "🥊" },
+  { name: "Tennis", nameAr: "التنس", keywords: ["tennis", "wimbledon", "atp", "wta", "التنس"], minConfidence: 35, color: "#00897B", icon: "🎾" },
+  { name: "Handball", nameAr: "كرة اليد", keywords: ["handball", "ehf", "كرة اليد"], minConfidence: 35, color: "#E53935", icon: "🤾" },
+  { name: "Volleyball", nameAr: "الكرة الطائرة", keywords: ["volleyball", "fivb", "الكرة الطائرة"], minConfidence: 35, color: "#FFB300", icon: "🏐" },
+  { name: "Boxing", nameAr: "الملاكمة", keywords: ["boxing", "boxer", "knockout", "الملاكمة", "wbc", "wba"], minConfidence: 35, color: "#D32F2F", icon: "🥊" },
 ];
 
 export const FALLBACK_CATEGORY = "Sports";

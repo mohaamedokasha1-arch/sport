@@ -14,7 +14,7 @@ export default function AttributionFooter({
 }) {
   const sources = requiredAttributions().filter((source) => !exclude.includes(source.name));
   return (
-    <p className={`text-[11px] leading-relaxed text-white/45 ${className}`}>
+    <p className={`text-[11px] leading-relaxed text-white/60 ${className}`}>
       {sources.map((s, i) => (
         <span key={s.name}>
           {i > 0 ? <span aria-hidden> · </span> : null}

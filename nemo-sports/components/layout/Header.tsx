@@ -35,7 +35,7 @@ export default function Header() {
       {/* brand + primary nav */}
       <div className="border-b border-navy-800 bg-navy-850 shadow-[0_1px_0_rgba(212,175,55,0.35)]">
         <div className="mx-auto flex max-w-[1280px] items-center gap-4 px-4 py-3">
-          <Link href="/" aria-label="نيمو سبورتس — الصفحة الرئيسية" className="shrink-0 focus-ring">
+          <Link href="/" aria-label="NEMO Sports — نيمو سبورتس — الصفحة الرئيسية" className="shrink-0 focus-ring">
             <Logo size={38} tone="light" />
           </Link>
 

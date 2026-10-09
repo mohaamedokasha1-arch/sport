@@ -1,3 +1,4 @@
+import { groupSimilarStories } from "@/lib/news/group";
 import type { Metadata } from "next";
 import Link from "next/link";
 import DataUnavailable from "@/components/ui/DataUnavailable";
@@ -27,12 +28,14 @@ async function NewsPageBody({
 }) {
   const sp = await searchParams;
   const category = typeof sp.category === "string" ? sp.category : "";
+  const team = typeof sp.team === "string" ? sp.team.slice(0, 160) : "";
   const sport = typeof sp.sport === "string" ? sp.sport : "";
   const competition = typeof sp.competition === "string" ? sp.competition : "";
 
   // ── automatic feed (Google News RSS pipeline) ──────────────────
   const feed = await getNewsFeed({
     ...(category ? { category } : {}),
+    ...(team ? { team } : {}),
     ...(competition ? { competition } : {}),
     limit: 24,
   });
@@ -49,6 +52,7 @@ async function NewsPageBody({
     : [];
   const editorialCategories = Array.from(new Set(editorial.map((a) => a.category)));
 
+  const storyGroups = groupSimilarStories(feed.items);
   const hasAny = feed.items.length > 0 || editorial.length > 0;
 
   return (
@@ -56,7 +60,7 @@ async function NewsPageBody({
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
           <p className="eyebrow mb-1">التغطية الرياضية</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">الأخبار</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">NEMO Newsroom · الأخبار</h1>
         </div>
         <p className="text-[12px] text-muted">
           <span className="num font-bold">{feed.total + editorial.length}</span> خبرًا ·{" "}
@@ -66,7 +70,7 @@ async function NewsPageBody({
               {feed.stale ? <span className="text-warn"> (بيانات قد لا تكون حالية)</span> : null}
             </>
           ) : (
-            "تُجمَع تلقائيًا من الناشرين"
+            "لا يوجد وقت تحديث ناجح مسجّل"
           )}
         </p>
       </header>
@@ -76,7 +80,7 @@ async function NewsPageBody({
       {!hasAny ? (
         <DataUnavailable
           title="لا توجد أخبار منشورة حاليًا"
-          message="الأخبار تُجمَع تلقائيًا من الناشرين كل بضع دقائق. إن استمر الفراغ، تحقق من حالة المصادر في لوحة التحكم."
+          message="لم تُرجع قاعدة الأخبار محتوى منشورًا مطابقًا. التحديث يعتمد على المهام المجدولة وحالة المصادر، ولا نضمن تحديثًا كل بضع دقائق."
         />
       ) : null}
 
@@ -145,8 +149,15 @@ async function NewsPageBody({
             {feed.items.length > 0 ? (
               <section aria-label="آخر الأخبار من الناشرين">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {feed.items.map((a) => (
-                    <RssArticleCard key={a.id} article={a} />
+                  {storyGroups.map(([lead, ...related]) => (
+                    <div key={lead.id} className="space-y-2">
+                      <RssArticleCard article={lead} />
+                      {related.length > 0 && <details className="card p-3 text-sm">
+                        <summary className="cursor-pointer font-bold">عناوين متشابهة ({related.length})</summary>
+                        <p className="my-2 text-xs text-muted">تجميع آلي ضمن الأخبار المحمّلة، وليس تأكيدًا لصحة القصة أو تطابقها.</p>
+                        <ul className="space-y-3">{related.map((item) => <li key={item.id}><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="underline">{item.title}</a><p className="text-xs text-muted">{item.sourceName} · <time dateTime={item.publicationDate}>{relative(item.publicationDate)}</time></p></li>)}</ul>
+                      </details>}
+                    </div>
                   ))}
                 </div>
               </section>
