@@ -18,6 +18,14 @@ const SLUG_BY_CODE: Record<string, string> = {
   SPL: "saudi-pro-league",
 };
 
+/**
+ * Competitions served by SportScore (keyless) beyond the Football-Data free tier.
+ * Each `slug` was confirmed against the live SportScore standings endpoint on
+ * 2026-10-09 (not inferred from names). `canonicalSlug` keeps any public path
+ * that already exists (e.g. /competitions/egyptian-league, /competitions/caf-champions-league).
+ * Football-Data's free tier does not cover these, so no Football-Data code is set
+ * (Brazilian Serie A is the exception: it is already a Football-Data free-tier code).
+ */
 const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
   {
     code: "SPL",
@@ -27,7 +35,89 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     countryAr: "السعودية",
     featured: true,
     canonicalSlug: "saudi-pro-league",
-    providerId: "saudi-pro-league",
+    // Verified: "saudi-pro-league" returns "Competition not found" on SportScore.
+    providerId: "saudi-professional-league",
+  },
+  {
+    code: "EGY",
+    slug: "egyptian-premier-league",
+    name: "Egyptian Premier League",
+    nameAr: "الدوري المصري الممتاز",
+    countryAr: "مصر",
+    featured: false,
+    canonicalSlug: "egyptian-league",
+    providerId: "egyptian-premier-league",
+  },
+  {
+    code: "CAF",
+    slug: "caf-champions-league",
+    name: "CAF Champions League",
+    nameAr: "دوري أبطال أفريقيا",
+    countryAr: "أفريقيا",
+    featured: false,
+    canonicalSlug: "caf-champions-league",
+    providerId: "caf-champions-league",
+  },
+  {
+    code: "CAFC",
+    slug: "caf-confederation-cup",
+    name: "CAF Confederation Cup",
+    nameAr: "كأس الكونفدرالية الأفريقية",
+    countryAr: "أفريقيا",
+    featured: false,
+    canonicalSlug: "caf-confederation-cup",
+    providerId: "caf-confederation-cup",
+  },
+  {
+    code: "UEL",
+    slug: "uefa-europa-league",
+    name: "UEFA Europa League",
+    nameAr: "الدوري الأوروبي",
+    countryAr: "أوروبا",
+    featured: false,
+    canonicalSlug: "uefa-europa-league",
+    providerId: "uefa-europa-league",
+  },
+  {
+    code: "CCL",
+    slug: "concacaf-league-champions-cup",
+    name: "CONCACAF League Champions Cup",
+    nameAr: "دوري أبطال كونكاكاف",
+    countryAr: "أمريكا الشمالية والوسطى",
+    featured: false,
+    canonicalSlug: "concacaf-league-champions-cup",
+    providerId: "concacaf-league-champions-cup",
+  },
+  {
+    code: "USL",
+    slug: "usl-championship",
+    name: "USL Championship",
+    nameAr: "دوري USL Championship",
+    countryAr: "الولايات المتحدة",
+    featured: false,
+    canonicalSlug: "usl-championship",
+    providerId: "usl-championship",
+  },
+  {
+    code: "J1",
+    slug: "japanese-j1-league",
+    name: "Japanese J1 League",
+    nameAr: "الدوري الياباني J1",
+    countryAr: "اليابان",
+    featured: false,
+    canonicalSlug: "japanese-j1-league",
+    providerId: "japanese-j1-league",
+  },
+  {
+    // Already a Football-Data free-tier code (BSA); this adds the catalogue page.
+    code: "BSA",
+    slug: "brazilian-serie-a",
+    name: "Brazilian Serie A",
+    nameAr: "الدوري البرازيلي",
+    countryAr: "البرازيل",
+    featured: false,
+    canonicalSlug: "brazilian-serie-a",
+    providerId: "brazilian-serie-a",
   },
 ];
 
