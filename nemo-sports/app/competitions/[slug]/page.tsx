@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Tabs from "@/components/ui/Tabs";
 import MatchCard from "@/components/match/MatchCard";
 import StandingsTable from "@/components/competition/StandingsTable";
@@ -53,7 +53,8 @@ async function competitionMetadataBody({
     return {
       title,
       description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`,
-      alternates: { canonical: `/competitions/${slug}` },
+      // Canonical is always the registered path, never the alias the visitor used.
+      alternates: { canonical: `/competitions/${providerCompetition.canonicalSlug}` },
     };
   }
   const c = demoContentVisible() ? competitions.find((x) => x.slug === slug) : undefined;
@@ -69,6 +70,11 @@ async function competitionMetadataBody({
 async function CompetitionPageBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const providerCompetition = competitionByPath(slug);
+  // One public URL per competition: aliases (PL, english-premier-league, ...)
+  // permanently redirect to the registered canonical path.
+  if (providerCompetition && providerCompetition.canonicalSlug !== decodeSlug(slug)) {
+    permanentRedirect(`/competitions/${encodeURIComponent(providerCompetition.canonicalSlug)}`);
+  }
   if (providerCompetition) return <ProviderCompetitionPage competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
 
   const comp = demoContentVisible() ? competitions.find((c) => c.slug === slug) : undefined;

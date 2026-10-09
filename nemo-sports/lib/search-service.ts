@@ -7,6 +7,7 @@ import { listArticles } from "@/lib/news/store";
 import { getRedisKv } from "@/lib/cache/redis";
 import { demoContentVisible, hasProviderKeys } from "@/lib/site";
 import { matchesSearchText, searchMatchWeight } from "@/lib/search-text";
+import { arabicAliasesFor } from "@/lib/name-aliases";
 import { teamBySlug } from "@/lib/core-data";
 import { sportBySlug } from "@/lib/core-data";
 import type { NormalizedFixture, NormalizedTopScorer } from "@/packages/sdl/src";
@@ -255,8 +256,16 @@ export async function searchEntities(query: string): Promise<SearchResponse> {
 
   const index = await searchIndex();
   const filtered = index.hits
-    .map((hit) => ({ ...hit, weight: searchMatchWeight(cleanQuery, hit.title, hit.sub, hit.id) }))
-    .filter((hit) => hit.weight > 0 || matchesSearchText(cleanQuery, hit.title, hit.sub, hit.id))
+    .map((hit) => {
+      // Curated Arabic spellings for English provider names (lib/name-aliases.ts).
+      const terms = [hit.title, hit.sub, hit.id, ...arabicAliasesFor(hit.title)];
+      return { ...hit, weight: searchMatchWeight(cleanQuery, ...terms) };
+    })
+    .filter((hit) => {
+      if (hit.weight > 0) return true;
+      const terms = [hit.title, hit.sub, hit.id, ...arabicAliasesFor(hit.title)];
+      return matchesSearchText(cleanQuery, ...terms);
+    })
     .sort((a, b) => b.weight - a.weight || a.title.localeCompare(b.title, "ar"));
 
   // A compact suggestion list, while the search results page can return more.

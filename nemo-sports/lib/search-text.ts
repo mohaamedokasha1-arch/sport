@@ -1,8 +1,14 @@
 /** Shared Arabic/English search normalization used by suggestions and results. */
 export function normalizeSearchText(value: string): string {
   return value
-    .normalize("NFKC")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // Latin diacritics (Mbappé → Mbappe)
     .toLocaleLowerCase("ar")
+    .replace(/ß/g, "ss") // German sharp s (Groß → Gross)
+    .replace(/[øØ]/g, "o")
+    .replace(/æ/g, "ae")
+    .replace(/[đĐ]/g, "d")
+    .replace(/ł/g, "l")
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "") // tashkeel / Quranic marks
     .replace(/ـ/g, "") // tatweel
     .replace(/[أإآٱ]/g, "ا")
