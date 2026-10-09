@@ -2,7 +2,7 @@
  * Admin panel verification (run: `npm run admin:test`).
  * Exercises the real stores and rules the admin actions and public pages use:
  * RBAC, session signing/tamper detection, user credentials, Cairo-time
- * scheduling, embed-URL allowlisting, match → public fixture, stream
+ * scheduling, embed-URL policy (open by default + allowlist mode), match → public fixture, stream
  * lifecycle (draft/publish/disable/delete), manual-news source rules.
  * In-memory mode (no DATABASE_URL) — no network access required.
  */
@@ -172,15 +172,23 @@ async function main() {
 
   console.log("Live streams");
   const OFFICIAL = "https://www.onsport.tv/embed/match-123";
-  await test("embed URL allowlist: official https passes", () => {
+  await test("embed URL policy: official https passes", () => {
     assert.equal(validateEmbedUrl(OFFICIAL).ok, true);
   });
-  await test("embed URL allowlist: http, unknown host, javascript:, markup are rejected", () => {
+  await test("embed URL policy (open, default): any https host an admin enters is accepted", () => {
+    const own = validateEmbedUrl("https://cdn.my-licensed-broadcaster.example/embed/match-1");
+    assert.equal(own.ok, true, "unlisted host is not auto-rejected");
+    assert.equal(own.policy, "open");
+    assert.ok(own.warning, "rights reminder is returned but never blocks");
+    assert.equal(validateEmbedUrl("https://cdn.my-licensed-broadcaster.example/embed/match-1", { policy: "allowlist" }).ok, false);
+  });
+  await test("embed URL safety: http, javascript:, markup, credentials and private hosts are rejected", () => {
     assert.equal(validateEmbedUrl("http://www.onsport.tv/embed/x").ok, false);
-    assert.equal(validateEmbedUrl("https://random-iptv.example/live/1.m3u8").ok, false);
     assert.equal(validateEmbedUrl("javascript:alert(1)").ok, false);
     assert.equal(validateEmbedUrl("https://www.onsport.tv/<script>x</script>").ok, false);
     assert.equal(validateEmbedUrl("https://www.onsport.tv/\"onload=x").ok, false);
+    assert.equal(validateEmbedUrl("https://user:pass@www.onsport.tv/embed/x").ok, false);
+    assert.equal(validateEmbedUrl("https://127.0.0.1/embed/x").ok, false);
   });
   let streamId = "";
   await test("new stream starts as draft and is NOT public", async () => {
@@ -214,9 +222,11 @@ async function main() {
     const all = await listMatchStreams(true);
     assert.ok(all.find((s) => s.id === streamId), "kept for the record");
   });
-  await test("editing the URL re-validates it (unofficial URL refused)", async () => {
-    const r = await updateLiveStream(streamId, { embedUrl: "https://pirate.example/x" });
-    assert.equal(r.ok, false);
+  await test("editing the URL re-validates it (unsafe URL refused, custom https host accepted)", async () => {
+    const r = await updateLiveStream(streamId, { embedUrl: "http://pirate.example/x" });
+    assert.equal(r.ok, false, "insecure http is still refused");
+    const own = await updateLiveStream(streamId, { embedUrl: "https://cdn.my-licensed-broadcaster.example/embed/new" });
+    assert.equal(own.ok, true, "an operator's own https host saves without an allowlist block");
     const ok = await updateLiveStream(streamId, { embedUrl: "https://www.beinsports.com/embed/new" });
     assert.equal(ok.ok, true);
   });

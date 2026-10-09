@@ -149,10 +149,10 @@ async function runAll() {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // SCENARIO 4: Embed URL Allowlisting & Security
+  // SCENARIO 4: Embed URL Policy & Security
   // ─────────────────────────────────────────────────────────────────
-  console.log("\n--- SCENARIO 4: Embed URL Allowlisting & XSS Prevention ---");
-  await test(4, "official broadcast and video host URLs pass allowlist", () => {
+  console.log("\n--- SCENARIO 4: Embed URL Policy & XSS Prevention ---");
+  await test(4, "official broadcast and video host URLs pass validation", () => {
     const validUrls = [
       "https://www.youtube.com/embed/dQw4w9WgXcQ",
       "https://player.vimeo.com/video/123456789",
@@ -165,10 +165,23 @@ async function runAll() {
     }
   });
 
-  await test(4, "insecure http, unauthorized domains, and XSS vectors are strictly rejected", () => {
+  await test(4, "open policy (default) accepts any https host an admin enters", () => {
+    const open = validateEmbedUrl("https://my-rights-holder-cdn.example/embed/match-7");
+    assert.equal(open.ok, true, "unlisted https host is accepted by default");
+    assert.equal(open.policy, "open");
+    assert.ok(open.warning, "operator is reminded about embed rights, without being blocked");
+    // The curated mode is still reachable and still refuses that host.
+    assert.equal(validateEmbedUrl("https://my-rights-holder-cdn.example/embed/match-7", { policy: "allowlist" }).ok, false);
+    assert.equal(validateEmbedUrl("https://shahid.mbc.net/ar/embed/sports-1", { policy: "allowlist" }).ok, true);
+  });
+
+  await test(4, "insecure http, private hosts and XSS vectors are strictly rejected in every policy", () => {
     const invalidUrls = [
       "http://www.youtube.com/embed/123", // http disallowed
-      "https://pirate-streams.live/embed/1", // unlisted host
+      "https://127.0.0.1/embed/1", // loopback — unreachable for visitors
+      "https://stream.internal/embed/1", // private/internal name
+      "https://user:pass@youtube.com/embed/1", // embedded credentials
+      "https://youtube.com:8443/embed/1", // non-standard port
       "javascript:alert(document.cookie)", // script injection
       "data:text/html,<script>alert(1)</script>", // data URI
       "https://www.youtube.com/embed/1<script>alert(1)</script>", // markup injection
@@ -176,6 +189,7 @@ async function runAll() {
     ];
     for (const url of invalidUrls) {
       assert.equal(validateEmbedUrl(url).ok, false, `Should reject ${url}`);
+      assert.equal(validateEmbedUrl(url, { policy: "allowlist" }).ok, false, `Should reject ${url} (allowlist)`);
     }
   });
 
@@ -361,7 +375,7 @@ async function runAll() {
   // ─────────────────────────────────────────────────────────────────
   // SCENARIO 12: Public API Security & Isolation
   // ─────────────────────────────────────────────────────────────────
-  console.log("\n--- SCENARIO 12: Public API Security & Official Broadcasters ---");
+  console.log("\n--- SCENARIO 12: Public API Security & Broadcast Link Policy ---");
   await test(12, "official broadcast domains list includes all primary sports channels", () => {
     const { validateBroadcastLink } = require("../lib/broadcasts");
     assert.equal(validateBroadcastLink("https://www.onsport.tv/live").ok, true);
@@ -369,8 +383,14 @@ async function runAll() {
     assert.equal(validateBroadcastLink("https://shahid.mbc.net/live").ok, true);
     assert.equal(validateBroadcastLink("https://www.youtube.com/watch?v=123").ok, true);
     assert.equal(validateBroadcastLink("https://player.vimeo.com/video/123").ok, true);
-    assert.equal(validateBroadcastLink("https://pirate-streams.me/live").ok, false);
     assert.equal(validateBroadcastLink("http://www.onsport.tv/live").ok, false, "Insecure HTTP rejected");
+  });
+  await test(12, "unlisted hosts follow the active domain policy", () => {
+    const { validateBroadcastLink } = require("../lib/broadcasts");
+    // Default `open`: accepted, with a non-blocking rights note.
+    assert.equal(validateBroadcastLink("https://pirate-streams.me/live").ok, true);
+    // `allowlist`: the curated behaviour is still available on demand.
+    assert.equal(validateBroadcastLink("https://pirate-streams.me/live", { policy: "allowlist" }).ok, false);
   });
 
   // ─────────────────────────────────────────────────────────────────

@@ -53,10 +53,33 @@ Registry: `lib/providers.ts`. Footer strip: `components/ui/AttributionFooter.tsx
 
 ## Broadcast rules
 
-- Official, verified broadcasters ONLY (`lib/broadcasts.ts` allowlist).
-- Unknown hosts are rejected by `validateBroadcastLink()` and can never be
-  published (pending entries stay invisible until approved).
-- ❌ No pirate streams, IPTV sellers, unauthorized embeds — ever.
+Link acceptance is a two-layer check implemented in `lib/stream-policy.ts` and
+used by `validateBroadcastLink()` / `validateEmbedUrl()`.
+
+**1. Safety layer — always on, not configurable**
+
+- `https:` only; a parseable absolute URL.
+- No embedded credentials (`user:pass@`) and no non-standard port.
+- No HTML/script markup, quotes or control characters inside the value.
+- No `javascript:` / `data:` / `blob:` / `file:` scheme.
+- No loopback, private, link-local or `.internal`/`.local` host (such a URL is
+  unreachable for visitors and would render a dead player).
+
+**2. Domain layer — operator switch (`NEMO_STREAM_DOMAIN_POLICY`)**
+
+- `open` (**default**): any host that passes the safety layer is accepted. The
+  admin who registers the link attests they hold the right to embed or link it;
+  an unlisted host produces a non-blocking note, never a rejection.
+- `allowlist`: only the reference domains in `lib/broadcasts.ts`
+  (`OFFICIAL_BROADCAST_DOMAINS`) plus `NEMO_STREAM_ALLOWED_DOMAINS` are
+  accepted. Use this when a deployment wants the curated behaviour.
+
+Broadcast *entries* still carry the moderation lifecycle: a new broadcaster is
+saved as `pending` and only an approved + enabled entry is shown publicly.
+
+A domain — allowlisted or not — is never proof of broadcast rights. Rights
+evidence (contract, licence, broadcaster confirmation) belongs in the
+`verificationSource` field and is the operator's responsibility.
 
 ## Pre-launch verification
 

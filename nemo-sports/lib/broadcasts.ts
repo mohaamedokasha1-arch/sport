@@ -1,16 +1,26 @@
 import { persistOrThrow, StoreWriteError, STORE_WRITE_FAILED_AR, storeErrorMessage } from "@/lib/db/store-policy";
 /**
- * NEMO Sports · legal broadcast registry (official broadcasters ONLY)
+ * NEMO Sports · broadcast registry (broadcaster entries + link policy)
  * ───────────────────────────────────────────────────────────────────
- * NEVER: illegal streams, pirate sites, IPTV sellers, unauthorized embeds.
- * This registry holds OFFICIAL broadcasters only, each verified against an
- * official source (league site, broadcaster site, federation site).
+ * This registry holds broadcaster entries, each with a verification source
+ * recorded by the operator (league site, broadcaster site, federation site,
+ * contract reference…).
+ *
+ * Which links the platform accepts is decided by lib/stream-policy.ts:
+ *   · `open` (DEFAULT) — any well-formed https link entered by an authorized
+ *     admin is accepted. The operator attests they hold the rights to embed or
+ *     link it; the code no longer second-guesses the host.
+ *   · `allowlist` — only the reference domains below (plus
+ *     NEMO_STREAM_ALLOWED_DOMAINS) are accepted.
+ * Safety validation (https only, no credentials, no markup/script, no private
+ * host) is always enforced in both modes.
  *
  * Storage: Postgres when configured, seeded in-memory registry otherwise.
  * Admin manages entries at /admin/broadcast.
  */
 
 import { getDb } from "@/lib/db/pg";
+import { inspectStreamUrl, streamDomainPolicy, type StreamDomainPolicy, type StreamPolicyOptions } from "@/lib/stream-policy";
 
 export type BroadcastPlatform = "TV" | "Website" | "Mobile App" | "Streaming" | "Other";
 export type BroadcastStatus = "approved" | "pending" | "rejected";
@@ -35,10 +45,17 @@ export interface BroadcasterEntry {
 }
 
 /**
- * Official domains ONLY. Any broadcast link whose hostname is not on this
- * list (or a subdomain of an entry) is rejected by validateBroadcastLink().
- * Admin-added entries must still pass this check — unknown hosts can never
- * be published, only kept as pending for manual verification.
+ * Reference list of known official broadcaster domains.
+ *
+ * How it is used depends on the active domain policy (lib/stream-policy.ts):
+ *   · `open` (DEFAULT) — the list is advisory only. Any well-formed https link
+ *     an operator enters is accepted; entries from the list simply get no
+ *     "unlisted host" note attached.
+ *   · `allowlist` — only hosts on this list (or a subdomain of an entry, or a
+ *     domain added through NEMO_STREAM_ALLOWED_DOMAINS) are accepted.
+ *
+ * The safety checks (https, no credentials, no markup, no private host) apply
+ * in both modes and are not configurable.
  */
 export const OFFICIAL_BROADCAST_DOMAINS = [
   // Egypt / MENA official
@@ -91,20 +108,34 @@ export const OFFICIAL_BROADCAST_DOMAINS = [
   "concacaf.com",
 ] as const;
 
-export function validateBroadcastLink(link: string): { ok: boolean; reason: string } {
-  let host: string;
-  try {
-    const u = new URL(link.trim());
-    if (u.protocol !== "https:") return { ok: false, reason: "broadcast links must be https" };
-    if (u.username || u.password || (u.port && u.port !== "443")) return { ok: false, reason: "credentials and nonstandard ports are not allowed" };
-    host = u.hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return { ok: false, reason: "invalid URL" };
-  }
-  const allowed = OFFICIAL_BROADCAST_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
-  if (!allowed) return { ok: false, reason: `unverified host: ${host} — official broadcasters only` };
-  return { ok: true, reason: "official domain" };
+export interface BroadcastLinkCheck {
+  ok: boolean;
+  reason: string;
+  host: string;
+  policy: StreamDomainPolicy;
+  /** Non-blocking operator note (unlisted host in `open` mode). */
+  warning: string | null;
 }
+
+/**
+ * Validate a broadcast/embed link.
+ *
+ * Safety rules always apply; the domain rule follows the active policy
+ * (`NEMO_STREAM_DOMAIN_POLICY`, default `open` = any https host). Pass
+ * `{ policy: "allowlist" }` to force the curated behaviour — the test suite
+ * uses that to keep covering the strict mode.
+ */
+export function validateBroadcastLink(link: string, options: StreamPolicyOptions = {}): BroadcastLinkCheck {
+  return inspectStreamUrl(link, OFFICIAL_BROADCAST_DOMAINS, options);
+}
+
+/** The policy currently in effect — used by the admin panel copy. */
+export function broadcastDomainPolicy(): StreamDomainPolicy {
+  return streamDomainPolicy();
+}
+
+export type { StreamDomainPolicy, StreamPolicyOptions, StreamUrlCheck } from "@/lib/stream-policy";
+export { STREAM_POLICY_AR } from "@/lib/stream-policy";
 
 /* ── seed: verified official broadcasters ─────────────────────── */
 

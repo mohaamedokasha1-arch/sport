@@ -208,8 +208,8 @@ export default function AdminShell({
           {!collapsed ? (
             <div className="mt-2 space-y-2">
               <p className="rounded-[3px] border border-navy-800 p-2.5 text-[10px] leading-relaxed text-white/40">
-                كل إجراء إداري يُسجَّل في سجل العمليات مع اسم المشغّل والوقت. البث لا يُنشر إلا
-                من نطاقات رسمية موثّقة.
+                كل إجراء إداري يُسجَّل في سجل العمليات مع اسم المشغّل والوقت. قبول روابط البث
+                يتبع سياسة النطاقات المفعّلة في إعدادات البيئة.
               </p>
               <button
                 type="button"

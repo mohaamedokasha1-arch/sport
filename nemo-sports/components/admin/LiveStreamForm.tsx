@@ -15,9 +15,13 @@ type Prefill = { match?: string; home?: string; away?: string; competition?: str
 
 /**
  * The "add / edit live stream" form (requirement §6 + §20 workflow):
- * pick a match (searchable) → choose stream type → paste the authorized
- * embed URL → preview (server-validated, sandboxed iframe) → save draft or
- * publish. All state is local; the server action does validation + storage.
+ * pick a match (searchable) → choose stream type → paste the embed URL →
+ * preview (server-validated, sandboxed iframe) → save draft or publish.
+ * All state is local; the server action does validation + storage.
+ *
+ * `policyLabel` describes the ACTIVE domain policy (server-provided, because a
+ * client component must not read env): the hint under the URL field follows it
+ * instead of always claiming an official-domain gate.
  */
 /** Sets the save intent on the form's hidden `intent` field before submit. */
 function setIntent(form: HTMLFormElement | null, intent: "draft" | "publish"): void {
@@ -31,12 +35,15 @@ export default function LiveStreamForm({
   prefill,
   defaultLabel,
   publishingEnabled,
+  policyLabel = "الوضع الحر — أي رابط https يُقبل",
 }: {
   action: (formData: FormData) => void | Promise<void>;
   editing: MatchStreamSource | null;
   prefill: Prefill;
   defaultLabel: string;
   publishingEnabled: boolean;
+  /** Human-readable name of the active embed-domain policy. */
+  policyLabel?: string;
 }) {
   const initialSlug = editing?.matchSlug ?? prefill.match ?? "";
   const [match, setMatch] = useState<MatchOption | null>(null);
@@ -119,7 +126,7 @@ export default function LiveStreamForm({
       </Field>
 
       <div className="sm:col-span-2">
-        <Field label="رابط الـEmbed (https فقط — نطاق رسمي موثّق)">
+        <Field label="رابط الـEmbed (https فقط)">
           <textarea
             ref={embedRef}
             name="embedUrl"
@@ -138,7 +145,7 @@ export default function LiveStreamForm({
             title={editing?.label ?? defaultLabel}
           />
           <span className="text-[10px] leading-relaxed text-white/40">
-            المعاينة تتحقق من النطاق الرسمي أولًا — لا يمكنها عرض رابط غير موثّق.
+            {policyLabel} · المعاينة تفحص الرابط على الخادم قبل عرض المشغّل.
           </span>
         </div>
       </div>

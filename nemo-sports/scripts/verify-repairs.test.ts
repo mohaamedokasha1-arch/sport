@@ -82,9 +82,30 @@ test("ingestion rejects undated/non-sports stories, retains uncertain ones for r
     assert.equal((await listArticles({ sourceId: source.id })).items.length, 1, "provider failure preserves valid data");
   } finally { globalThis.fetch = original; }
 });
-test("broadcast allowlist rejects credentials, custom ports and lookalikes", () => {
-  for (const url of ["https://youtube.com.attacker.test/a", "https://user:pass@youtube.com/a", "https://youtube.com:444/a", "javascript:alert(1)"]) assert.equal(validateBroadcastLink(url).ok, false);
+test("broadcast link safety rejects credentials, custom ports and non-URL schemes in every policy", () => {
+  for (const url of ["https://user:pass@youtube.com/a", "https://youtube.com:444/a", "javascript:alert(1)", "data:text/html,<script>alert(1)</script>", "http://youtube.com/a"]) {
+    assert.equal(validateBroadcastLink(url).ok, false, `safety: ${url}`);
+    assert.equal(validateBroadcastLink(url, { policy: "allowlist" }).ok, false, `safety (allowlist): ${url}`);
+  }
   assert.equal(validateBroadcastLink("https://www.youtube.com/embed/test").ok, true);
+});
+test("open policy accepts an unlisted host; allowlist policy still rejects lookalikes", () => {
+  // Default (open): the operator's own embed host is accepted without being
+  // on the reference list — only a non-blocking warning is attached.
+  const own = validateBroadcastLink("https://cdn.my-own-rights-holder.example/player/1");
+  assert.equal(own.ok, true);
+  assert.equal(own.policy, "open");
+  assert.ok(own.warning, "unlisted host carries an operator warning");
+  // Allowlist mode keeps the old curated behaviour, including suffix lookalikes.
+  for (const url of ["https://youtube.com.attacker.test/a", "https://cdn.my-own-rights-holder.example/player/1"]) {
+    assert.equal(validateBroadcastLink(url, { policy: "allowlist" }).ok, false, `allowlist: ${url}`);
+  }
+  assert.equal(validateBroadcastLink("https://sub.youtube.com/embed/test", { policy: "allowlist" }).ok, true);
+});
+test("private/loopback hosts are never accepted as embeds", () => {
+  for (const url of ["https://localhost:443/player", "https://127.0.0.1/x", "https://192.168.1.5/x", "https://stream.internal/x"]) {
+    assert.equal(validateBroadcastLink(url).ok, false, url);
+  }
 });
 test("a dated stream cannot leak to rematches or reversed teams", async () => {
   const made = await createLiveStream({ matchSlug: "test-a-vs-b-2026-10-09", homeName: "A", awayName: "B", embedUrl: "https://www.youtube.com/embed/test", status: "published" });
