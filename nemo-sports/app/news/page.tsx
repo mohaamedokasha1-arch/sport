@@ -5,7 +5,7 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import NewsCard from "@/components/news/NewsCard";
 import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
-import { competitions, sports } from "@/lib/core-data";
+import { sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
 import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { CATEGORIES, FALLBACK_CATEGORY, categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";

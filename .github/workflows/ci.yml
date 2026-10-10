@@ -1,0 +1,64 @@
+# NEMO Sports — CI (verification only).
+# Runs the offline test suites, the production build, and the HTTP smoke test
+# against a local production server. It uses NO secrets, makes NO deployment,
+# and never touches a database or a live data provider.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · tests · build · smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    defaults:
+      run:
+        working-directory: nemo-sports
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: nemo-sports/package-lock.json
+
+      - name: Install (lockfile)
+        run: npm ci
+
+      - name: Check (typecheck + offline suites, no server, no network)
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Start production server (empty-data mode, no secrets)
+        run: |
+          npm run start > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3000/; then echo "server up after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "server did not start"; cat "$RUNNER_TEMP/server.log"; exit 1
+
+      - name: Smoke (HTTP routes, security headers, sitemap)
+        env:
+          BASE: http://127.0.0.1:3000
+        run: npm run smoke
+
+      - name: Server log on failure
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log" || true

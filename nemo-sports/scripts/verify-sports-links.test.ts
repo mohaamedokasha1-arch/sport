@@ -125,3 +125,26 @@ test("match events are requested for the match's own sport, not football", async
     (sdl as unknown as { fetch: unknown }).fetch = original;
   }
 });
+
+test("a dated match slug resolves only to the meeting on that date", async () => {
+  const { getAdminMatchBySlug } = await import("@/lib/admin-matches");
+  const made = await createAdminMatch(
+    {
+      sport: "football",
+      competitionSlug: "test-cup",
+      competitionName: "Test Cup",
+      homeName: "Dated A",
+      awayName: "Dated B",
+      date: "2030-03-04",
+      time: "18:00",
+      status: "upcoming",
+      slug: "dated-a-vs-dated-b",
+      isPublished: true,
+    },
+    "test",
+  );
+  assert.ok(made.ok, made.ok ? "" : made.error);
+  assert.equal((await getAdminMatchBySlug("dated-a-vs-dated-b-2030-03-04"))?.slug, "dated-a-vs-dated-b", "the right day resolves");
+  assert.equal((await getAdminMatchBySlug("dated-a-vs-dated-b"))?.slug, "dated-a-vs-dated-b", "the plain slug resolves");
+  assert.equal(await getAdminMatchBySlug("dated-a-vs-dated-b-2030-03-05"), null, "a different day is a different meeting");
+});

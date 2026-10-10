@@ -538,9 +538,21 @@ export async function getAdminMatchBySlug(slug: string): Promise<AdminMatch | nu
   const target = decodeSlug(slug).trim().toLowerCase();
   const exact = list.find((m) => m.slug.toLowerCase() === target || m.id === target);
   if (exact) return exact;
+  // A dated request resolves only to the meeting ON that date (the UTC day that
+  // slugifyMatch wrote into the slug), never to a different meeting that shares
+  // the team names. It used to return null even for the right meeting.
+  const dated = /^(.+)-(20\d{2}-\d{2}-\d{2})$/.exec(target);
+  if (dated) {
+    const [, teams, day] = dated;
+    const hits = list.filter(
+      (m) =>
+        m.slug.toLowerCase().replace(/-20\d{2}-\d{2}-\d{2}$/, "") === teams &&
+        Number.isFinite(+new Date(m.scheduledAt)) &&
+        new Date(m.scheduledAt).toISOString().slice(0, 10) === day,
+    );
+    return hits.length === 1 ? hits[0] : null;
+  }
   // Backward-compatible undated aliases only if there is one unambiguous record.
-  // A requested date must never resolve to a different meeting.
-  if (/-20\d{2}-\d{2}-\d{2}$/.test(target)) return null;
   const aliases = list.filter((m) => m.slug.toLowerCase().replace(/-20\d{2}-\d{2}-\d{2}$/, "") === target);
   return aliases.length === 1 ? aliases[0] : null;
 }
