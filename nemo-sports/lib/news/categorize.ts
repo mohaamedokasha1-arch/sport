@@ -37,7 +37,7 @@ export const CATEGORIES: NewsCategory[] = [
   { name: "Match Reports", nameAr: "تقارير المباريات", keywords: ["report", "recap", "summary", "highlights", "result", "تقرير", "ملخص"], minConfidence: 60, color: "#00BCD4", icon: "📊" },
   { name: "Teams", nameAr: "الأندية", keywords: ["team", "club", "squad", "roster", "announcement", "فريق", "نادي"], minConfidence: 60, color: "#4CAF50", icon: "👥" },
   { name: "Players", nameAr: "اللاعبون", keywords: ["player", "footballer", "athlete", "star", "legend", "لاعب"], minConfidence: 60, color: "#8BC34A", icon: "👤" },
-  { name: "Basketball", nameAr: "كرة السلة", keywords: ["basketball", "nba", "court", "dunk", "hoop", "كرة السلة"], minConfidence: 35, color: "#FF6F00", icon: "🏀" },
+  { name: "Basketball", nameAr: "كرة السلة", keywords: ["basketball", "nba", "dunk", "hoop", "كرة السلة"], minConfidence: 35, color: "#FF6F00", icon: "🏀" },
   { name: "Tennis", nameAr: "التنس", keywords: ["tennis", "wimbledon", "atp", "wta", "التنس"], minConfidence: 35, color: "#00897B", icon: "🎾" },
   { name: "Handball", nameAr: "كرة اليد", keywords: ["handball", "ehf", "كرة اليد"], minConfidence: 35, color: "#E53935", icon: "🤾" },
   { name: "Volleyball", nameAr: "الكرة الطائرة", keywords: ["volleyball", "fivb", "الكرة الطائرة"], minConfidence: 35, color: "#FFB300", icon: "🏐" },
@@ -56,42 +56,79 @@ export interface CategoryResult {
   icon: string;
 }
 
+/**
+ * Keyword → regex, cached. Both the keyword and the text are normalized with
+ * the shared search normalizer, so «الأهلي» / «الاهلي» / «الاهلى» and «كأس» /
+ * «كاس» match each other (the old raw `includes` did not normalize at all).
+ *  · Latin keywords match WHOLE WORDS (optional plural s/es): "caf" no longer
+ *    fires inside "cafe", "star" not inside "start", "euro" not inside "europe".
+ *  · Arabic keywords keep prefix matching, because Arabic attaches particles
+ *    ("بالدوري", "للمنتخب") to the word.
+ */
+const patternCache = new Map<string, RegExp>();
+function keywordPattern(keyword: string): RegExp | null {
+  const needle = normalizeSearchText(keyword);
+  if (!needle) return null;
+  let re = patternCache.get(needle);
+  if (!re) {
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = /[a-z]/.test(needle)
+      ? new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?:e?s)?(?![\\p{L}\\p{N}])`, "u")
+      : new RegExp(escaped, "u");
+    patternCache.set(needle, re);
+  }
+  return re;
+}
+
 export function categorizeArticle(title: string, description: string): CategoryResult {
   // Scoring (0–100): each keyword hit = 35, multi-word hit = +15 bonus
   // (a phrase like "champions league" is far more diagnostic than "final").
   // Pure matches/keywords ratios under-fire because lists mix Arabic and
   // English terms that never co-occur in one article — verified against
   // real-world headlines in scripts/verify-news.ts.
-  const text = `${title} ${description}`.toLowerCase();
+  const text = normalizeSearchText(`${title} ${description}`);
   const scores: { cat: NewsCategory; confidence: number }[] = CATEGORIES.map((cat) => {
     let score = 0;
     for (const kw of cat.keywords) {
-      if (text.includes(kw.toLowerCase())) {
+      const re = keywordPattern(kw);
+      if (re && re.test(text)) {
         score += 35;
-        if (kw.trim().includes(" ")) score += 15;
+        if (normalizeSearchText(kw).includes(" ")) score += 15;
       }
     }
     return { cat, confidence: Math.min(100, score) };
-  }).sort((a, b) => b.confidence - a.confidence);
+  });
 
-  const top = scores[0]!;
-  const secondary = scores.slice(1).filter((s) => s.confidence > 50).map((s) => s.cat.name);
+  // Choose the best category that QUALIFIES for itself (its own minConfidence).
+  // Previously only the single top scorer was checked, so a generic category
+  // with a high score but a high threshold (e.g. Football 50 < 60) blocked a
+  // specific league that qualified on its own (Premier League 35).
+  // Ties keep the CATEGORIES order (stable sort).
+  const qualifying = scores
+    .filter((s) => s.confidence >= s.cat.minConfidence)
+    .sort((a, b) => b.confidence - a.confidence);
+  const best = qualifying[0];
+  const topOverall = Math.max(0, ...scores.map((s) => s.confidence));
 
-  if (top.confidence >= top.cat.minConfidence) {
+  if (best) {
+    const secondary = scores
+      .filter((s) => s !== best && s.confidence > 50)
+      .sort((a, b) => b.confidence - a.confidence)
+      .map((s) => s.cat.name);
     return {
-      primary: top.cat.name,
-      primaryAr: top.cat.nameAr,
+      primary: best.cat.name,
+      primaryAr: best.cat.nameAr,
       secondary,
-      confidence: top.confidence,
-      color: top.cat.color,
-      icon: top.cat.icon,
+      confidence: best.confidence,
+      color: best.cat.color,
+      icon: best.cat.icon,
     };
   }
   return {
     primary: FALLBACK_CATEGORY,
     primaryAr: FALLBACK_CATEGORY_AR,
     secondary: [],
-    confidence: top.confidence,
+    confidence: topOverall,
     color: "#5D6B7F",
     icon: "🏅",
   };

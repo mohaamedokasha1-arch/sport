@@ -18,6 +18,11 @@
     "admin:hash": "node scripts/hash-admin-password.mjs",
     "admin:test": "tsx scripts/verify-admin.ts",
     "repairs:test": "tsx --test scripts/verify-repairs.test.ts",
+    "freshness:test": "tsx --test scripts/verify-freshness.test.ts",
+    "sports:test": "tsx --test scripts/verify-sports-links.test.ts",
+    "stream-policy:test": "tsx --test scripts/verify-stream-policy.test.ts",
+    "news:classify:test": "tsx --test scripts/verify-classify.test.ts",
+    "news:recategorize": "tsx scripts/recategorize-news.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

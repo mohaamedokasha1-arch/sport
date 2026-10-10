@@ -5,7 +5,10 @@ import { normalizeSearchText } from "@/lib/search-text";
 export function sportsRelevance(title: string, description = ""): "publish" | "review" | "reject" {
   const text = normalizeSearchText(`${title} ${description}`);
   const strong = /(?:كرة القدم|كره القدم|كره السله|كرة السلة|كره اليد|كرة اليد|التنس|الملاكمه|الدوري|كاس العالم|دوري ابطال|football|soccer|basketball|volleyball|handball|tennis|premier league|champions league|la liga|serie a|bundesliga|\bnba\b|\bfifa\b|\buefa\b)/u.test(text);
-  const commercial = /(?:عقارات|عقاري|عقاريه|شقق|مول|اسعار الذهب|البورصه|real estate|property development|mortgage|stock market)/u.test(text);
+  // «مول» (mall) must be a whole word: unbounded, it fired inside «مولدوفا»
+  // (Moldova) and sent a football story to review. Common particles (و ب ل ف ال)
+  // may attach in front; a letter may not follow.
+  const commercial = /(?:عقارات|عقاري|عقاريه|شقق|(?<!\p{L})(?:وال|بال|لل|فال|ال|[وبلف])?مول(?!\p{L})|اسعار الذهب|البورصه|real estate|property development|mortgage|stock market)/u.test(text);
   if (commercial) return strong ? "review" : "reject";
   if (strong) return "publish";
   const context = /(?:مباراه|مباريات|تسجيل هدف|ركله جزاء|حارس المرمي|لاعب|مدرب|\bgoalkeeper\b|\bscorer\b|\bstriker\b|\bmatch\b|\bcoach\b)/u.test(text);
