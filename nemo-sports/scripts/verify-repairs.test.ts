@@ -4,7 +4,16 @@ import type { NewsArticle } from "@/lib/news/types";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { isDateKey, siteDateKey, shiftDateKey } from "@/lib/tz";
-import { filterProviderMatches, isFixtureLive } from "@/lib/provider-match-filter";
+import {
+  filterProviderMatches,
+  isFixtureFinished,
+  isFixtureLive,
+  isFixtureUnconfirmed,
+  isFixtureUpcoming,
+  providerMatchCounts,
+} from "@/lib/provider-match-filter";
+import { matchStateOf } from "@/lib/match-state";
+import { canonicalCategoryParam } from "@/lib/news/categorize";
 import { sportsRelevance } from "@/lib/news/relevance";
 import { isGoogleNewsWrapper, resolvePublisherUrl } from "@/lib/news/normalize";
 import { createSource, listArticles } from "@/lib/news/store";
@@ -36,10 +45,63 @@ test("date keys reject overflow and navigate leap days", () => {
 });
 test("arbitrary date, team, status and competition filters compose", () => {
   const f = fixture();
-  assert.equal(filterProviderMatches([f], { date: "2026-10-09", team: "Test A", status: "upcoming" }).length, 1);
+  // A genuinely upcoming fixture: tomorrow at 18:00 UTC is still "today" in
+  // Cairo (UTC+2/+3), so the date key and the status agree on one match.
+  const tomorrowKey = shiftDateKey(siteDateKey(), 1);
+  const upcoming = fixture({ providerId: "test-match-upcoming", scheduledAt: `${tomorrowKey}T18:00:00Z` });
+  assert.equal(filterProviderMatches([upcoming], { date: tomorrowKey, team: "Test A", status: "upcoming" }).length, 1);
+  assert.equal(filterProviderMatches([f], { date: "2026-10-09", team: "Test A" }).length, 1);
   assert.equal(filterProviderMatches([f], { date: "2026-10-08" }).length, 0);
   assert.equal(filterProviderMatches([f], { date: "all", competition: "other" }).length, 0);
   assert.equal(filterProviderMatches([fixture({ scheduledAt: "bad" })], { date: "today" }).length, 0);
+});
+test("a stored 'scheduled' whose kickoff day passed is no longer counted as upcoming", () => {
+  // Regression: /matches used to list these under «قادمة» and /matches/[slug]
+  // still printed the kickoff time next to «موعد معتمد» for a match that had
+  // already been played, while /live dropped it from every section at once.
+  const past = fixture({ scheduledAt: "2026-10-08T22:30:00Z" }); // Cairo day 2026-10-09
+  assert.equal(isFixtureUpcoming(past), false, "past kickoff must not read as upcoming");
+  assert.equal(isFixtureFinished(past), false, "…and must not be reported as finished either");
+  assert.equal(isFixtureUnconfirmed(past), true);
+  assert.equal(matchStateOf("scheduled", "2026-10-08T22:30:00Z"), "unconfirmed");
+  // It still appears under «الكل», so the match never disappears from the list.
+  assert.equal(filterProviderMatches([past], { date: "2026-10-09" }).length, 1);
+  assert.equal(filterProviderMatches([past], { date: "2026-10-09", status: "upcoming" }).length, 0);
+  assert.equal(filterProviderMatches([past], { date: "2026-10-09", status: "unconfirmed" }).length, 1);
+  const counts = providerMatchCounts([past], { date: "2026-10-09" });
+  assert.equal(counts["status:all"], 1);
+  assert.equal(counts["status:upcoming"], 0);
+  assert.equal(counts["status:unconfirmed"], 1);
+  // A scheduled match on the current day is untouched (day-level rule).
+  const todayKey = siteDateKey();
+  const sameDay = fixture({ providerId: "test-match-today", scheduledAt: `${todayKey}T06:00:00Z` });
+  assert.equal(matchStateOf("scheduled", sameDay.scheduledAt), "upcoming");
+  // Without a parseable kickoff the source status alone decides, as before.
+  assert.equal(matchStateOf("scheduled"), "upcoming");
+});
+test("interrupted matches keep the reason the source gave, and are never 'finished'", () => {
+  assert.equal(matchStateOf("postponed"), "postponed");
+  assert.equal(matchStateOf("cancelled"), "cancelled");
+  assert.equal(matchStateOf("canceled"), "cancelled");
+  assert.equal(matchStateOf("suspended"), "suspended");
+  assert.equal(matchStateOf("abandoned"), "abandoned");
+  for (const status of ["finished", "ended", "ft", "walkover", "awarded"]) assert.equal(matchStateOf(status), "finished");
+  for (const status of ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"]) {
+    assert.equal(matchStateOf(status, "2020-01-01T00:00:00Z"), "live", `${status} stays live regardless of the clock`);
+  }
+});
+test("news category params canonicalize Arabic labels with and without the article", () => {
+  // The footer links to /news?category=انتقالات while the store keeps "Transfers".
+  assert.equal(canonicalCategoryParam("انتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("الانتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("تحليلات"), "Analysis");
+  assert.equal(canonicalCategoryParam("Transfers"), "Transfers");
+  assert.equal(canonicalCategoryParam("رياضة"), "Sports");
+  assert.equal(canonicalCategoryParam("Sports"), "Sports");
+  // An unknown label passes through unchanged so the honest empty state still
+  // echoes the visitor's own words instead of a made-up category.
+  assert.equal(canonicalCategoryParam("عقارات"), "عقارات");
+  assert.equal(canonicalCategoryParam(""), "");
 });
 test("past kickoff never fabricates live status", () => {
   assert.equal(isFixtureLive(fixture({ scheduledAt: "2000-01-01T00:00:00Z" })), false);

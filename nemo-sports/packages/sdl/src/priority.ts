@@ -156,6 +156,18 @@ export const DEFAULT_PRIORITY_RULES: PriorityRule[] = [
   rule("ss-12", WILDCARD, WILDCARD, "standings", "sportscore", "fallback"),
   rule("ss-13", WILDCARD, WILDCARD, "top_scorers", "sportscore", "fallback"),
   rule("ss-14", WILDCARD, WILDCARD, "player_stats", "sportscore", "primary"),
+  /* ss-15..ss-18 — the per-match types for basketball / tennis / cricket.
+     These were the only SportScore data types with a rule for "football" but
+     none for any other sport, so every non-football match page resolved
+     `no_provider_configured` and 404'd, even though the list pages link those
+     matches (e.g. /matches/memphis-grizzlies-vs-chicago-bulls). The adapter
+     already scopes each call by sport (`match/` takes ?sport=), so the chain
+     simply had to ask it. Declared AFTER the football-specific rules so
+     football keeps using ss-3..ss-6 unchanged. */
+  rule("ss-15", WILDCARD, WILDCARD, "match_detail", "sportscore", "primary"),
+  rule("ss-16", WILDCARD, WILDCARD, "match_events", "sportscore", "primary"),
+  rule("ss-17", WILDCARD, WILDCARD, "match_stats", "sportscore", "primary"),
+  rule("ss-18", WILDCARD, WILDCARD, "match_lineups", "sportscore", "primary"),
 ];
 
 function rule(

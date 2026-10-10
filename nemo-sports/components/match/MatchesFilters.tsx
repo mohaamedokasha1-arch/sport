@@ -19,6 +19,15 @@ const STATUS = [
   { id: "finished", label: "منتهية" },
 ];
 
+/**
+ * Matches still stored as `scheduled` whose kickoff day has passed: not
+ * upcoming, not finished, and not something we may guess about
+ * (lib/match-state.ts). The chip is rendered only when the current selection
+ * actually contains such matches, so the filter bar is unchanged in the normal
+ * case and the count in the header always adds up to the items shown.
+ */
+const UNCONFIRMED_STATUS = { id: "unconfirmed", label: "غير مؤكدة" };
+
 export default function MatchesFilters({
   counts,
   sportsOptions,
@@ -120,7 +129,7 @@ export default function MatchesFilters({
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <span className="eyebrow ms-1">الحالة</span>
-        {STATUS.map((s) => (
+        {[...STATUS, ...(counts[`status:${UNCONFIRMED_STATUS.id}`] ? [UNCONFIRMED_STATUS] : [])].map((s) => (
           <button key={s.id} type="button" onClick={() => set("status", s.id)} className={chip(status === s.id)}>
             {s.label}
             <span className="num ms-1.5 text-[10px]">{counts[`status:${s.id}`] ?? 0}</span>

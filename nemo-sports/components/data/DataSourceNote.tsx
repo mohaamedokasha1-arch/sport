@@ -31,10 +31,19 @@ export function providerLabel(provider: string): string {
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
-export function originLabel(provider: string, fromCache: boolean): string {
+/**
+ * How the surface obtained its data.
+ *
+ * Only a real provider round-trip can honestly be called "جلب مباشر". Editorial
+ * matches and the offline preview dataset are read straight from their own
+ * store, so labelling them a live fetch claimed a call that never happened.
+ * The cache TTL travels with the cache label because that is the only place it
+ * means anything to a visitor.
+ */
+export function originLabel(provider: string, fromCache: boolean, ttlSeconds?: number): string {
   if (provider === "demo") return "بيانات المعاينة";
   if (provider === "admin") return "من سجل التحرير";
-  if (fromCache) return "من الكاش";
+  if (fromCache) return `من الكاش${ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : ""}`;
   return "جلب مباشر";
 }
 
@@ -42,6 +51,7 @@ export default function DataSourceNote({
   provider,
   fromCache = false,
   stale = false,
+  degraded = false,
   fetchedAt,
   ttlSeconds,
   className = "",
@@ -49,22 +59,31 @@ export default function DataSourceNote({
   provider: string;
   fromCache?: boolean;
   stale?: boolean;
+  /** The source answered, but not with full coverage (partial chain / fallback). */
+  degraded?: boolean;
+  /** Timestamp of the last SUCCESSFUL update. Omit it rather than passing the
+   *  render time: a fabricated "آخر تحديث" tells the visitor the data is fresh
+   *  when no refresh actually succeeded. */
   fetchedAt?: string;
   ttlSeconds?: number;
   className?: string;
 }) {
-  const origin = originLabel(provider, fromCache);
-  const cacheHint = fromCache && ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : "";
+  const origin = originLabel(provider, fromCache, ttlSeconds);
   return (
     <div className={`flex flex-wrap items-center gap-2 text-[10.5px] text-muted ${className}`}>
       <span>
         المصدر: <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
-        {` · ${origin}${cacheHint}`}
-        {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : ""}
+        {` · ${origin}`}
+        {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : " · لا يوجد وقت تحديث ناجح مسجّل"}
       </span>
       {stale ? (
         <span className="rounded-[3px] bg-warn-500/15 px-1.5 py-0.5 font-bold text-warn-600 dark:text-warn-400">
           المصدر متعطّل مؤقتًا — نعرض آخر قيمة صحيحة
+        </span>
+      ) : null}
+      {degraded ? (
+        <span className="rounded-[3px] bg-warn-500/15 px-1.5 py-0.5 font-bold text-warn-600 dark:text-warn-400">
+          التغطية غير مكتملة — لا تعتبر هذه القائمة جدولًا كاملًا
         </span>
       ) : null}
       {provider === "football_data" ? <PoweredByFootballData /> : null}

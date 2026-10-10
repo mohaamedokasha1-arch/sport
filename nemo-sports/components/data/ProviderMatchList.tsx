@@ -2,6 +2,7 @@ import Link from "next/link";
 import PoweredBy from "@/components/ui/PoweredBy";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import { SITE_TZ } from "@/lib/tz";
+import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
@@ -10,28 +11,12 @@ import type { NormalizedFixture } from "@/packages/sdl/src";
  * when a field is missing it renders "—" rather than an invented value.
  */
 
-const STATUS_AR: Record<string, string> = {
-  live: "مباشر",
-  halftime: "استراحة",
-  extra_time: "وقت إضافي",
-  extra_time_halftime: "استراحة الوقت الإضافي",
-  penalty_shootout: "ركلات الترجيح",
-  finished: "انتهت",
-  scheduled: "لم تبدأ",
-  postponed: "مؤجَّلة",
-  cancelled: "ملغاة",
-  suspended: "موقوفة",
-  abandoned: "متوقفة",
-  walkover: "انسحاب",
-  awarded: "حُسمت بقرار",
-};
-
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
-export function MatchStatePill({ fixture }: { fixture: NormalizedFixture }) {
-  const live = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(fixture.status);
-  if (live) {
+export function MatchStatePill({ fixture, now = Date.now() }: { fixture: NormalizedFixture; now?: number }) {
+  const state = matchStateOf(fixture.status, fixture.scheduledAt, now);
+  if (state === "live") {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-[3px] bg-live-red/10 px-1.5 py-0.5 text-[11px] font-extrabold text-live-red">
         <span className="live-dot" aria-hidden />
@@ -39,15 +24,26 @@ export function MatchStatePill({ fixture }: { fixture: NormalizedFixture }) {
       </span>
     );
   }
-  if (fixture.status === "scheduled") {
+  if (state === "upcoming") {
     return <span className="num shrink-0 text-[12px] font-bold text-muted">{timeOf(fixture.scheduledAt)}</span>;
   }
-  if (fixture.status === "finished") {
+  if (state === "finished") {
     return <span className="shrink-0 text-[11px] font-bold text-muted">انتهت</span>;
+  }
+  if (state === "unconfirmed") {
+    // The stored status still says "not started" but the kickoff day is over.
+    // Show the kickoff (it is the only thing the source gave us) flagged as
+    // unverified, instead of presenting it as a match still to come.
+    return (
+      <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={UNCONFIRMED_NOTE_AR}>
+        <span className="num">{timeOf(fixture.scheduledAt)}</span>
+        <span className="mt-0.5 block text-[10px] font-extrabold">غير مؤكدة</span>
+      </span>
+    );
   }
   return (
     <span className="shrink-0 text-[11px] font-bold text-muted">
-      {STATUS_AR[fixture.status] ?? "حالة غير معروفة"}
+      {MATCH_STATE_LABEL_AR[state]}
     </span>
   );
 }

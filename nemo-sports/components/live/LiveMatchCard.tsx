@@ -3,6 +3,7 @@ import ProviderCrest from "@/components/ui/ProviderCrest";
 import { SITE_TZ } from "@/lib/tz";
 import { dateAr } from "@/lib/format";
 import { isPubliclyVisible, type MatchStreamSource } from "@/lib/match-streams";
+import { matchStateOf, MATCH_STATE_LABEL_AR } from "@/lib/match-state";
 
 export interface LiveCardData {
   id: string;
@@ -22,10 +23,12 @@ export interface LiveCardData {
 }
 
 export default function LiveMatchCard({ match }: { match: LiveCardData }) {
-  const isLive = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(
-    match.status.toLowerCase()
-  );
-  const isFinished = ["finished", "ended"].includes(match.status.toLowerCase());
+  // The badge used to be a three-way branch (live / finished / "قريبًا"), so a
+  // postponed, cancelled or stale-scheduled match was announced as "coming
+  // soon". Resolve the state once, through the site-wide rule, and label it.
+  const state = matchStateOf(match.status, match.scheduledAt);
+  const isLive = state === "live";
+  const isFinished = state === "finished";
   const hasStream = match.stream && isPubliclyVisible(match.stream);
   const played = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
 
@@ -61,9 +64,19 @@ export default function LiveMatchCard({ match }: { match: LiveCardData }) {
           <span className="inline-flex items-center rounded-[4px] bg-navy-850 px-2 py-0.5 text-[11px] font-bold text-muted">
             انتهت
           </span>
-        ) : (
+        ) : state === "upcoming" ? (
           <span className="inline-flex items-center rounded-[4px] bg-gold-500/15 px-2 py-0.5 text-[11px] font-bold text-gold-500 dark:text-gold-400">
             قريبًا
+          </span>
+        ) : (
+          <span
+            className={`inline-flex items-center rounded-[4px] px-2 py-0.5 text-[11px] font-bold ${
+              state === "unconfirmed"
+                ? "bg-warn-500/15 text-warn-600 dark:text-warn-400"
+                : "bg-navy-850 text-muted"
+            }`}
+          >
+            {MATCH_STATE_LABEL_AR[state]}
           </span>
         )}
       </header>
@@ -87,7 +100,7 @@ export default function LiveMatchCard({ match }: { match: LiveCardData }) {
               <span className="num text-[17px] font-black text-gold-500 dark:text-gold-400" dir="ltr">
                 {timeFormatted}
               </span>
-              <span className="text-[10px] text-muted">مكة المكرمة</span>
+              <span className="text-[10px] text-muted">مكة المكرمة والقاهرة</span>
             </div>
           )}
           <span className="mt-1 text-[10.5px] text-muted">

@@ -78,9 +78,9 @@ export default async function HomePage() {
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
           {fixtureData ? (
-            <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
+            <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} degraded={fixtureData.degraded} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
           ) : liveData ? (
-            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} fetchedAt={liveData.fetchedAt} />
+            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} degraded={liveData.degraded} fetchedAt={liveData.fetchedAt} />
           ) : null}
         </header>
 
@@ -106,7 +106,18 @@ export default async function HomePage() {
               {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : (
-            <DataUnavailable title="لا توجد مباريات اليوم في البيانات المتاحة" message={fixtureData ? "لم يتضمن آخر تحديث مباريات لهذا اليوم." : "تعذّر استرجاع جدول مباريات موثوق."} actionHref="/matches" actionLabel="فتح قائمة المباريات" />
+            <DataUnavailable
+              title="لا توجد مباريات اليوم في البيانات المتاحة"
+              message={
+                !fixtureData
+                  ? "تعذّر استرجاع جدول مباريات موثوق."
+                  : fixtureData.degraded
+                    ? "مصدر المباريات لم يُرجع جدولًا كاملًا في آخر محاولة، ولا يوجد في ما وصلنا مباراة لهذا اليوم. لا نعرض مباريات غير مؤكدة."
+                    : "لم يتضمن آخر تحديث مباريات لهذا اليوم."
+              }
+              actionHref="/matches"
+              actionLabel="فتح قائمة المباريات"
+            />
           )}
         </section>
 

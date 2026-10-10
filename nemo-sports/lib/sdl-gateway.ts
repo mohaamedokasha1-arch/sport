@@ -20,6 +20,7 @@ import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
 
 export type DataSource = "provider" | "demo";
 
@@ -237,6 +238,35 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
     false,
     { competitionProviderId: input.competitionProviderId, date: input.date },
   );
+}
+
+/**
+ * Which sport a match id belongs to.
+ * ──────────────────────────────────
+ * `/matches/[slug]` only ever receives the provider id — never the sport — while
+ * the list pages link every sport they render (PUBLIC_SPORTS = football,
+ * basketball, tennis, cricket). Resolving with a hard-coded "football" made
+ * every basketball / tennis / cricket link a dead end: the football chain has
+ * no row for that id, so the page 404'd (e.g.
+ * `/matches/memphis-grizzlies-vs-chicago-bulls`).
+ *
+ * The fixtures those list pages already fetch carry both the id and its sport,
+ * so this reads it back from the cached fixture feeds instead of paying a probe
+ * call per sport. Football is tried first — it is the site's primary sport and
+ * by far the most likely answer, so the common case stops after one cached
+ * read. Returns null when nothing matches; the caller keeps its previous
+ * behaviour rather than guessing.
+ */
+export async function sportForMatchId(providerMatchId: string): Promise<string | null> {
+  const id = providerMatchId.trim().toLowerCase();
+  if (!id) return null;
+  const order = ["football", ...PUBLIC_SPORTS.map((s) => s.slug).filter((s) => s !== "football")];
+  for (const sport of order) {
+    const res = await fixtures({ sport });
+    if (!res.ok) continue;
+    if (res.data.some((fixture) => fixture.providerId.trim().toLowerCase() === id)) return sport;
+  }
+  return null;
 }
 
 /** Events of one match, in canonical vocabulary. */
@@ -599,5 +629,5 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
   const first = valid[0];
   const same = valid.filter((r) => r.provider === first.provider);
   const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
-  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop()! };
+  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt };
 }
