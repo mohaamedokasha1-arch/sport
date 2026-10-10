@@ -294,3 +294,43 @@ test("event glyphs follow the sport of the fixture being rendered", () => {
     assert.ok(new RegExp(`${sport}:`).test(src), `no glyph mapped for ${sport}`);
   }
 });
+
+/* ── searching «الأهلي» must find the Al Ahly articles ─────────────────────
+   Production, 2026-10-10: `?q=ahly` → 13 results, `?q=الأهلي` → 2. The
+   headlines are English ("Al Ahly crushes Petrol Asyut"), and `arabicAliasesFor`
+   only fires when a field normalizes to exactly "al ahly" — which a headline
+   never does. The Arabic entity labels the article already carries (and the
+   news card already shows) were not searchable at all, so the Arabic query an
+   Egyptian visitor actually types returned almost nothing. */
+test("a news hit is searchable by the Arabic labels it already carries", () => {
+  const src = readFileSync(join(process.cwd(), "lib", "search-service.ts"), "utf8");
+  assert.ok(
+    /aliases:\s*\[/.test(src),
+    "news hits must expose a non-rendered alias list built from relatedEntities",
+  );
+  assert.ok(/entity\.displayName/.test(src), "the Arabic entity label must be searchable");
+  assert.ok(/entity\.extractedName/.test(src), "the provider spelling must stay searchable");
+  assert.ok(
+    /results: results\.map\(\(\{ weight: _weight, aliases: _aliases/.test(src),
+    "aliases are matching internals and must not be sent to the browser",
+  );
+  assert.ok(
+    src.includes('nemo:search:index:v3:'),
+    "bump the shared-index prefix so a pre-deploy copy cannot serve the old matching",
+  );
+});
+
+test("the Arabic search alias table covers the clubs the news feed actually tags", () => {
+  const src = readFileSync(join(process.cwd(), "lib", "name-aliases.ts"), "utf8");
+  // These are the clubs appearing in the current feed; a regression here would
+  // silently break Arabic search for exactly the teams readers search for.
+  for (const [english, arabic] of [
+    ["Al Ahly", "الأهلي"],
+    ["Zamalek", "الزمالك"],
+    ["Real Madrid", "ريال مدريد"],
+    ["FC Barcelona", "برشلونة"],
+  ] as const) {
+    assert.ok(src.includes(`"${english}"`), `alias table lost ${english}`);
+    assert.ok(src.includes(arabic), `alias table lost the Arabic spelling ${arabic}`);
+  }
+});
