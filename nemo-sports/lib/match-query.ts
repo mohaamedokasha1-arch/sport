@@ -11,6 +11,9 @@ export function validateMatchQuery(params: URLSearchParams): string | null {
   const date = params.get("date");
   if (date !== null && !isDateKey(date)) return "Expected a valid YYYY-MM-DD date (Africa/Cairo)";
   const status = params.get("status");
-  if (status && !["all", "live", "upcoming", "finished"].includes(status)) return "Unsupported status";
+  // "unconfirmed" is the honest bucket for a match still stored as `scheduled`
+  // whose kickoff day has passed (lib/match-state.ts). Accepted here so the API
+  // and the public filters share one vocabulary.
+  if (status && !["all", "live", "upcoming", "finished", "unconfirmed"].includes(status)) return "Unsupported status";
   return null;
 }

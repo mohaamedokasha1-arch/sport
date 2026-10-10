@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import { SITE_TZ } from "@/lib/tz";
+import { isLiveStatus } from "@/lib/match-state";
 
 type RailMatch = {
   id: string;
@@ -74,7 +75,7 @@ export default function ScoreRail() {
         {hasMatches ? (
           <div className="no-bar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto py-0.5">
             {data!.matches.map((match) => {
-              const live = data?.mode === "live" && ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(match.status);
+              const live = data?.mode === "live" && isLiveStatus(match.status);
               const finished = data?.mode !== "preview" && match.status === "finished";
               const hasScore = match.homeScore !== null && match.awayScore !== null;
               return (

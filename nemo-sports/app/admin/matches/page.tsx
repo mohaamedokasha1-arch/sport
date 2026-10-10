@@ -32,6 +32,7 @@ import {
 } from "@/lib/match-overrides";
 import { logActivity } from "@/lib/activity";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { isLiveStatus } from "@/lib/match-state";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -240,7 +241,7 @@ const demoTone = { LIVE: "bad", UPCOMING: "idle", FINISHED: "ok", POSTPONED: "wa
 const demoAr = { LIVE: "جارية", UPCOMING: "قادمة", FINISHED: "انتهت", POSTPONED: "مؤجلة", CANCELLED: "ملغاة", HT: "استراحة", SUSPENDED: "متوقفة" } as const;
 
 function realTone(status: string): "ok" | "warn" | "bad" | "idle" {
-  if (["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(status)) return "bad";
+  if (isLiveStatus(status)) return "bad";
   if (status === "scheduled") return "idle";
   if (status === "finished") return "ok";
   return "warn";

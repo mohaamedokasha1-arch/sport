@@ -13,6 +13,7 @@ import { fixturesForCairoDate, cachePolicyFor, liveMatches as sdlLive, fixtures 
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { siteDay, siteDateKey } from "@/lib/tz";
+import { isLiveStatus } from "@/lib/match-state";
 import {
   articles,
   competitions,
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-const LIVE_STATUSES = new Set(["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"]);
+// Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 
 export default async function HomePage() {
   const now = Date.now();
@@ -46,7 +47,7 @@ export default async function HomePage() {
   const fixtureData = fixtureResult.ok && fixtureResult.source === "provider" ? fixtureResult : null;
   const scorerData = scorerResult.ok && scorerResult.source.provider !== "demo" ? scorerResult : null;
   const realMode = Boolean(liveData || fixtureData || scorerData);
-  const realLive = liveData ? liveData.data.filter((fixture) => hasMatchIdentity(fixture) && LIVE_STATUSES.has(fixture.status)).slice(0, 6) : [];
+  const realLive = liveData ? liveData.data.filter((fixture) => hasMatchIdentity(fixture) && isLiveStatus(fixture.status)).slice(0, 6) : [];
 
   const todayKey = siteDay(now);
   const tomorrowKey = todayKey + 86_400_000;
@@ -78,9 +79,9 @@ export default async function HomePage() {
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
           {fixtureData ? (
-            <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
+            <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} degraded={fixtureData.degraded} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
           ) : liveData ? (
-            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} fetchedAt={liveData.fetchedAt} />
+            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} degraded={liveData.degraded} fetchedAt={liveData.fetchedAt} />
           ) : null}
         </header>
 
@@ -106,7 +107,18 @@ export default async function HomePage() {
               {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : (
-            <DataUnavailable title="لا توجد مباريات اليوم في البيانات المتاحة" message={fixtureData ? "لم يتضمن آخر تحديث مباريات لهذا اليوم." : "تعذّر استرجاع جدول مباريات موثوق."} actionHref="/matches" actionLabel="فتح قائمة المباريات" />
+            <DataUnavailable
+              title="لا توجد مباريات اليوم في البيانات المتاحة"
+              message={
+                !fixtureData
+                  ? "تعذّر استرجاع جدول مباريات موثوق."
+                  : fixtureData.degraded
+                    ? "مصدر المباريات لم يُرجع جدولًا كاملًا في آخر محاولة، ولا يوجد في ما وصلنا مباراة لهذا اليوم. لا نعرض مباريات غير مؤكدة."
+                    : "لم يتضمن آخر تحديث مباريات لهذا اليوم."
+              }
+              actionHref="/matches"
+              actionLabel="فتح قائمة المباريات"
+            />
           )}
         </section>
 

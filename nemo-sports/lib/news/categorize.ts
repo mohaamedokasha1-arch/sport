@@ -103,14 +103,40 @@ export function categoryMeta(name: string): { nameAr: string; color: string; ico
   return { nameAr: c.nameAr, color: c.color, icon: c.icon };
 }
 
-export function canonicalCategoryParam(input: string): string {
-  const raw = input.trim();
-  if (!raw) return "";
-  const norm = normalizeSearchText(raw);
-  const match = CATEGORIES.find((c) => 
-    c.name.toLowerCase() === raw.toLowerCase() || 
-    c.nameAr === raw ||
-    normalizeSearchText(c.nameAr) === norm
-  );
-  return match ? match.name : raw;
+/**
+ * Canonical (stored) form of a ?category= URL parameter.
+ * ─────────────────────────────────────────────────────
+ * The store keeps English category names, but public links ship Arabic labels
+ * too: the footer links to `/news?category=انتقالات` while the feed chips link
+ * to `/news?category=Transfers`. An Arabic label used to be compared verbatim
+ * against the stored names, and because the stored label carries the definite
+ * article («الانتقالات») while the link drops it («انتقالات»), the footer link
+ * always matched zero rows and rendered an honest-looking but dead empty page.
+ *
+ * Map any known label — English name, Arabic name with or without the leading
+ * «ال», and the Sports/رياضة fallback pair — to the stored English name.
+ * Unknown values pass through unchanged and still produce the honest empty
+ * state; nothing is fabricated.
+ */
+export function canonicalCategoryParam(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return raw;
+  const stripArticle = (v: string) => v.replace(/^ال/, "");
+  const needle = stripArticle(normalizeSearchText(raw));
+  if (!needle) return raw;
+  for (const cat of CATEGORIES) {
+    if (
+      stripArticle(normalizeSearchText(cat.name)) === needle ||
+      stripArticle(normalizeSearchText(cat.nameAr)) === needle
+    ) {
+      return cat.name;
+    }
+  }
+  if (
+    needle === stripArticle(normalizeSearchText(FALLBACK_CATEGORY)) ||
+    needle === stripArticle(normalizeSearchText(FALLBACK_CATEGORY_AR))
+  ) {
+    return FALLBACK_CATEGORY;
+  }
+  return raw;
 }

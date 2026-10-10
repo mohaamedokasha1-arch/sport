@@ -8,6 +8,7 @@ import { getRedisKv } from "@/lib/cache/redis";
 import { demoContentVisible, hasProviderKeys } from "@/lib/site";
 import { matchesSearchText, searchMatchWeight } from "@/lib/search-text";
 import { arabicAliasesFor } from "@/lib/name-aliases";
+import { categoryMeta } from "@/lib/news/categorize";
 import { teamBySlug } from "@/lib/core-data";
 import { sportBySlug } from "@/lib/core-data";
 import type { NormalizedFixture, NormalizedTopScorer } from "@/packages/sdl/src";
@@ -20,6 +21,17 @@ export type SearchHit = {
   url: string;
   weight: number;
   external?: boolean;
+  /**
+   * Extra text that should MATCH a query but is never rendered.
+   *
+   * A news headline is usually English ("Al Ahly crushes Petrol Asyut"), so the
+   * Arabic spelling an Egyptian visitor actually types («الأهلي») matched
+   * nothing: `arabicAliasesFor()` only fires when a field normalizes to exactly
+   * a club's full English name, which a headline never does. These are the
+   * article's own entity labels — already stored and already shown on the news
+   * card — plus the Arabic category name. Searched, never displayed.
+   */
+  aliases?: string[];
 };
 
 export type SearchResponse = {
@@ -28,7 +40,7 @@ export type SearchResponse = {
   preview: boolean;
   total: number;
   counts: Record<SearchHit["type"], number>;
-  results: Omit<SearchHit, "weight">[];
+  results: Omit<SearchHit, "weight" | "aliases">[];
 };
 
 type SearchIndex = { hits: SearchHit[]; createdAt: number };
@@ -37,11 +49,19 @@ type SearchIndex = { hits: SearchHit[]; createdAt: number };
 // burst; match-status freshness is handled by the live and match endpoints.
 const INDEX_TTL_MS = 5 * 60_000;
 const INDEX_TTL_SECONDS = Math.ceil(INDEX_TTL_MS / 1000);
-const SHARED_INDEX_PREFIX = "nemo:search:index:v2:";
+// v3: hits carry a non-rendered `aliases` list. Bumping the prefix means a
+// pre-deploy shared copy (without them) is rebuilt instead of silently serving
+// the old, weaker Arabic matching for the rest of its TTL.
+const SHARED_INDEX_PREFIX = "nemo:search:index:v3:";
 let cachedIndex: SearchIndex | null = null;
 let indexInFlight: Promise<SearchIndex> | null = null;
 
 const hitKey = (hit: SearchHit) => `${hit.type}:${hit.id}`;
+
+/** Everything a query may match against, in the order the weight prefers. */
+function searchTerms(hit: SearchHit): (string | null | undefined)[] {
+  return [hit.title, ...(hit.aliases ?? []), hit.sub, hit.id, ...arabicAliasesFor(hit.title)];
+}
 
 function sharedIndexKey(): string {
   const scope = demoContentVisible() ? "preview" : hasProviderKeys() ? "provider" : "unavailable";
@@ -177,6 +197,13 @@ async function buildSearchIndex(): Promise<SearchIndex> {
       url: article.sourceUrl,
       weight: 0,
       external: true,
+      aliases: [
+        // The Arabic labels this article is already tagged with on /news.
+        ...article.relatedEntities.map((entity) => entity.displayName),
+        // …plus the provider spelling, so «Ahly» finds it too.
+        ...article.relatedEntities.map((entity) => entity.extractedName),
+        categoryMeta(article.category).nameAr,
+      ].filter(Boolean),
     });
   }
 
@@ -256,16 +283,8 @@ export async function searchEntities(query: string): Promise<SearchResponse> {
 
   const index = await searchIndex();
   const filtered = index.hits
-    .map((hit) => {
-      // Curated Arabic spellings for English provider names (lib/name-aliases.ts).
-      const terms = [hit.title, hit.sub, hit.id, ...arabicAliasesFor(hit.title)];
-      return { ...hit, weight: searchMatchWeight(cleanQuery, ...terms) };
-    })
-    .filter((hit) => {
-      if (hit.weight > 0) return true;
-      const terms = [hit.title, hit.sub, hit.id, ...arabicAliasesFor(hit.title)];
-      return matchesSearchText(cleanQuery, ...terms);
-    })
+    .map((hit) => ({ ...hit, weight: searchMatchWeight(cleanQuery, ...searchTerms(hit)) }))
+    .filter((hit) => hit.weight > 0 || matchesSearchText(cleanQuery, ...searchTerms(hit)))
     .sort((a, b) => b.weight - a.weight || a.title.localeCompare(b.title, "ar"));
 
   // A compact suggestion list, while the search results page can return more.
@@ -277,7 +296,7 @@ export async function searchEntities(query: string): Promise<SearchResponse> {
     preview: demoContentVisible(),
     total: filtered.length,
     counts,
-    results: results.map(({ weight: _weight, ...hit }) => hit),
+    results: results.map(({ weight: _weight, aliases: _aliases, ...hit }) => hit),
   };
 }
 

@@ -7,6 +7,7 @@ import { listMatchStreams, streamForMatch, type MatchStreamSource } from "@/lib/
 import LiveStreams from "@/components/public/LiveStreams";
 import LiveMatchCard, { type LiveCardData } from "@/components/live/LiveMatchCard";
 import DataUnavailable from "@/components/ui/DataUnavailable";
+import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
 
 export const metadata: Metadata = {
   title: "البث المباشر ومواعيد المباريات",
@@ -25,6 +26,16 @@ export default async function LivePage() {
 
   const realData = sdlRes && sdlRes.ok && sdlRes.source === "provider" ? sdlRes : null;
   const publishedAdmin = adminMatchesAll.filter((m) => m.isPublished);
+  /**
+   * The newest editorial touch among the published manual matches, if any.
+   * Used as the provenance timestamp only when the live source did not answer —
+   * it is a real recorded update time, never the page's render time.
+   */
+  const lastEditorialUpdate = publishedAdmin
+    .map((m) => m.updatedAt ?? "")
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   // Build unified cards from both real SDL live data and published admin fixtures
   const seenSlugs = new Set<string>();
@@ -76,18 +87,27 @@ export default async function LivePage() {
     });
   }
 
-  // Split into live, upcoming, and finished
-  const liveItems = cardItems.filter((item) =>
-    ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(item.status.toLowerCase())
+  // Split through the site-wide state rule (lib/match-state.ts) so this page
+  // cannot disagree with /matches, /fixtures or the stream panel about the same
+  // match. The previous version had two holes a visitor could see:
+  //   · postponed / cancelled / suspended / abandoned matches were listed under
+  //     «المباريات المكتملة مؤخرًا» — a false claim about a match that never
+  //     finished — and were simultaneously excluded from the upcoming section,
+  //     so they had nowhere honest to appear.
+  //   · a match still stored as `scheduled` whose kickoff had passed matched no
+  //     section at all, and because `cardItems` was not empty the "no matches"
+  //     fallback did not fire either: the page rendered a header, an empty
+  //     live notice and nothing else, while /matches still listed those matches.
+  // Every card is now placed in exactly one section, and no card is dropped.
+  const stateOf = (item: LiveCardData) => matchStateOf(item.status, item.scheduledAt);
+  const liveItems = cardItems.filter((item) => stateOf(item) === "live");
+  const finishedItems = cardItems.filter((item) => stateOf(item) === "finished");
+  const interruptedItems = cardItems.filter((item) =>
+    ["postponed", "cancelled", "suspended", "abandoned"].includes(stateOf(item))
   );
-  const finishedItems = cardItems.filter((item) =>
-    ["finished", "ended", "awarded", "walkover", "postponed", "cancelled", "suspended", "abandoned"].includes(item.status.toLowerCase())
-  );
-  // A kickoff in the past is not "upcoming" — even when the stored status
-  // still says so (the same convention as /fixtures and /api/live).
+  const unconfirmedItems = cardItems.filter((item) => stateOf(item) === "unconfirmed");
   const upcomingItems = cardItems
-    .filter((item) => !liveItems.includes(item) && !finishedItems.includes(item))
-    .filter((item) => Number.isFinite(+new Date(item.scheduledAt)) && +new Date(item.scheduledAt) > Date.now())
+    .filter((item) => stateOf(item) === "upcoming")
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
 
   return (
@@ -157,11 +177,53 @@ export default async function LivePage() {
         <section aria-label="المباريات المنتهية" className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
             <h2 className="text-base font-extrabold text-muted">
-              المباريات المكتملة مؤخرًا
+              المباريات المكتملة مؤخرًا ({finishedItems.length})
             </h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {finishedItems.map((match) => (
+              <LiveMatchCard key={match.id} match={match} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Postponed / cancelled / suspended — their own honest section. These used
+          to be filed under "recently completed", which told visitors a match
+          that never finished had finished. */}
+      {interruptedItems.length > 0 ? (
+        <section aria-label="مباريات مؤجلة أو ملغاة" className="mb-10">
+          <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
+            <h2 className="text-base font-extrabold text-muted">
+              مباريات مؤجَّلة أو ملغاة ({interruptedItems.length})
+            </h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {interruptedItems.map((match) => (
+              <div key={match.id}>
+                <LiveMatchCard match={match} />
+                <p className="mt-1 text-[11px] font-bold text-muted">
+                  {MATCH_STATE_LABEL_AR[matchStateOf(match.status, match.scheduledAt)]}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Kickoff day passed and the stored status was never refreshed. The match
+          is neither upcoming nor finished as far as we can verify, so it is
+          labelled as such rather than silently dropped from the page. */}
+      {unconfirmedItems.length > 0 ? (
+        <section aria-label="مباريات حالتها غير مؤكدة" className="mb-10">
+          <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
+            <h2 className="text-base font-extrabold text-muted">
+              مباريات حالتها غير مؤكدة ({unconfirmedItems.length})
+            </h2>
+          </div>
+          <p className="mb-3 text-[12px] leading-6 text-muted">{UNCONFIRMED_NOTE_AR}</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {unconfirmedItems.map((match) => (
               <LiveMatchCard key={match.id} match={match} />
             ))}
           </div>
@@ -183,7 +245,12 @@ export default async function LivePage() {
         provider={realData?.provider ?? "admin"}
         fromCache={realData?.fromCache ?? false}
         stale={realData?.stale ?? false}
-        fetchedAt={realData?.fetchedAt ?? new Date().toISOString()}
+        degraded={realData?.degraded ?? !realData}
+        // Never invent an update time. When the live source answered we show its
+        // own timestamp; when it did not, the note says so instead of printing
+        // the render time and implying a successful refresh that never happened
+        // (the same convention /news already follows).
+        fetchedAt={realData?.fetchedAt ?? lastEditorialUpdate}
       />
     </div>
   );

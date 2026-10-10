@@ -1,6 +1,7 @@
 import ShareMatch from "@/components/match/ShareMatch";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
@@ -11,16 +12,18 @@ import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-str
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ, siteDay } from "@/lib/tz";
+import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
 import { decodeSlug } from "@/lib/slug";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { competitionByPath } from "@/lib/competition-catalog";
 import { getAdminMatchBySlug, adminMatchToFixture } from "@/lib/admin-matches";
 import { isPubliclyVisible } from "@/lib/match-streams";
 import ProviderCrest from "@/components/ui/ProviderCrest";
-import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, sportForMatchId, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
+import { isLiveStatus } from "@/lib/match-state";
 
 // Rendered per request: the page carries admin-controlled stream state
 // (publish / stop / edit / delete). ISR with revalidatePath() does not reliably
@@ -33,6 +36,16 @@ export function generateStaticParams() {
   // renders real provider matches on demand (dynamicParams stays true).
   return demoContentVisible() ? allMatches.map((m) => ({ slug: m.slug })) : [];
 }
+
+/**
+ * The sport this match belongs to, memoized for the request.
+ *
+ * The slug carries no sport and the page used to assume "football", which made
+ * every basketball / tennis / cricket link the list pages render a 404. An id
+ * nothing resolves keeps the previous assumption rather than probing four
+ * providers for a slug that is simply unknown.
+ */
+const matchSport = cache(async (slug: string): Promise<string> => (await sportForMatchId(slug)) ?? "football");
 
 const STATUS_AR: Record<string, string> = {
   live: "مباشر الآن",
@@ -72,6 +85,23 @@ const EVENT_ICON: Record<string, string> = {
   period_start: "⏱",
   period_end: "⏱",
 };
+
+/* A goal is scored with a different ball per sport, and this page renders
+ * basketball / tennis / cricket fixtures too (the list pages link every sport
+ * in PUBLIC_SPORTS), so a fixed football glyph mislabels their events. */
+const EVENT_GLYPH_BY_SPORT: Record<string, string> = {
+  football: "⚽",
+  basketball: "🏀",
+  tennis: "🎾",
+  cricket: "🏏",
+};
+
+function eventGlyph(type: string, sport: string | undefined): string {
+  if (type === "goal" || type === "penalty") {
+    return EVENT_GLYPH_BY_SPORT[sport ?? "football"] ?? EVENT_GLYPH_BY_SPORT.football;
+  }
+  return EVENT_ICON[type] ?? "•";
+}
 
 const EVENT_AR: Record<string, string> = {
   goal: "هدف",
@@ -174,12 +204,24 @@ function eventDescriptionAr(description: string | null): string | null {
   return known[key] ?? text;
 }
 
-function clockOf(f: NormalizedFixture): string {
+/**
+ * The clock line under the score.
+ *
+ * It used to print the kickoff time for ANY match whose stored status was
+ * `scheduled`, including one that kicked off the previous evening — the page
+ * then read «— : —  · ١٠:٠٠ م · موعد معتمد» for a match that had long since
+ * been played. The kickoff is only a forward-looking time while the match is
+ * still genuinely upcoming (lib/match-state.ts); past that we say the state is
+ * unconfirmed rather than implying a fixture still to come.
+ */
+function clockOf(f: NormalizedFixture, now = Date.now()): string {
   if (f.status === "halftime") return "استراحة";
   if (f.minute !== null && ["live", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
   if (f.status === "finished") return "انتهت";
-  if (f.status === "scheduled") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
-  return STATUS_AR[f.status] ?? "حالة غير معروفة";
+  const state = matchStateOf(f.status, f.scheduledAt, now);
+  if (state === "upcoming") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
+  if (state === "unconfirmed") return MATCH_STATE_LABEL_AR.unconfirmed;
+  return STATUS_AR[f.status] ?? MATCH_STATE_LABEL_AR[state];
 }
 
 export async function generateMetadata({
@@ -192,7 +234,7 @@ export async function generateMetadata({
   const slug = decodeSlug((await params).slug);
 
   // ── real match first ──
-  const real = await sdlMatchDetail("football", slug);
+  const real = await sdlMatchDetail(await matchSport(slug), slug);
   if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     const f = real.data;
     const home = f.homeName ?? f.homeProviderId ?? "—";
@@ -268,7 +310,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
   let stale = false;
   let fetchedAt = new Date().toISOString();
 
-  const real = await sdlMatchDetail("football", slug);
+  const real = await sdlMatchDetail(await matchSport(slug), slug);
   if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     f = real.data;
     providerName = real.provider;
@@ -292,8 +334,18 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     if (!hasMatchIdentity(f)) notFound();
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
-    const live = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+    const live = isLiveStatus(f.status);
     const played = f.homeScore !== null && f.awayScore !== null;
+    // One state rule for the whole site (lib/match-state.ts): a stored
+    // `scheduled` whose kickoff day has passed is no longer an upcoming fixture.
+    const matchState = matchStateOf(f.status, f.scheduledAt);
+    const stateNote = live
+      ? "النتيجة والدقيقة تُحدَّثان تلقائيًا"
+      : matchState === "upcoming"
+        ? "موعد معتمد"
+        : matchState === "unconfirmed"
+          ? "الحالة غير مؤكدة — لم يصل تحديث من المصدر"
+          : MATCH_STATE_LABEL_AR[matchState];
 
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
@@ -332,8 +384,16 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
     const ht = f.periods.find((p) => p.label === "HT");
 
-    const homeTeamObj = teamBySlug(f.homeProviderId || home);
-    const awayTeamObj = teamBySlug(f.awayProviderId || away);
+    /* A /teams/<slug> page exists in production only when the provider has a row
+       for that id. `teamBySlug()` answers from the DEMO catalogue, so an
+       editorial ("admin") fixture — whose team values are operator text such as
+       "malaga", not a provider id — produced a link to a page production
+       deliberately does not serve, i.e. two guaranteed 404s on every admin match
+       page. Consult the demo catalogue only while it is actually being served;
+       otherwise fall through to the plain <span> the markup already has. */
+    const demoTeamsVisible = demoContentVisible();
+    const homeTeamObj = demoTeamsVisible ? teamBySlug(f.homeProviderId || home) : undefined;
+    const awayTeamObj = demoTeamsVisible ? teamBySlug(f.awayProviderId || away) : undefined;
     const compRef = (f.competitionProviderId || f.competitionName)
       ? competitionByPath(f.competitionProviderId || f.competitionName || "")
       : undefined;
@@ -352,7 +412,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             ? "https://schema.org/EventPostponed"
           : f.status === "cancelled"
             ? "https://schema.org/EventCancelled"
-            : ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)
+            : isLiveStatus(f.status)
               ? undefined
               : "https://schema.org/EventScheduled",
       sport: "Football",
@@ -436,8 +496,13 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               {dateAr(f.scheduledAt)} · {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ })}
               {f.venueName ? ` · ${f.venueName}` : ""}
               {" · "}
-              {live ? "النتيجة والدقيقة تُحدَّثان تلقائيًا" : "موعد معتمد"}
+              {stateNote}
             </p>
+            {matchState === "unconfirmed" ? (
+              <p className="mt-2 rounded-[3px] bg-warn-500/10 px-3 py-2 text-center text-[11px] font-semibold leading-5 text-warn-700 dark:text-warn-400">
+                {UNCONFIRMED_NOTE_AR}
+              </p>
+            ) : null}
             {override ? (
               <p className="mt-2 text-center text-[11px]">
                 <span className="inline-block rounded-[3px] bg-gold-500/15 px-2 py-0.5 font-bold text-gold-600 dark:text-gold-400">
@@ -449,7 +514,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={`/matches/${encodeURIComponent(slug)}`} />
-            {f.status === "scheduled" && !stale && <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>}
+            {matchState === "upcoming" && !stale && <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>}
             <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
           </div>
           {/* live stream — dedicated stream section */}
@@ -498,7 +563,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
                   return (
                     <li key={event.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
                       <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}${event.additionalMinute ? `+${event.additionalMinute}` : ""}'` : "—"}</span>
-                      <span aria-hidden className="w-5 text-center">{EVENT_ICON[event.type] ?? "•"}</span>
+                      <span aria-hidden className="w-5 text-center">{eventGlyph(event.type, f.sport)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="font-bold">{EVENT_AR[event.type] ?? "حدث رياضي"}</span>
                         {event.playerName ? <span> · {event.playerName}</span> : null}

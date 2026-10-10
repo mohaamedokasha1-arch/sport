@@ -24,6 +24,7 @@ import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
 import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
+import { isLiveStatus } from "@/lib/match-state";
 
 /**
  * Find a provider team row by looking it up in the league tables.
@@ -424,7 +425,7 @@ const STATUS_AR: Record<string, string> = {
   cancelled: "ملغاة",
 };
 
-const LIVE_STATUSES = new Set(["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"]);
+// Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 const FINAL_STATUSES = new Set(["finished", "awarded", "walkover"]);
 
 const arabicDateTime = (iso: string) => {
@@ -491,10 +492,10 @@ async function RealTeamView(props: {
   const mine = fixtureData.filter(
     (f) => f.homeProviderId === props.slug || f.awayProviderId === props.slug,
   );
-  const live = mine.filter((fixture) => LIVE_STATUSES.has(fixture.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const live = mine.filter((fixture) => isLiveStatus(fixture.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
   const upcoming = mine.filter((fixture) => fixture.status === "scheduled").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
   const played = mine.filter((fixture) => FINAL_STATUSES.has(fixture.status)).sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt));
-  const special = mine.filter((fixture) => !LIVE_STATUSES.has(fixture.status) && fixture.status !== "scheduled" && !FINAL_STATUSES.has(fixture.status));
+  const special = mine.filter((fixture) => !isLiveStatus(fixture.status) && fixture.status !== "scheduled" && !FINAL_STATUSES.has(fixture.status));
 
   const r = row as NormalizedStandingRow | null;
 
