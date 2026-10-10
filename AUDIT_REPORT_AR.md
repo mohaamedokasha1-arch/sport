@@ -366,7 +366,7 @@ smoke.mjs (نسخة production)        59 مسار — ALL GREEN  ✅
 
 | البند | الحالة |
 |---|---|
-| الفرع | `arena/2a15d631-sport` — commit `14a10dd` |
+| الفرع | `arena/2a15d631-sport` — commit `53262aa` |
 | **PR جديد** | **#27** — https://github.com/mohaamedokasha1-arch/sport/pull/27 — **مفتوح، غير مدمج، غير منشور** |
 | **PR #26** | **لا يزال مفتوحًا وغير منشور** (لا تدمجه تلقائيًا) |
 | `main` | **لم يتغيّر.** لم يُدمج أي شيء |
