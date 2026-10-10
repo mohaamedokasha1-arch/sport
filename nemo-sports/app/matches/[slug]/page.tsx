@@ -359,8 +359,18 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
     const ht = f.periods.find((p) => p.label === "HT");
 
-    const homeTeamObj = teamBySlug(f.homeProviderId || home);
-    const awayTeamObj = teamBySlug(f.awayProviderId || away);
+    /* A team page exists in production only when the provider has a row for that id.
+       `teamBySlug()` answers from the DEMO catalogue, so an editorial ("admin")
+       fixture — whose teams are operator text like "malaga", not a provider id —
+       produced a link to a page production deliberately does not serve: every
+       admin match page carried two guaranteed 404s (10 teams: malaga, espanyol,
+       borussia-dortmund, werder-bremen, rc-lens, olympique-lyonnais, al-fateh,
+       al-ahly, al-nassr, al-diriyah). Consult the demo catalogue only when it is
+       actually being served; otherwise fall through to the plain <span> the
+       markup already has. */
+    const demoTeamsVisible = demoContentVisible();
+    const homeTeamObj = demoTeamsVisible ? teamBySlug(f.homeProviderId || home) : undefined;
+    const awayTeamObj = demoTeamsVisible ? teamBySlug(f.awayProviderId || away) : undefined;
     const compRef = (f.competitionProviderId || f.competitionName)
       ? competitionByPath(f.competitionProviderId || f.competitionName || "")
       : undefined;

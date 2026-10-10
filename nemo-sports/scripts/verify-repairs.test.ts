@@ -334,3 +334,27 @@ test("the Arabic search alias table covers the clubs the news feed actually tags
     assert.ok(src.includes(arabic), `alias table lost the Arabic spelling ${arabic}`);
   }
 });
+
+/* ── production must not navigate with the demo catalogue ───────────────────
+   A crawl of every public page found ten dead links: each editorial match
+   page linked its two team names through `teamBySlug()`, which answers from
+   lib/core-data's DEMO teams, while /teams/[slug] in production resolves only
+   real provider rows. So /matches/malaga-vs-espanyol offered /teams/malaga
+   and /teams/espanyol — both 404. Ten teams in all (malaga, espanyol,
+   borussia-dortmund, werder-bremen, rc-lens, olympique-lyonnais, al-fateh,
+   al-ahly, al-nassr, al-diriyah). */
+test("the match page only builds team links from the demo catalogue in demo mode", () => {
+  const src = readFileSync(join(process.cwd(), "app", "matches", "[slug]", "page.tsx"), "utf8");
+  assert.ok(
+    !/^\s*const homeTeamObj = teamBySlug\(/m.test(src),
+    "homeTeamObj must be gated on demoContentVisible(), not the raw demo lookup",
+  );
+  assert.ok(
+    /demoTeamsVisible \? teamBySlug\(f\.homeProviderId \|\| home\) : undefined/.test(src),
+    "the demo team lookup must fall through to a plain name in production",
+  );
+  assert.ok(
+    /demoTeamsVisible \? teamBySlug\(f\.awayProviderId \|\| away\) : undefined/.test(src),
+    "the away team must be treated the same way as the home team",
+  );
+});

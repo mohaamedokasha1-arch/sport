@@ -172,6 +172,27 @@ async function main() {
   console.log(`  · testing ${details.length} detail pages from sitemap`);
   for (const p of details) await check(p);
 
+  /* ── nothing on a detail page may link to a 404 ────────────────────────────
+     The admin match pages linked their two team names through `teamBySlug()`,
+     which answers from the DEMO catalogue, so all ten editorial teams
+     (/teams/malaga, /teams/al-ahly, …) were 404s the reader could tap. A link
+     that cannot resolve is worse than plain text, so every internal link a
+     detail page renders is followed here. */
+  const deadDetailLinks = [];
+  for (const route of details) {
+    const html = await (await fetch(`${BASE}${route}`)).text();
+    const hrefs = [...new Set([...html.matchAll(/href="(\/[^"'#?]*)"/g)].map((m) => m[1]))]
+      .filter((h) => h.startsWith("/teams/") || h.startsWith("/players/") || h.startsWith("/competitions/"));
+    for (const href of hrefs) {
+      const res = await fetch(`${BASE}${href}`, { redirect: "manual" });
+      if (res.status >= 400) deadDetailLinks.push(`${route} → ${href} (${res.status})`);
+    }
+  }
+  const linksOk = deadDetailLinks.length === 0;
+  console.log(`  ${linksOk ? "✓" : "✗"} detail pages → every team/player/competition link resolves`);
+  for (const entry of deadDetailLinks) console.log(`      dead: ${entry}`);
+  if (!linksOk) failures++;
+
   /* ── every match the list renders must have a page behind it ──────────────
      /matches/[slug] used to resolve with a hard-coded "football" while the
      list links basketball / tennis / cricket too, so every one of those links
