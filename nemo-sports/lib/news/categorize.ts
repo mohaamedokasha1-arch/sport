@@ -6,6 +6,8 @@
  * Secondary categories: any other category above 50%.
  */
 
+import { normalizeSearchText } from "@/lib/search-text";
+
 export interface NewsCategory {
   name: string;
   nameAr: string;
@@ -98,4 +100,33 @@ export function categoryMeta(name: string): { nameAr: string; color: string; ico
   const c = CATEGORIES.find((x) => x.name === name);
   if (!c) return { nameAr: FALLBACK_CATEGORY_AR, color: "#5D6B7F", icon: "🏅" };
   return { nameAr: c.nameAr, color: c.color, icon: c.icon };
+}
+
+/**
+ * Canonical (stored) form of a ?category= URL parameter.
+ * ─────────────────────────────────────────────────────
+ * The store keeps English category names, but public links have shipped both
+ * English and Arabic labels: the footer links to /news?category=انتقالات while
+ * the feed chips link to /news?category=Transfers. An Arabic label used to be
+ * compared verbatim against the English names, so the link rendered an honest
+ * but dead empty page. Map any known label — English name, Arabic name (with
+ * or without the definite article "ال"), and the Sports/رياضة fallback pair —
+ * to the stored English name. Unknown values pass through unchanged and still
+ * produce the honest empty state; nothing is fabricated.
+ */
+export function canonicalCategoryParam(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return raw;
+  const stripArticle = (v: string) => v.replace(/^ال/, "");
+  const needle = stripArticle(normalizeSearchText(raw));
+  if (!needle) return raw;
+  for (const cat of CATEGORIES) {
+    if (stripArticle(normalizeSearchText(cat.name)) === needle || stripArticle(normalizeSearchText(cat.nameAr)) === needle) {
+      return cat.name;
+    }
+  }
+  if (needle === stripArticle(normalizeSearchText(FALLBACK_CATEGORY)) || needle === stripArticle(normalizeSearchText(FALLBACK_CATEGORY_AR))) {
+    return FALLBACK_CATEGORY;
+  }
+  return raw;
 }

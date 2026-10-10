@@ -7,7 +7,7 @@ import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
 import { competitions, sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
-import { categoryMeta } from "@/lib/news/categorize";
+import { categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
 import { demoContentVisible } from "@/lib/site";
 import { relative } from "@/lib/format";
 import { ManualNewsSection } from "@/components/public/AdminPublished";

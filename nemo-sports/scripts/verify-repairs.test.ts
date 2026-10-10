@@ -11,7 +11,9 @@ import { createSource, listArticles } from "@/lib/news/store";
 import { runSource } from "@/lib/news/pipeline";
 import { validateMatchQuery } from "@/lib/match-query";
 import { createBroadcaster, setBroadcasterStatus, validateBroadcastLink } from "@/lib/broadcasts";
-import { createLiveStream, streamForMatch, updateLiveStream } from "@/lib/match-streams";
+import { createLiveStream, streamForMatch, streamPhase, updateLiveStream } from "@/lib/match-streams";
+import { adminFixtureInScope } from "@/lib/sdl-gateway";
+import { canonicalCategoryParam } from "@/lib/news/categorize";
 import { parsePreferences, emptyPreferences, favoriteMatch } from "@/lib/preferences";
 import { teamSample, headToHead } from "@/lib/scout";
 import { foldCalendarLine, matchCalendar } from "@/lib/calendar";
@@ -141,6 +143,50 @@ test("calendar uses UTC, stable UID, no invented duration and injection-safe fol
   assert.ok(!ics.includes("DTEND:")); assert.ok(!ics.includes("VALARM"));
   for (const line of ics.split("\r\n")) assert.ok(Buffer.byteLength(line) <= 75);
   assert.equal(foldCalendarLine("a".repeat(76)), "a".repeat(75) + "\r\n a");
+});
+
+test("a scheduled match whose kickoff day passed is no longer an upcoming stream", () => {
+  const now = new Date("2026-10-10T12:00:00Z"); // Cairo 15:00 on Oct 10
+  assert.equal(streamPhase("scheduled", "2026-10-10T09:00:00Z", now), "upcoming", "same site day keeps the player");
+  assert.equal(streamPhase("scheduled", "2026-10-09T19:00:00Z", now), "inactive", "a previous site day deactivates the player");
+  assert.equal(streamPhase("live", "2026-10-09T19:00:00Z", now), "live", "a live status always wins over the calendar");
+  assert.equal(streamPhase("finished", "2026-10-10T09:00:00Z", now), "inactive");
+  assert.equal(streamPhase("scheduled", undefined, now), "upcoming", "no kickoff information keeps the stored status");
+  assert.equal(streamPhase("scheduled", "not-a-date", now), "upcoming", "an invalid kickoff keeps the stored status");
+});
+
+test("admin fixtures stay inside a scoped fixtures query", () => {
+  const saudis = fixture({ providerId: "al-fateh-vs-al-ahli", competitionProviderId: "saudi-pro-league", competitionName: "دوري روشن السعودي", scheduledAt: "2026-10-09T14:55:00Z" });
+  const dortmund = fixture({ providerId: "borussia-dortmund-vs-werder-bremen", competitionProviderId: "bundesliga", competitionName: "الدوري الألماني", scheduledAt: "2026-10-09T18:30:00Z" });
+  const scope = (competitionProviderId?: string, date?: string) => ({ competitionProviderId, date });
+  // The Premier League page (SportScore slug) sees neither foreign match …
+  assert.equal(adminFixtureInScope(saudis, scope("english-premier-league")), false);
+  assert.equal(adminFixtureInScope(dortmund, scope("english-premier-league")), false);
+  // … the Saudi page sees its own league by provider slug or canonical slug …
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-pro-league")), true);
+  // … the Bundesliga page sees Dortmund only …
+  assert.equal(adminFixtureInScope(dortmund, scope("bundesliga")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("bundesliga")), false);
+  // … and a day filter keeps other days out even inside the right league.
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league", "2026-10-09")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league", "2026-10-10")), false);
+  assert.equal(adminFixtureInScope(saudis, scope("english-premier-league", "2026-10-09")), false, "competition and day must BOTH match");
+  // Unscoped queries (admin panel, /matches, sitemap) keep the full merge.
+  assert.equal(adminFixtureInScope(saudis, scope()), true);
+  assert.equal(adminFixtureInScope(dortmund, scope()), true);
+});
+
+test("news category links canonicalize Arabic labels to the stored English name", () => {
+  assert.equal(canonicalCategoryParam("انتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("الانتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("رياضة"), "Sports");
+  assert.equal(canonicalCategoryParam("Sports"), "Sports");
+  assert.equal(canonicalCategoryParam("Egyptian Football"), "Egyptian Football");
+  assert.equal(canonicalCategoryParam("egyptian football"), "Egyptian Football");
+  assert.equal(canonicalCategoryParam("كرة السلة"), "Basketball");
+  assert.equal(canonicalCategoryParam("تحليل"), "تحليل", "unknown labels pass through and stay honest-empty");
+  assert.equal(canonicalCategoryParam(""), "");
 });
 
 test("Newsroom groups similar same-day titles without deleting publisher records", () => {

@@ -2,6 +2,7 @@ import { reportKind } from "@/lib/news/relevance";
 import Link from "next/link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
+import { cleanText } from "@/lib/news/normalize";
 import { relative } from "@/lib/format";
 import { newsEntityHref } from "@/lib/news/entity-links";
 
@@ -56,7 +57,9 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
         </h3>
 
         {article.description ? (
-          <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-muted">{article.description}</p>
+          // RSS descriptions carry publisher markup; render plain text only.
+          // Covers records ingested before the pipeline stored cleaned text.
+          <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-muted">{cleanText(article.description)}</p>
         ) : null}
 
         {/* categories + entities */}
