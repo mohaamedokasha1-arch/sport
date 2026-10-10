@@ -31,6 +31,13 @@ export function providerLabel(provider: string): string {
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
+export function originLabel(provider: string, fromCache: boolean): string {
+  if (provider === "demo") return "بيانات المعاينة";
+  if (provider === "admin") return "من سجل التحرير";
+  if (fromCache) return "من الكاش";
+  return "جلب مباشر";
+}
+
 export default function DataSourceNote({
   provider,
   fromCache = false,
@@ -46,11 +53,13 @@ export default function DataSourceNote({
   ttlSeconds?: number;
   className?: string;
 }) {
+  const origin = originLabel(provider, fromCache);
+  const cacheHint = fromCache && ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : "";
   return (
     <div className={`flex flex-wrap items-center gap-2 text-[10.5px] text-muted ${className}`}>
       <span>
         المصدر: <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
-        {fromCache ? ` · من الكاش${ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : ""}` : " · جلب مباشر"}
+        {` · ${origin}${cacheHint}`}
         {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : ""}
       </span>
       {stale ? (

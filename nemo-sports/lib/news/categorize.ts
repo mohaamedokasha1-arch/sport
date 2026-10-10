@@ -6,6 +6,8 @@
  * Secondary categories: any other category above 50%.
  */
 
+import { normalizeSearchText } from "@/lib/search-text";
+
 export interface NewsCategory {
   name: string;
   nameAr: string;
@@ -31,7 +33,8 @@ export const CATEGORIES: NewsCategory[] = [
   { name: "La Liga", nameAr: "الدوري الإسباني", keywords: ["la liga", "real madrid", "barcelona", "atlético madrid", "atletico", "الدوري الإسباني"], minConfidence: 35, color: "#FFC107", icon: "🇪🇸" },
   { name: "Serie A", nameAr: "الدوري الإيطالي", keywords: ["serie a", "juventus", "ac milan", "inter milan", "الدوري الإيطالي"], minConfidence: 35, color: "#00A86B", icon: "🇮🇹" },
   { name: "Transfers", nameAr: "الانتقالات", keywords: ["transfer", "signing", "deal", "move", "loan", "sold", "acquired", "انتقالات", "تعاقد"], minConfidence: 60, color: "#673AB7", icon: "🔄" },
-  { name: "Match Reports", nameAr: "تقارير المباريات", keywords: ["report", "recap", "summary", "highlights", "analysis", "result", "تقرير", "ملخص"], minConfidence: 60, color: "#00BCD4", icon: "📊" },
+  { name: "Analysis", nameAr: "تحليلات", keywords: ["analysis", "tactical", "review", "تحليل", "تكتيك"], minConfidence: 60, color: "#00BCD4", icon: "🧠" },
+  { name: "Match Reports", nameAr: "تقارير المباريات", keywords: ["report", "recap", "summary", "highlights", "result", "تقرير", "ملخص"], minConfidence: 60, color: "#00BCD4", icon: "📊" },
   { name: "Teams", nameAr: "الأندية", keywords: ["team", "club", "squad", "roster", "announcement", "فريق", "نادي"], minConfidence: 60, color: "#4CAF50", icon: "👥" },
   { name: "Players", nameAr: "اللاعبون", keywords: ["player", "footballer", "athlete", "star", "legend", "لاعب"], minConfidence: 60, color: "#8BC34A", icon: "👤" },
   { name: "Basketball", nameAr: "كرة السلة", keywords: ["basketball", "nba", "court", "dunk", "hoop", "كرة السلة"], minConfidence: 35, color: "#FF6F00", icon: "🏀" },
@@ -98,4 +101,16 @@ export function categoryMeta(name: string): { nameAr: string; color: string; ico
   const c = CATEGORIES.find((x) => x.name === name);
   if (!c) return { nameAr: FALLBACK_CATEGORY_AR, color: "#5D6B7F", icon: "🏅" };
   return { nameAr: c.nameAr, color: c.color, icon: c.icon };
+}
+
+export function canonicalCategoryParam(input: string): string {
+  const raw = input.trim();
+  if (!raw) return "";
+  const norm = normalizeSearchText(raw);
+  const match = CATEGORIES.find((c) => 
+    c.name.toLowerCase() === raw.toLowerCase() || 
+    c.nameAr === raw ||
+    normalizeSearchText(c.nameAr) === norm
+  );
+  return match ? match.name : raw;
 }

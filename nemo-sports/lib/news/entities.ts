@@ -106,3 +106,7 @@ export function matchEntities(title: string, description: string): NewsEntityRef
     ...matchList(COMPETITIONS, "competition", t, d),
   ].slice(0, 8);
 }
+
+export function newsCompetitions(): { id: string; name: string }[] {
+  return COMPETITIONS.map((c) => ({ id: c.internalId, name: c.displayName }));
+}
