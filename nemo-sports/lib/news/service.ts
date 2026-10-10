@@ -2,16 +2,18 @@
  * Updates run only through awaited cron/admin jobs, never fire-and-forget.
  */
 import { feedCategories, listArticles, listSources, type ArticleFilter } from "./store";
+import { sourceFreshness } from "./freshness";
 import type { NewsArticle } from "./types";
 
-export const FEED_STALE_AFTER_MIN = 30;
+/** Baseline age (minutes) used by the freshness rule; see lib/news/freshness.ts. */
+export { FRESHNESS_FLOOR_MIN as FEED_STALE_AFTER_MIN } from "./freshness";
 
 export interface NewsFeed {
   items: NewsArticle[];
   total: number;
   /** most recent successful source check (ISO) — for "last updated" UI */
   lastUpdated: string | null;
-  /** true when the feed is older than FEED_STALE_AFTER_MIN */
+  /** true when at least one enabled source is not fresh (see sourceFreshness) */
   stale: boolean;
   categories: { name: string; count: number }[];
 }
@@ -27,8 +29,8 @@ async function buildFeed(items: NewsArticle[], total: number): Promise<NewsFeed>
   const health = await newsHealthSummary();
   const lastUpdated = health.lastFetchAt;
   const sources = (await listSources()).filter((s) => s.enabled);
-  const stale = sources.length === 0 || sources.some((s) => !s.lastSuccessfulFetch ||
-    s.consecutiveFailures > 0 || Date.now() - Date.parse(s.lastSuccessfulFetch) > FEED_STALE_AFTER_MIN * 60000);
+  const now = Date.now();
+  const stale = sources.length === 0 || sources.some((s) => sourceFreshness(s, now) !== "fresh");
   const categories = await feedCategories();
   return { items, total, lastUpdated, stale, categories };
 }

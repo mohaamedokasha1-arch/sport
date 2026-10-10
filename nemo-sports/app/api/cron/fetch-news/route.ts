@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ingestAllSources } from "@/lib/news/pipeline";
+import { ingestAllSources, DurableStorageRequiredError, IngestBusyError } from "@/lib/news/pipeline";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { newsBackend } from "@/lib/news/store";
 
@@ -71,6 +71,21 @@ export async function GET(request: Request) {
       { status: stats.perSource.every((s) => s.ok) ? 200 : 502, headers: { "cache-control": "no-store" } },
     );
   } catch (e) {
+    // Distinct, honest outcomes for the scheduler: a run already in progress is
+    // not a failure, and a missing database is a configuration problem (503),
+    // not an internal error. Anything else is a genuine 500.
+    if (e instanceof IngestBusyError) {
+      return NextResponse.json(
+        { ok: false, error: { code: "already_running", message: "another ingestion run holds the lock; it will finish on its own" } },
+        { status: 409, headers: { "cache-control": "no-store" } },
+      );
+    }
+    if (e instanceof DurableStorageRequiredError) {
+      return NextResponse.json(
+        { ok: false, error: { code: "durable_storage_required", message: "DATABASE_URL is required for scheduled news ingestion in production" } },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: { code: "ingest_failed", message: "News ingestion failed; check database and provider health." } },
       { status: 500, headers: { "cache-control": "no-store" } },

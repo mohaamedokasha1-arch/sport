@@ -6,9 +6,11 @@ import { getDb } from "@/lib/db/pg";
  * FETCH → PARSE → NORMALIZE → DEDUPLICATE → VALIDATE → CATEGORIZE →
  * ENTITY-MATCH → STORE → PUBLISH.
  *
- * Runs from Vercel Cron (/api/cron/fetch-news) and from lazy refresh
- * (lib/news/service.ts). Respects per-source refresh intervals + backoff,
- * uses HTTP caching (ETag/If-Modified-Since), 10s timeout per feed.
+ * Runs only from awaited jobs: the scheduled Vercel Cron route
+ * (/api/cron/fetch-news) and the admin "fetch now" action. Public page reads
+ * never start network work (lib/news/service.ts is read-only). Respects
+ * per-source refresh intervals + backoff, uses HTTP caching
+ * (ETag/If-Modified-Since), 10s timeout per feed.
  */
 
 import { randomUUID } from "node:crypto";
@@ -42,6 +44,22 @@ import type { IngestStats, NewsArticle, RSSSource } from "./types";
 
 const FETCH_TIMEOUT_MS = 10_000;
 const USER_AGENT = "NEMO-Sports/1.0 (+https://nemo-sports.vercel.app)";
+
+/** Another ingestion holds the cross-replica lock. Retry later; nothing failed. */
+export class IngestBusyError extends Error {
+  constructor() {
+    super("News ingestion is already running");
+    this.name = "IngestBusyError";
+  }
+}
+
+/** Production refuses to ingest into process memory (it would vanish on cold start). */
+export class DurableStorageRequiredError extends Error {
+  constructor() {
+    super("Durable news storage is required");
+    this.name = "DurableStorageRequiredError";
+  }
+}
 
 export interface SourceRunResult {
   sourceId: string;
@@ -385,12 +403,12 @@ export function ingestAllSources(opts: { force?: boolean; sourceIds?: string[] }
   ingestion = (async () => {
     const db = await getDb();
     if (!db) {
-      if (process.env.NODE_ENV === "production") throw new Error("Durable news storage is required");
+      if (process.env.NODE_ENV === "production") throw new DurableStorageRequiredError();
       return ingestSources(opts);
     }
     return db.transaction(async (tx) => {
       const [lock] = await tx.select<{ locked: boolean }>("SELECT pg_try_advisory_xact_lock(76321941) AS locked", []);
-      if (!lock?.locked) throw new Error("News ingestion is already running");
+      if (!lock?.locked) throw new IngestBusyError();
       return ingestSources(opts);
     });
   })().finally(() => { ingestion = null; });
