@@ -8,7 +8,7 @@ import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { dateAr, timeOf } from "@/lib/format";
 import { listBroadcasters } from "@/lib/broadcasts";
 import { listMatchStreams, streamPhase, type MatchStreamSource } from "@/lib/match-streams";
-import { hasMatchIdentity, matchDetail as sdlMatchDetail } from "@/lib/sdl-gateway";
+import { hasMatchIdentity, matchDetail as sdlMatchDetail, sportForMatchId } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -44,7 +44,11 @@ async function resolveStreamRow(s: MatchStreamSource): Promise<StreamRow> {
   const aliasAway = s.awayAliases[0] ?? null;
   if (slug) {
     try {
-      const res = await sdlMatchDetail("football", slug);
+      // The stream's slug carries no sport: resolve it, or a basketball /
+      // tennis / cricket stream would be shown as "unlinked" (the football
+      // chain has no row for that id).
+      const sport = (await sportForMatchId(slug)) ?? "football";
+      const res = await sdlMatchDetail(sport, slug);
       if (res.ok && res.source === "provider" && hasMatchIdentity(res.data)) {
         const f = res.data;
         return {
