@@ -77,6 +77,11 @@ export default async function HomePage() {
             <p className="max-w-3xl text-[13px] leading-6 text-muted">نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط. قد تختلف التغطية حسب المصدر والبطولة.</p>
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
+          {fixtureData ? (
+            <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
+          ) : liveData ? (
+            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} fetchedAt={liveData.fetchedAt} />
+          ) : null}
         </header>
 
         <section aria-label="المباريات المباشرة">
