@@ -106,3 +106,17 @@ export function matchEntities(title: string, description: string): NewsEntityRef
     ...matchList(COMPETITIONS, "competition", t, d),
   ].slice(0, 8);
 }
+
+/**
+ * Competitions the news store can actually filter by.
+ *
+ * The /news sidebar used to list the offline preview competitions from
+ * lib/core-data. Three of those slugs (saudi-pro-league, bundesliga,
+ * ligue-1) have no matching entity here, so `/news?competition=…` answered an
+ * empty page no matter what the newsroom published. A link is only worth
+ * rendering when the store behind it can return something, so the sidebar is
+ * built from this list instead.
+ */
+export function newsCompetitions(): { id: string; name: string }[] {
+  return COMPETITIONS.map(({ internalId, displayName }) => ({ id: internalId, name: displayName }));
+}

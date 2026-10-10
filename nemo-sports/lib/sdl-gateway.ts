@@ -17,8 +17,10 @@ import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
 import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
+import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
 
 export type DataSource = "provider" | "demo";
 
@@ -147,6 +149,30 @@ function wrap<T>(
 }
 
 /**
+ * Does an operator-entered fixture belong to a SCOPED fixtures query?
+ * ─────────────────────────────────────────────────────────────────
+ * Admin fixtures are merged into fixtures surfaces, so a scoped query (one
+ * competition, one UTC day) must not inherit matches from other competitions
+ * or other days — an unscoped merge leaked foreign matches onto league pages
+ * and into scoped API responses. Unscoped queries (admin panel, /matches,
+ * /fixtures, sitemap) keep the full merge.
+ *
+ * The competition check resolves the provider id through the canonical
+ * catalogue, so provider slugs ("english-premier-league") and the canonical
+ * slugs the admin form stores ("premier-league") both match their league.
+ * The date check compares UTC days, matching provider semantics;
+ * fixturesForCairoDate still applies the Cairo-day boundary afterwards.
+ */
+export function adminFixtureInScope(
+  fixture: NormalizedFixture,
+  scope: { competitionProviderId?: string; date?: string },
+): boolean {
+  if (scope.competitionProviderId && !fixtureBelongsToCompetition(fixture, scope.competitionProviderId)) return false;
+  if (scope.date && fixture.scheduledAt.slice(0, 10) !== scope.date) return false;
+  return true;
+}
+
+/**
  * Layer admin corrections (lib/match-overrides.ts) over provider fixtures.
  * Runs AFTER wrap() so provider accounting (cost, cache, health) is untouched;
  * when no override exists the input is returned untouched (same references).
@@ -155,15 +181,18 @@ async function corrected(
   res: GatewayResult<NormalizedFixture[]>,
   sport: string,
   onlyLive = false,
+  scope: { competitionProviderId?: string; date?: string } = {},
 ): Promise<GatewayResult<NormalizedFixture[]>> {
   const allAdmin = await publishedAdminFixtures().catch(() => []);
-  const adminFixtures = allAdmin.filter((f) => {
-    if (f.sport !== sport) return false;
-    if (onlyLive) {
-      return ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
-    }
-    return true;
-  });
+  const adminFixtures = allAdmin
+    .filter((f) => {
+      if (f.sport !== sport) return false;
+      if (onlyLive) {
+        return ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+      }
+      return true;
+    })
+    .filter((f) => adminFixtureInScope(f, scope));
   if (!res.ok) {
     // Operator-entered matches stay visible even when every provider is down.
     if (adminFixtures.length === 0) return res;
@@ -174,7 +203,8 @@ async function corrected(
       fromCache: false,
       stale: false,
       degraded: true,
-      fetchedAt: adminFixtures.map((f) => f.editorialUpdatedAt ?? "").filter(Boolean).sort()[0] ?? new Date(0).toISOString(),
+      // "last updated" is the LATEST editorial touch, not the earliest.
+      fetchedAt: adminFixtures.map((f) => f.editorialUpdatedAt ?? "").filter(Boolean).sort().pop() ?? new Date(0).toISOString(),
       source: "provider",
     };
   }
@@ -220,7 +250,39 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
       "fixtures",
     ),
     sport,
+    false,
+    { competitionProviderId: input.competitionProviderId, date: input.date },
   );
+}
+
+/**
+ * Which sport a match id belongs to.
+ *
+ * `/matches/[slug]` only ever receives the provider id — never the sport — while
+ * the list pages link every sport they render (PUBLIC_SPORTS = football,
+ * basketball, tennis, cricket). Resolving with a hard-coded "football" made
+ * every basketball / tennis / cricket link a 404: 50 of the 158 matches on the
+ * production "today" page alone, e.g.
+ * `/matches/memphis-grizzlies-vs-chicago-bulls` and
+ * `/matches/alexander-bublik-vs-brandon-nakashima`.
+ *
+ * The fixtures those list pages already fetch carry both the id and its sport,
+ * so read it from there rather than paying a probe call per sport. Returns null
+ * when nothing matches, and the caller keeps its previous behaviour instead of
+ * guessing.
+ */
+export async function sportForMatchId(providerMatchId: string): Promise<string | null> {
+  const id = providerMatchId.trim().toLowerCase();
+  if (!id) return null;
+  // Football first: it is the site's primary sport and by far the most likely
+  // answer, so the common case stops after one cached read.
+  const order = ["football", ...PUBLIC_SPORTS.map((s) => s.slug).filter((s) => s !== "football")];
+  for (const sport of order) {
+    const res = await fixtures({ sport });
+    if (!res.ok) continue;
+    if (res.data.some((fixture) => fixture.providerId.trim().toLowerCase() === id)) return sport;
+  }
+  return null;
 }
 
 /** Events of one match, in canonical vocabulary. */
@@ -583,5 +645,5 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
   const first = valid[0];
   const same = valid.filter((r) => r.provider === first.provider);
   const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
-  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort()[0] };
+  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt };
 }

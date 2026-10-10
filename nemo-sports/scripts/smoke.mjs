@@ -23,7 +23,11 @@ const pages = [
   "/teams",
   "/players",
   "/news",
+  "/news?category=تحليلات",
+  "/news?category=انتقالات",
+  "/news?category=رياضة",
   "/news?category=تحليل",
+  "/news?competition=premier-league",
   "/news?sport=football",
   "/watch",
   "/standings",
@@ -168,6 +172,34 @@ async function main() {
   console.log(`  · testing ${details.length} detail pages from sitemap`);
   for (const p of details) await check(p);
 
+  /* ── every match the list renders must have a page behind it ──────────────
+     /matches/[slug] used to resolve with a hard-coded "football" while the
+     list links basketball / tennis / cricket too, so every one of those links
+     was a 404 — 50 of the 158 matches on the production "today" page. The
+     invariant is the one a visitor experiences: whatever a list page links,
+     clicking it must not land on "not found". Sampled per sport so one empty
+     sport cannot mask a broken one. */
+  const SPORT_SAMPLE = ["football", "basketball", "tennis", "cricket"];
+  for (const sport of SPORT_SAMPLE) {
+    const listed = await (await fetch(`${BASE}/matches?sport=${sport}`)).text();
+    const hrefs = [...new Set([...listed.matchAll(/href="(\/matches\/[^"?#]+)"/g)].map((m) => m[1]))].slice(0, 3);
+    if (hrefs.length === 0) {
+      console.log(`  · /matches?sport=${sport} → no provider fixtures listed (nothing to check)`);
+      continue;
+    }
+    const broken = [];
+    for (const href of hrefs) {
+      const res = await fetch(`${BASE}${href}`);
+      if (res.status !== 200) broken.push(`${href} (${res.status})`);
+    }
+    const okLinks = broken.length === 0;
+    console.log(`  ${okLinks ? "✓" : "✗"} /matches?sport=${sport} → ${hrefs.length} listed match links, ${broken.length} dead`);
+    // Print the dead ones: a bare count sends whoever reads this looking for a
+    // count bug instead of the link that is actually broken.
+    for (const entry of broken) console.log(`      dead: ${entry}`);
+    if (!okLinks) failures++;
+  }
+
   // API contracts.
   // Content mode: the demo dataset renders in development/preview only. In
   // production without real provider data every sports-data surface is
@@ -204,8 +236,18 @@ async function main() {
     console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
     if (anyLive.length === 0) failures++;
   } else {
-    const emptyOk = liveIds.length === 0;
-    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches (production: must be empty, never fabricated)`);
+    /* "Never fabricated" is the invariant, not "always empty". The previous
+       assertion required the map to be EMPTY whenever demo content was off,
+       which only held while the provider happened to have no live matches — a
+       provider returning three real fixtures failed the suite on correct
+       behaviour. Assert the real thing instead: every id /api/live reports
+       must exist in the provider's own live feed, with the expected shape. */
+    const providerLive = await (await fetch(`${BASE}/api/v1/live`)).json();
+    const providerIds = new Set((providerLive.data ?? []).map((fixture) => fixture.providerId));
+    const fabricated = liveIds.filter((id) => !providerIds.has(id));
+    const shapeOk = liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((key) => key in live[id]));
+    const emptyOk = fabricated.length === 0 && shapeOk;
+    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, ${fabricated.length} of them not backed by the provider`);
     if (!emptyOk) failures++;
   }
 

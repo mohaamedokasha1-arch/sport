@@ -83,8 +83,11 @@ export default async function LivePage() {
   const finishedItems = cardItems.filter((item) =>
     ["finished", "ended"].includes(item.status.toLowerCase())
   );
+  // A kickoff in the past is not "upcoming" — even when the stored status
+  // still says so (the same convention as /fixtures and /api/live).
   const upcomingItems = cardItems
     .filter((item) => !liveItems.includes(item) && !finishedItems.includes(item))
+    .filter((item) => Number.isFinite(+new Date(item.scheduledAt)) && +new Date(item.scheduledAt) > Date.now())
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
 
   return (

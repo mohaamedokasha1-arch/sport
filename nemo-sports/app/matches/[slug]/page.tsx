@@ -10,14 +10,15 @@ import { getLiveStates } from "@/lib/live";
 import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
-import { SITE_TZ } from "@/lib/tz";
+import { SITE_TZ, siteDay } from "@/lib/tz";
+import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { competitionByPath } from "@/lib/competition-catalog";
 import { getAdminMatchBySlug, adminMatchToFixture } from "@/lib/admin-matches";
 import { isPubliclyVisible } from "@/lib/match-streams";
 import ProviderCrest from "@/components/ui/ProviderCrest";
-import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, sportForMatchId, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
@@ -33,6 +34,15 @@ export function generateStaticParams() {
   // renders real provider matches on demand (dynamicParams stays true).
   return demoContentVisible() ? allMatches.map((m) => ({ slug: m.slug })) : [];
 }
+
+/**
+ * The sport this match belongs to, memoized for the request.
+ *
+ * The slug carries no sport and the page used to assume "football", which 404'd
+ * every basketball / tennis / cricket link the list pages render. Unknown ids
+ * keep the previous assumption rather than probing four providers.
+ */
+const matchSport = cache(async (slug: string): Promise<string> => (await sportForMatchId(slug)) ?? "football");
 
 const STATUS_AR: Record<string, string> = {
   live: "مباشر الآن",
@@ -72,6 +82,23 @@ const EVENT_ICON: Record<string, string> = {
   period_start: "⏱",
   period_end: "⏱",
 };
+
+/* A goal is scored with a different ball per sport. The page renders
+ * basketball / tennis / cricket fixtures too (the list pages link every sport
+ * in PUBLIC_SPORTS), so a fixed football glyph mislabels their events. */
+const EVENT_GLYPH_BY_SPORT: Record<string, string> = {
+  football: "⚽",
+  basketball: "🏀",
+  tennis: "🎾",
+  cricket: "🏏",
+};
+
+function eventGlyph(type: string, sport: string | undefined): string {
+  if (type === "goal" || type === "penalty") {
+    return EVENT_GLYPH_BY_SPORT[sport ?? "football"] ?? EVENT_GLYPH_BY_SPORT.football;
+  }
+  return EVENT_ICON[type] ?? "•";
+}
 
 const EVENT_AR: Record<string, string> = {
   goal: "هدف",
@@ -192,7 +219,7 @@ export async function generateMetadata({
   const slug = decodeSlug((await params).slug);
 
   // ── real match first ──
-  const real = await sdlMatchDetail("football", slug);
+  const real = await sdlMatchDetail(await matchSport(slug), slug);
   if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     const f = real.data;
     const home = f.homeName ?? f.homeProviderId ?? "—";
@@ -268,7 +295,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
   let stale = false;
   let fetchedAt = new Date().toISOString();
 
-  const real = await sdlMatchDetail("football", slug);
+  const real = await sdlMatchDetail(await matchSport(slug), slug);
   if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     f = real.data;
     providerName = real.provider;
@@ -456,7 +483,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
           {stream && isPubliclyVisible(stream) ? (
             <MatchStreamPlayer
               stream={stream}
-              phase={streamPhase(f.status)}
+              phase={streamPhase(f.status, f.scheduledAt)}
               home={home}
               away={away}
               inactiveNote={inactiveStreamNote(f.status)}
@@ -482,7 +509,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">NEMO Match Pulse · أحداث المباراة</h2>
             {events.length === 0 ? (
               <p className="card px-4 py-6 text-center text-[12.5px] text-muted">
-                {f.status === "scheduled"
+                {f.status === "scheduled" && siteDay(f.scheduledAt) >= siteDay(Date.now())
                   ? "لم تبدأ المباراة بعد — تظهر الأحداث فقط إذا أتاحها المصدر."
                   : "لا توجد أحداث مسجَّلة لهذه المباراة من المصدر حاليًا."}
               </p>
@@ -498,7 +525,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
                   return (
                     <li key={event.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
                       <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}${event.additionalMinute ? `+${event.additionalMinute}` : ""}'` : "—"}</span>
-                      <span aria-hidden className="w-5 text-center">{EVENT_ICON[event.type] ?? "•"}</span>
+                      <span aria-hidden className="w-5 text-center">{eventGlyph(event.type, f.sport)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="font-bold">{EVENT_AR[event.type] ?? "حدث رياضي"}</span>
                         {event.playerName ? <span> · {event.playerName}</span> : null}

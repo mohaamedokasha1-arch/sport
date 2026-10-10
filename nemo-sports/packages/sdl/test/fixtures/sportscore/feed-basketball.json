@@ -1,0 +1,36 @@
+{
+  "_comment": "SYNTHETIC test fixture for the replay server only. No real NBA result, roster or fixture is reproduced here: the names are deliberately invented so nothing on a test page can be mistaken for real provider data. Mirrors the shape of feed.json so the same adapter parses it, under /basketball/ instead of /football/.",
+  "sport": "basketball",
+  "count": 2,
+  "matches": [
+    {
+      "home": "Harbor City Waves",
+      "away": "Riverside Comets",
+      "home_logo": "https://img.thesports.com/basketball/team/00000000000000000000000000000001.png",
+      "away_logo": "https://img.thesports.com/basketball/team/00000000000000000000000000000002.png",
+      "home_score": "101",
+      "away_score": "94",
+      "status": "finished",
+      "status_text": "Finished",
+      "time": "2026-10-09T23:30:00+00:00",
+      "competition": "Test Continental Basketball Cup",
+      "competition_logo": "https://img.thesports.com/basketball/competition/00000000000000000000000000000001.png",
+      "url": "/basketball/match/harbor-city-waves-vs-riverside-comets/"
+    },
+    {
+      "home": "Northgate Titans",
+      "away": "Lakeshore Mariners",
+      "home_logo": "https://img.thesports.com/basketball/team/00000000000000000000000000000003.png",
+      "away_logo": "https://img.thesports.com/basketball/team/00000000000000000000000000000004.png",
+      "home_score": null,
+      "away_score": null,
+      "status": "not started",
+      "status_text": "Not Started",
+      "time": "2026-10-10T18:00:00+00:00",
+      "competition": "Test Continental Basketball Cup",
+      "competition_logo": "https://img.thesports.com/basketball/competition/00000000000000000000000000000001.png",
+      "url": "/basketball/match/northgate-titans-vs-lakeshore-mariners/"
+    }
+  ],
+  "updated": "2026-10-10T00:00:00+00:00"
+}

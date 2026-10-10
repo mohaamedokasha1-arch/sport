@@ -54,7 +54,7 @@ export async function publicStreamCards(limit = 24): Promise<PublicStreamCard[]>
       competition: fixture?.competitionName ?? stream.competitionName ?? "",
       kickoff: fixture?.scheduledAt ?? stream.kickoffAt,
       status,
-      phase: streamPhase(status),
+      phase: streamPhase(status, fixture?.scheduledAt ?? stream.kickoffAt),
     });
   }
   return cards;

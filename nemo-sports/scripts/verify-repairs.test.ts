@@ -2,6 +2,8 @@ import { upsertOverride } from "@/lib/match-overrides";
 import { groupSimilarStories } from "@/lib/news/group";
 import type { NewsArticle } from "@/lib/news/types";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { isDateKey, siteDateKey, shiftDateKey } from "@/lib/tz";
 import { filterProviderMatches, isFixtureLive } from "@/lib/provider-match-filter";
@@ -11,7 +13,10 @@ import { createSource, listArticles } from "@/lib/news/store";
 import { runSource } from "@/lib/news/pipeline";
 import { validateMatchQuery } from "@/lib/match-query";
 import { createBroadcaster, setBroadcasterStatus, validateBroadcastLink } from "@/lib/broadcasts";
-import { createLiveStream, streamForMatch, updateLiveStream } from "@/lib/match-streams";
+import { createLiveStream, inactiveStreamNote, streamForMatch, streamPhase, updateLiveStream } from "@/lib/match-streams";
+import { adminFixtureInScope } from "@/lib/sdl-gateway";
+import { CATEGORIES, canonicalCategoryParam, categorizeArticle } from "@/lib/news/categorize";
+import { newsCompetitions } from "@/lib/news/entities";
 import { parsePreferences, emptyPreferences, favoriteMatch } from "@/lib/preferences";
 import { teamSample, headToHead } from "@/lib/scout";
 import { foldCalendarLine, matchCalendar } from "@/lib/calendar";
@@ -143,6 +148,50 @@ test("calendar uses UTC, stable UID, no invented duration and injection-safe fol
   assert.equal(foldCalendarLine("a".repeat(76)), "a".repeat(75) + "\r\n a");
 });
 
+test("a scheduled match whose kickoff day passed is no longer an upcoming stream", () => {
+  const now = new Date("2026-10-10T12:00:00Z"); // Cairo 15:00 on Oct 10
+  assert.equal(streamPhase("scheduled", "2026-10-10T09:00:00Z", now), "upcoming", "same site day keeps the player");
+  assert.equal(streamPhase("scheduled", "2026-10-09T19:00:00Z", now), "inactive", "a previous site day deactivates the player");
+  assert.equal(streamPhase("live", "2026-10-09T19:00:00Z", now), "live", "a live status always wins over the calendar");
+  assert.equal(streamPhase("finished", "2026-10-10T09:00:00Z", now), "inactive");
+  assert.equal(streamPhase("scheduled", undefined, now), "upcoming", "no kickoff information keeps the stored status");
+  assert.equal(streamPhase("scheduled", "not-a-date", now), "upcoming", "an invalid kickoff keeps the stored status");
+});
+
+test("admin fixtures stay inside a scoped fixtures query", () => {
+  const saudis = fixture({ providerId: "al-fateh-vs-al-ahli", competitionProviderId: "saudi-pro-league", competitionName: "دوري روشن السعودي", scheduledAt: "2026-10-09T14:55:00Z" });
+  const dortmund = fixture({ providerId: "borussia-dortmund-vs-werder-bremen", competitionProviderId: "bundesliga", competitionName: "الدوري الألماني", scheduledAt: "2026-10-09T18:30:00Z" });
+  const scope = (competitionProviderId?: string, date?: string) => ({ competitionProviderId, date });
+  // The Premier League page (SportScore slug) sees neither foreign match …
+  assert.equal(adminFixtureInScope(saudis, scope("english-premier-league")), false);
+  assert.equal(adminFixtureInScope(dortmund, scope("english-premier-league")), false);
+  // … the Saudi page sees its own league by provider slug or canonical slug …
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-pro-league")), true);
+  // … the Bundesliga page sees Dortmund only …
+  assert.equal(adminFixtureInScope(dortmund, scope("bundesliga")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("bundesliga")), false);
+  // … and a day filter keeps other days out even inside the right league.
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league", "2026-10-09")), true);
+  assert.equal(adminFixtureInScope(saudis, scope("saudi-professional-league", "2026-10-10")), false);
+  assert.equal(adminFixtureInScope(saudis, scope("english-premier-league", "2026-10-09")), false, "competition and day must BOTH match");
+  // Unscoped queries (admin panel, /matches, sitemap) keep the full merge.
+  assert.equal(adminFixtureInScope(saudis, scope()), true);
+  assert.equal(adminFixtureInScope(dortmund, scope()), true);
+});
+
+test("news category links canonicalize Arabic labels to the stored English name", () => {
+  assert.equal(canonicalCategoryParam("انتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("الانتقالات"), "Transfers");
+  assert.equal(canonicalCategoryParam("رياضة"), "Sports");
+  assert.equal(canonicalCategoryParam("Sports"), "Sports");
+  assert.equal(canonicalCategoryParam("Egyptian Football"), "Egyptian Football");
+  assert.equal(canonicalCategoryParam("egyptian football"), "Egyptian Football");
+  assert.equal(canonicalCategoryParam("كرة السلة"), "Basketball");
+  assert.equal(canonicalCategoryParam("تحليل"), "تحليل", "unknown labels pass through and stay honest-empty");
+  assert.equal(canonicalCategoryParam(""), "");
+});
+
 test("Newsroom groups similar same-day titles without deleting publisher records", () => {
   const story = { title: "Football league announces new season fixtures", publicationDate: "2026-10-09T08:00:00Z", id: "a", sourceDomain: "publisher-a.test" } as NewsArticle;
   const second = { ...story, id: "b", sourceDomain: "publisher-b.test" };
@@ -150,4 +199,138 @@ test("Newsroom groups similar same-day titles without deleting publisher records
   const unrelated = { ...story, id: "d", title: "Basketball team wins international tournament" };
   const groups = groupSimilarStories([story, second, nextDay, unrelated]);
   assert.equal(groups.length, 3); assert.equal(groups[0].length, 2); assert.equal(groups.flat().length, 4);
+});
+
+test("inactive stream notices are clean Arabic for every terminal status", () => {
+  // Regression: the walkover/awarded notice shipped with a Latin fragment
+  // pasted into the middle of the Arabic sentence ("… لمignation يعُد …"), which
+  // visitors read verbatim in place of the player.
+  const latin = /[A-Za-z]/;
+  for (const status of ["finished", "postponed", "cancelled", "suspended", "abandoned", "walkover", "awarded", "", null, undefined]) {
+    const note = inactiveStreamNote(status as string | null | undefined);
+    assert.equal(latin.test(note), false, `note for ${String(status)} contains Latin characters: ${note}`);
+    assert.ok(note.length > 10, `note for ${String(status)} is too short`);
+  }
+  assert.match(inactiveStreamNote("walkover"), /انتهت المباراة بقرار رسمي/);
+});
+
+test("the footer analysis link resolves to a real pipeline category", () => {
+  // Regression: /news?category=تحليل (the footer "تحليلات" link) matched no
+  // category at all and rendered a permanently empty feed.
+  assert.ok(CATEGORIES.some((category) => category.name === "Analysis"));
+  assert.equal(canonicalCategoryParam("تحليلات"), "Analysis");
+  assert.equal(canonicalCategoryParam("التحليلات"), "Analysis");
+  assert.equal(canonicalCategoryParam("analysis"), "Analysis");
+  // A lone analysis signal now lands in Analysis instead of falling through to
+  // the generic Sports bucket, while a real report keeps Match Reports.
+  assert.equal(categorizeArticle("Tactical analysis of the derby", "").primary, "Analysis");
+  assert.equal(categorizeArticle("Match report and highlights", "").primary, "Match Reports");
+});
+
+test("every /news competition sidebar link filters a category the store can match", () => {
+  // Regression: the sidebar listed offline-preview competition slugs; three of
+  // them (saudi-pro-league, bundesliga, ligue-1) have no news entity, so those
+  // links always resolved to an empty feed.
+  const ids = newsCompetitions().map((competition) => competition.id);
+  assert.ok(ids.length > 0);
+  for (const dead of ["saudi-pro-league", "bundesliga", "ligue-1", "eredivisie", "primeira-liga"]) {
+    assert.equal(ids.includes(dead), false, `${dead} is not a news entity and must not be linked`);
+  }
+  assert.deepEqual(ids, [...new Set(ids)], "competition ids are unique");
+});
+
+test("the /news page actually applies canonicalCategoryParam to the query", () => {
+  // Regression: PR #26 added the import to app/news/page.tsx but never used it,
+  // so /news?category=انتقالات still queried the store for an article whose
+  // category literally equals the Arabic label and returned nothing. An import
+  // is not a fix, so assert the call sits in the value the page queries with.
+  const page = readFileSync(join(process.cwd(), "app", "news", "page.tsx"), "utf8");
+  assert.match(
+    page,
+    /const category = canonicalCategoryParam\(/,
+    "app/news/page.tsx must canonicalize sp.category before it reaches getNewsFeed",
+  );
+  const feedCall = page.slice(page.indexOf("getNewsFeed("));
+  assert.match(feedCall, /category \}/, "the canonical category is what getNewsFeed receives");
+});
+
+test("an Arabic category label resolves to a stored article category", async () => {
+  const source = await createSource({ query: "arabic category link", language: "en" });
+  const date = new Date().toUTCString();
+  const xml = `<rss><channel><item><title>Transfer talks: football club agrees a loan deal</title><link>https://example.com/arabic-category</link><pubDate>${date}</pubDate><source>Transfer Desk</source></item></channel></rss>`;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(xml, { headers: { "content-type": "application/rss+xml" } });
+  try {
+    const run = await runSource(source, { force: true });
+    assert.equal(run.inserted, 1);
+    const stored = await listArticles({ sourceId: source.id });
+    assert.ok(stored.items.length > 0);
+    const canonical = canonicalCategoryParam("انتقالات");
+    const viaArabicLabel = await listArticles({ sourceId: source.id, category: canonical });
+    assert.equal(viaArabicLabel.items.length, stored.items.length, "the Arabic footer label must select the same rows as the English name");
+    const viaRawLabel = await listArticles({ sourceId: source.id, category: "انتقالات" });
+    assert.equal(viaRawLabel.items.length, 0, "the raw Arabic label is not what the store stores");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+/* ── every public sport's match page must resolve ──────────────────────────
+   `/matches/[slug]` used to hard-code `sdlMatchDetail("football", slug)`. The
+   list pages link basketball / tennis / cricket too, so every one of those
+   links 404'd — 50 of the 158 matches on the production "today" page. The
+   page must ask for the sport the fixture actually belongs to. */
+test("the match page never hard-codes football as the detail sport", () => {
+  const src = readFileSync(join(process.cwd(), "app", "matches", "[slug]", "page.tsx"), "utf8");
+  assert.ok(!/sdlMatchDetail\(\s*"football"/.test(src), "match detail must resolve the fixture\'s own sport");
+  assert.ok(/sportForMatchId/.test(src), "the page must read the sport off the listed fixture");
+});
+
+/* The per-match glyph must follow the fixture's sport, not the page default. */
+test("event glyphs follow the sport of the fixture being rendered", () => {
+  const src = readFileSync(join(process.cwd(), "app", "matches", "[slug]", "page.tsx"), "utf8");
+  assert.ok(/EVENT_GLYPH_BY_SPORT/.test(src), "a football goal glyph must not be shown for a basketball match");
+  for (const sport of ["football", "basketball", "tennis", "cricket"]) {
+    assert.ok(new RegExp(`${sport}:`).test(src), `no glyph mapped for ${sport}`);
+  }
+});
+
+/* ── searching «الأهلي» must find the Al Ahly articles ─────────────────────
+   Production, 2026-10-10: `?q=ahly` → 13 results, `?q=الأهلي` → 2. The
+   headlines are English ("Al Ahly crushes Petrol Asyut"), and `arabicAliasesFor`
+   only fires when a field normalizes to exactly "al ahly" — which a headline
+   never does. The Arabic entity labels the article already carries (and the
+   news card already shows) were not searchable at all, so the Arabic query an
+   Egyptian visitor actually types returned almost nothing. */
+test("a news hit is searchable by the Arabic labels it already carries", () => {
+  const src = readFileSync(join(process.cwd(), "lib", "search-service.ts"), "utf8");
+  assert.ok(
+    /aliases:\s*\[/.test(src),
+    "news hits must expose a non-rendered alias list built from relatedEntities",
+  );
+  assert.ok(/entity\.displayName/.test(src), "the Arabic entity label must be searchable");
+  assert.ok(/entity\.extractedName/.test(src), "the provider spelling must stay searchable");
+  assert.ok(
+    /results: results\.map\(\(\{ weight: _weight, aliases: _aliases/.test(src),
+    "aliases are matching internals and must not be sent to the browser",
+  );
+  assert.ok(
+    src.includes('nemo:search:index:v3:'),
+    "bump the shared-index prefix so a pre-deploy copy cannot serve the old matching",
+  );
+});
+
+test("the Arabic search alias table covers the clubs the news feed actually tags", () => {
+  const src = readFileSync(join(process.cwd(), "lib", "name-aliases.ts"), "utf8");
+  // These are the clubs appearing in the current feed; a regression here would
+  // silently break Arabic search for exactly the teams readers search for.
+  for (const [english, arabic] of [
+    ["Al Ahly", "الأهلي"],
+    ["Zamalek", "الزمالك"],
+    ["Real Madrid", "ريال مدريد"],
+    ["FC Barcelona", "برشلونة"],
+  ] as const) {
+    assert.ok(src.includes(`"${english}"`), `alias table lost ${english}`);
+    assert.ok(src.includes(arabic), `alias table lost the Arabic spelling ${arabic}`);
+  }
 });

@@ -31,6 +31,20 @@ export function providerLabel(provider: string): string {
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
+/**
+ * How this surface obtained its data.
+ *
+ * Only a real provider can honestly be described as a live fetch. Editorial
+ * matches and the offline preview dataset are read straight from their own
+ * store, so calling them "جلب مباشر" (live fetch) claimed a provider round-trip
+ * that never happened.
+ */
+function originLabel(provider: string, fromCache: boolean, ttlSeconds?: number): string {
+  if (provider === "admin") return " · من سجل التحرير";
+  if (provider === "demo") return " · بيانات المعاينة";
+  return fromCache ? ` · من الكاش${ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : ""}` : " · جلب مباشر";
+}
+
 export default function DataSourceNote({
   provider,
   fromCache = false,
@@ -50,7 +64,7 @@ export default function DataSourceNote({
     <div className={`flex flex-wrap items-center gap-2 text-[10.5px] text-muted ${className}`}>
       <span>
         المصدر: <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
-        {fromCache ? ` · من الكاش${ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : ""}` : " · جلب مباشر"}
+        {originLabel(provider, fromCache, ttlSeconds)}
         {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : ""}
       </span>
       {stale ? (

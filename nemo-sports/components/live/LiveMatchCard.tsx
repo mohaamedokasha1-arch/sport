@@ -87,7 +87,7 @@ export default function LiveMatchCard({ match }: { match: LiveCardData }) {
               <span className="num text-[17px] font-black text-gold-500 dark:text-gold-400" dir="ltr">
                 {timeFormatted}
               </span>
-              <span className="text-[10px] text-muted">مكة والقاهرة</span>
+              <span className="text-[10px] text-muted">مكة المكرمة والقاهرة</span>
             </div>
           )}
           <span className="mt-1 text-[10.5px] text-muted">
