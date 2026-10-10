@@ -54,7 +54,7 @@ async function resolveStreamRow(s: MatchStreamSource): Promise<StreamRow> {
           away: f.awayName ?? aliasAway ?? "—",
           competition: f.competitionName ?? null,
           kickoff: f.scheduledAt,
-          phase: streamPhase(f.status),
+          phase: streamPhase(f.status, f.scheduledAt),
         };
       }
     } catch {

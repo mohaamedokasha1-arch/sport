@@ -44,6 +44,8 @@ import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { validateBroadcastLink, type StreamDomainPolicy, type StreamPolicyOptions } from "@/lib/broadcasts";
 
+import { siteDay } from "@/lib/tz";
+
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
 
 /** How the player is delivered (admin spec §6). */
@@ -392,10 +394,18 @@ const INACTIVE_STATUSES = new Set([
  * "inactive"  → finished/cancelled/…: NEVER an active live player — a
  *               static notice is shown instead.
  */
-export function streamPhase(status: string | null | undefined): MatchStreamPhase {
+export function streamPhase(
+  status: string | null | undefined,
+  scheduledAt?: string | null,
+  now: string | number | Date = Date.now(),
+): MatchStreamPhase {
   const s = String(status ?? "").trim().toLowerCase();
   if (LIVE_STATUSES.has(s)) return "live";
   if (INACTIVE_STATUSES.has(s)) return "inactive";
+  if (scheduledAt) {
+    const kickoff = new Date(scheduledAt);
+    if (Number.isFinite(+kickoff) && siteDay(kickoff) < siteDay(now)) return "inactive";
+  }
   return "upcoming";
 }
 
@@ -412,7 +422,7 @@ export function inactiveStreamNote(status: string | null | undefined): string {
       return "توقّفت المباراة — لم يعد البث المباشر نشطًا.";
     case "walkover":
     case "awarded":
-      return "انتهت المباراة بقرار رسمي — لمrimination يعُد البث المباشر نشطًا.";
+      return "انتهت المباراة بقرار رسمي — لم يعد البث المباشر نشطًا.";
     case "finished":
     default:
       return "انتهت المباراة — لم يعد البث المباشر نشطًا.";

@@ -108,6 +108,18 @@ body {
   border-radius: var(--radius-card);
 }
 
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-card);
+  background-color: var(--color-navy-850);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
 .focus-ring:focus-visible {
   outline: 2px solid var(--color-gold-500);
   outline-offset: 2px;

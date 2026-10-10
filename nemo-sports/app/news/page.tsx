@@ -7,7 +7,8 @@ import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
 import { competitions, sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
-import { categoryMeta } from "@/lib/news/categorize";
+import { categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
+import { newsCompetitions } from "@/lib/news/entities";
 import { demoContentVisible } from "@/lib/site";
 import { relative } from "@/lib/format";
 import { ManualNewsSection } from "@/components/public/AdminPublished";
@@ -27,7 +28,8 @@ async function NewsPageBody({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const category = typeof sp.category === "string" ? sp.category : "";
+  const rawCategory = typeof sp.category === "string" ? sp.category : "";
+  const category = canonicalCategoryParam(rawCategory);
   const team = typeof sp.team === "string" ? sp.team.slice(0, 160) : "";
   const sport = typeof sp.sport === "string" ? sp.sport : "";
   const competition = typeof sp.competition === "string" ? sp.competition : "";
@@ -79,8 +81,10 @@ async function NewsPageBody({
 
       {!hasAny ? (
         <DataUnavailable
-          title="لا توجد أخبار منشورة حاليًا"
+          title={rawCategory ? `لا توجد أخبار في تصنيف «${rawCategory}»` : "لا توجد أخبار منشورة حاليًا"}
           message="لم تُرجع قاعدة الأخبار محتوى منشورًا مطابقًا. التحديث يعتمد على المهام المجدولة وحالة المصادر، ولا نضمن تحديثًا كل بضع دقائق."
+          actionHref={rawCategory || team || competition ? "/news" : undefined}
+          actionLabel={rawCategory || team || competition ? "عرض كل الأخبار" : undefined}
         />
       ) : null}
 
@@ -198,10 +202,10 @@ async function NewsPageBody({
                 حسب البطولة
               </h2>
               <ul className="divide-y divide-line">
-                {competitions.slice(0, 8).map((c) => (
-                  <li key={c.slug}>
+                {newsCompetitions().map((c) => (
+                  <li key={c.id}>
                     <Link
-                      href={`/news?competition=${c.slug}`}
+                      href={`/news?competition=${c.id}`}
                       className="flex items-center justify-between gap-2 px-3 py-2.5 text-[12px] font-semibold transition hover:bg-navy-850/[0.03] dark:hover:bg-white/[0.04]"
                     >
                       <span className="truncate">{c.name}</span>
@@ -235,9 +239,11 @@ export default async function NewsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await props.searchParams;
+  const rawCategory = typeof sp.category === "string" ? sp.category : "";
+  const category = canonicalCategoryParam(rawCategory);
   return (
     <>
-      <ManualNewsSection category={typeof sp.category === "string" ? sp.category : undefined} />
+      <ManualNewsSection category={category || undefined} />
       <NewsPageBody {...props} />
     </>
   );

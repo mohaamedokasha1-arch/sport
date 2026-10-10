@@ -10,7 +10,7 @@ import { getLiveStates } from "@/lib/live";
 import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
-import { SITE_TZ } from "@/lib/tz";
+import { SITE_TZ, siteDay } from "@/lib/tz";
 import { decodeSlug } from "@/lib/slug";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { competitionByPath } from "@/lib/competition-catalog";
@@ -456,7 +456,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
           {stream && isPubliclyVisible(stream) ? (
             <MatchStreamPlayer
               stream={stream}
-              phase={streamPhase(f.status)}
+              phase={streamPhase(f.status, f.scheduledAt)}
               home={home}
               away={away}
               inactiveNote={inactiveStreamNote(f.status)}
@@ -482,7 +482,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">NEMO Match Pulse · أحداث المباراة</h2>
             {events.length === 0 ? (
               <p className="card px-4 py-6 text-center text-[12.5px] text-muted">
-                {f.status === "scheduled"
+                {f.status === "scheduled" && siteDay(f.scheduledAt) >= siteDay(Date.now())
                   ? "لم تبدأ المباراة بعد — تظهر الأحداث فقط إذا أتاحها المصدر."
                   : "لا توجد أحداث مسجَّلة لهذه المباراة من المصدر حاليًا."}
               </p>

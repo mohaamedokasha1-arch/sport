@@ -236,7 +236,7 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           sourceDomain: domain,
           publicationDate,
           fetchedDate: now,
-          description: raw.description.slice(0, 300),
+          description: cleanText(raw.description).slice(0, 300),
           category: cat.primary,
           secondaryCategories: cat.secondary,
           categoryConfidence: cat.confidence,
