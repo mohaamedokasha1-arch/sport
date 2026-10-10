@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { DATA_UNAVAILABLE_MESSAGE, dayKey, footballMatches } from "@/lib/football-data";
+import { isLiveStatus } from "@/lib/match-state";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
         date,
         competition: competition ?? null,
         count: matches.length,
-        live: matches.filter((m) => ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(m.status)).length,
+        live: matches.filter((m) => isLiveStatus(m.status)).length,
         finished: matches.filter((m) => m.status === "finished").length,
         scheduled: matches.filter((m) => m.status === "scheduled").length,
         provider: result.source.provider,

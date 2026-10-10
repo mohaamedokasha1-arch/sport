@@ -4,6 +4,7 @@ import ProviderCrest from "@/components/ui/ProviderCrest";
 import { SITE_TZ } from "@/lib/tz";
 import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { isLiveStatus } from "@/lib/match-state";
 
 /**
  * Renders REAL matches coming from the Sports Data Layer (SportScore) in the
@@ -63,7 +64,7 @@ export default function ProviderMatchList({
     <div className="space-y-2">
       <ul className={view === "list" ? "space-y-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>
         {fixtures.map((f) => {
-          const live = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+          const live = isLiveStatus(f.status);
           const played = f.homeScore !== null && f.awayScore !== null;
           return (
             <li key={f.providerId}>

@@ -15,6 +15,7 @@ import { fixtures as loadFixtures, liveMatches as loadLiveMatches } from "@/lib/
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import { requireUser } from "@/lib/admin-session";
 import { can } from "@/lib/admin-roles";
+import { isLiveStatus } from "@/lib/match-state";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -119,7 +120,7 @@ export default async function AdminDashboard() {
   const rssTotal = articleResult.items.length;
 
   const live = liveResult.ok ? liveResult.data.filter((match) =>
-    ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(match.status),
+    isLiveStatus(match.status),
   ) : [];
   const now = Date.now();
   const upcoming = fixturesResult.ok

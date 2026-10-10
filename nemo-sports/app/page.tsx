@@ -13,6 +13,7 @@ import { fixturesForCairoDate, cachePolicyFor, liveMatches as sdlLive, fixtures 
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { siteDay, siteDateKey } from "@/lib/tz";
+import { isLiveStatus } from "@/lib/match-state";
 import {
   articles,
   competitions,
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-const LIVE_STATUSES = new Set(["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"]);
+// Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 
 export default async function HomePage() {
   const now = Date.now();
@@ -46,7 +47,7 @@ export default async function HomePage() {
   const fixtureData = fixtureResult.ok && fixtureResult.source === "provider" ? fixtureResult : null;
   const scorerData = scorerResult.ok && scorerResult.source.provider !== "demo" ? scorerResult : null;
   const realMode = Boolean(liveData || fixtureData || scorerData);
-  const realLive = liveData ? liveData.data.filter((fixture) => hasMatchIdentity(fixture) && LIVE_STATUSES.has(fixture.status)).slice(0, 6) : [];
+  const realLive = liveData ? liveData.data.filter((fixture) => hasMatchIdentity(fixture) && isLiveStatus(fixture.status)).slice(0, 6) : [];
 
   const todayKey = siteDay(now);
   const tomorrowKey = todayKey + 86_400_000;

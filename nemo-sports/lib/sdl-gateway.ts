@@ -21,6 +21,7 @@ import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
+import { isLiveStatus } from "@/lib/match-state";
 
 export type DataSource = "provider" | "demo";
 
@@ -173,7 +174,7 @@ async function corrected(
     .filter((f) => {
       if (f.sport !== sport) return false;
       if (onlyLive) {
-        return ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+        return isLiveStatus(f.status);
       }
       return true;
     })

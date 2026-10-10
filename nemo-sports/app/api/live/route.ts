@@ -6,6 +6,7 @@ import { demoContentVisible } from "@/lib/site";
 import { fixtures, liveMatches } from "@/lib/sdl-gateway";
 import { siteDay } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { isLiveStatus } from "@/lib/match-state";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -39,7 +40,6 @@ type ProviderLiveState = {
   updatedAt: string;
 };
 
-const isLiveStatus = (status: string) => ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(status);
 const validFixture = (fixture: NormalizedFixture) => Boolean(
   fixture.providerId && (fixture.homeName || fixture.homeProviderId) && (fixture.awayName || fixture.awayProviderId) && fixture.scheduledAt,
 );

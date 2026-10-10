@@ -23,6 +23,7 @@ import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, s
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
+import { isLiveStatus } from "@/lib/match-state";
 
 // Rendered per request: the page carries admin-controlled stream state
 // (publish / stop / edit / delete). ISR with revalidatePath() does not reliably
@@ -333,7 +334,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     if (!hasMatchIdentity(f)) notFound();
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
-    const live = ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status);
+    const live = isLiveStatus(f.status);
     const played = f.homeScore !== null && f.awayScore !== null;
     // One state rule for the whole site (lib/match-state.ts): a stored
     // `scheduled` whose kickoff day has passed is no longer an upcoming fixture.
@@ -411,7 +412,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             ? "https://schema.org/EventPostponed"
           : f.status === "cancelled"
             ? "https://schema.org/EventCancelled"
-            : ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)
+            : isLiveStatus(f.status)
               ? undefined
               : "https://schema.org/EventScheduled",
       sport: "Football",

@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/admin-session";
 import { listAdminMatches } from "@/lib/admin-matches";
 import { fixtures as sdlFixtures, liveMatches as sdlLiveMatches } from "@/lib/sdl-gateway";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
+import { isLiveStatus } from "@/lib/match-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
 
   // Live first, then upcoming by kickoff, then the rest.
   const rank = (i: MatchOption) =>
-    ["live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(i.status) ? 0
+    isLiveStatus(i.status) ? 0
       : i.status === "scheduled" || i.status === "upcoming" ? 1
         : 2;
   filtered.sort((a, b) => rank(a) - rank(b) || +new Date(a.kickoff) - +new Date(b.kickoff));
