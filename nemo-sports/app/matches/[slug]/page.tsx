@@ -351,7 +351,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
     const [eventsRes, lineupsRes, statsRes, stream, override] = await Promise.all([
-      matchEvents(f.providerId, providerName),
+      matchEvents(f.providerId, providerName, f.sport),
       matchLineups(f.sport, f.providerId, providerName),
       matchStats(f.sport, f.providerId, providerName),
       streamForMatch({ slug, home, away }),

@@ -90,3 +90,38 @@ test("an unpublished match is never resolved or exported (draft stays private)",
   });
   assert.notEqual(res.status, 200);
 });
+
+test("match events are requested for the match's own sport, not football", async () => {
+  // Intercept the SDL call (no network): record the chain sport and the
+  // sport argument the provider actually receives.
+  const { getSdl } = await import("@/packages/sdl/src");
+  const { sdl } = getSdl();
+  const seen: { chainSport?: string; paramSport?: unknown; providerSport?: unknown } = {};
+  const original = sdl.fetch.bind(sdl);
+  (sdl as unknown as { fetch: unknown }).fetch = async (input: {
+    sport: string;
+    params: Record<string, unknown>;
+    call: (p: unknown) => Promise<unknown>;
+  }) => {
+    seen.chainSport = input.sport;
+    seen.paramSport = input.params.sport;
+    const fakeProvider = {
+      getMatchEvents: async (args: { sport?: string }) => {
+        seen.providerSport = args.sport;
+        return { ok: false, error: { kind: "not_found", message: "fake", dataType: "match_events", attempts: [] } };
+      },
+    };
+    await input.call(fakeProvider);
+    return { ok: false, error: { kind: "not_found", message: "fake", dataType: "match_events", attempts: [] } };
+  };
+  try {
+    const { matchEvents } = await import("@/lib/sdl-gateway");
+    const result = await matchEvents("memphis-grizzlies-vs-chicago-bulls", undefined, "basketball");
+    assert.equal(result.ok, false);
+    assert.equal(seen.chainSport, "basketball");
+    assert.equal(seen.paramSport, "basketball");
+    assert.equal(seen.providerSport, "basketball");
+  } finally {
+    (sdl as unknown as { fetch: unknown }).fetch = original;
+  }
+});
