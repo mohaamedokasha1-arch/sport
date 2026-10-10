@@ -172,6 +172,34 @@ async function main() {
   console.log(`  · testing ${details.length} detail pages from sitemap`);
   for (const p of details) await check(p);
 
+  /* ── every match the list renders must have a page behind it ──────────────
+     /matches/[slug] used to resolve with a hard-coded "football" while the
+     list links basketball / tennis / cricket too, so every one of those links
+     was a 404 — 50 of the 158 matches on the production "today" page. The
+     invariant is the one a visitor experiences: whatever a list page links,
+     clicking it must not land on "not found". Sampled per sport so one empty
+     sport cannot mask a broken one. */
+  const SPORT_SAMPLE = ["football", "basketball", "tennis", "cricket"];
+  for (const sport of SPORT_SAMPLE) {
+    const listed = await (await fetch(`${BASE}/matches?sport=${sport}`)).text();
+    const hrefs = [...new Set([...listed.matchAll(/href="(\/matches\/[^"?#]+)"/g)].map((m) => m[1]))].slice(0, 3);
+    if (hrefs.length === 0) {
+      console.log(`  · /matches?sport=${sport} → no provider fixtures listed (nothing to check)`);
+      continue;
+    }
+    const broken = [];
+    for (const href of hrefs) {
+      const res = await fetch(`${BASE}${href}`);
+      if (res.status !== 200) broken.push(`${href} (${res.status})`);
+    }
+    const okLinks = broken.length === 0;
+    console.log(`  ${okLinks ? "✓" : "✗"} /matches?sport=${sport} → ${hrefs.length} listed match links, ${broken.length} dead`);
+    // Print the dead ones: a bare count sends whoever reads this looking for a
+    // count bug instead of the link that is actually broken.
+    for (const entry of broken) console.log(`      dead: ${entry}`);
+    if (!okLinks) failures++;
+  }
+
   // API contracts.
   // Content mode: the demo dataset renders in development/preview only. In
   // production without real provider data every sports-data surface is

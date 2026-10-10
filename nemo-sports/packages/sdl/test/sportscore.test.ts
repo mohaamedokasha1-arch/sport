@@ -12,6 +12,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SportScoreAdapter, competitionSlug, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
+import { DEFAULT_PRIORITY_RULES, PriorityConfig } from "../src/priority";
 
 // compiled tests run from dist-test/test/ — fixtures live in test/fixtures/
 const here = join(__dirname, "../../test");
@@ -232,4 +233,35 @@ test("self-identification: src=nemo-sports is sent on every request", async () =
   }) as typeof fetch;
   await adapter(impl).getLiveMatches({ sport: "football" });
   assert.equal(seen?.searchParams.get("src"), "nemo-sports");
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Every sport the site links must be resolvable for the per-match types.
+   ─────────────────────────────────────────────────────────────────────────
+   ss-15..ss-18 exist because match_detail / match_events / match_stats /
+   match_lineups had a rule for "football" but none for any other sport, so a
+   basketball or tennis match page resolved `no_provider_configured` and 404'd.
+   The list pages link every sport in PUBLIC_SPORTS, so the invariant is: for
+   each of those sports, every data type the public match page asks for must
+   produce a non-empty chain.
+*/
+const PUBLIC_SPORTS = ["football", "basketball", "tennis", "cricket"] as const;
+const PER_MATCH_TYPES = ["match_detail", "match_events", "match_stats", "match_lineups", "fixtures"] as const;
+
+test("every public sport resolves every data type the match page requests", () => {
+  const priority = new PriorityConfig(DEFAULT_PRIORITY_RULES);
+  const missing: string[] = [];
+  for (const sport of PUBLIC_SPORTS) {
+    for (const dataType of PER_MATCH_TYPES) {
+      if (priority.resolve(sport, null, dataType as never).length === 0) missing.push(`${sport}/${dataType}`);
+    }
+  }
+  assert.deepEqual(missing, [], `no priority rule resolves: ${missing.join(", ")}`);
+});
+
+test("the football match chain still prefers sportscore exactly as before", () => {
+  const priority = new PriorityConfig(DEFAULT_PRIORITY_RULES);
+  const chain = priority.resolve("football", null, "match_detail");
+  assert.equal(chain[0]?.provider, "sportscore");
+  assert.equal(chain[0]?.role, "primary");
 });

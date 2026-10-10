@@ -20,6 +20,7 @@ import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
 
 export type DataSource = "provider" | "demo";
 
@@ -252,6 +253,36 @@ export async function fixtures(input: { sport?: string; date?: string; competiti
     false,
     { competitionProviderId: input.competitionProviderId, date: input.date },
   );
+}
+
+/**
+ * Which sport a match id belongs to.
+ *
+ * `/matches/[slug]` only ever receives the provider id — never the sport — while
+ * the list pages link every sport they render (PUBLIC_SPORTS = football,
+ * basketball, tennis, cricket). Resolving with a hard-coded "football" made
+ * every basketball / tennis / cricket link a 404: 50 of the 158 matches on the
+ * production "today" page alone, e.g.
+ * `/matches/memphis-grizzlies-vs-chicago-bulls` and
+ * `/matches/alexander-bublik-vs-brandon-nakashima`.
+ *
+ * The fixtures those list pages already fetch carry both the id and its sport,
+ * so read it from there rather than paying a probe call per sport. Returns null
+ * when nothing matches, and the caller keeps its previous behaviour instead of
+ * guessing.
+ */
+export async function sportForMatchId(providerMatchId: string): Promise<string | null> {
+  const id = providerMatchId.trim().toLowerCase();
+  if (!id) return null;
+  // Football first: it is the site's primary sport and by far the most likely
+  // answer, so the common case stops after one cached read.
+  const order = ["football", ...PUBLIC_SPORTS.map((s) => s.slug).filter((s) => s !== "football")];
+  for (const sport of order) {
+    const res = await fixtures({ sport });
+    if (!res.ok) continue;
+    if (res.data.some((fixture) => fixture.providerId.trim().toLowerCase() === id)) return sport;
+  }
+  return null;
 }
 
 /** Events of one match, in canonical vocabulary. */

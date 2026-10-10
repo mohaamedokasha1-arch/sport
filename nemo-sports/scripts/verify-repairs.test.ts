@@ -274,3 +274,23 @@ test("an Arabic category label resolves to a stored article category", async () 
     globalThis.fetch = original;
   }
 });
+
+/* ── every public sport's match page must resolve ──────────────────────────
+   `/matches/[slug]` used to hard-code `sdlMatchDetail("football", slug)`. The
+   list pages link basketball / tennis / cricket too, so every one of those
+   links 404'd — 50 of the 158 matches on the production "today" page. The
+   page must ask for the sport the fixture actually belongs to. */
+test("the match page never hard-codes football as the detail sport", () => {
+  const src = readFileSync(join(process.cwd(), "app", "matches", "[slug]", "page.tsx"), "utf8");
+  assert.ok(!/sdlMatchDetail\(\s*"football"/.test(src), "match detail must resolve the fixture\'s own sport");
+  assert.ok(/sportForMatchId/.test(src), "the page must read the sport off the listed fixture");
+});
+
+/* The per-match glyph must follow the fixture's sport, not the page default. */
+test("event glyphs follow the sport of the fixture being rendered", () => {
+  const src = readFileSync(join(process.cwd(), "app", "matches", "[slug]", "page.tsx"), "utf8");
+  assert.ok(/EVENT_GLYPH_BY_SPORT/.test(src), "a football goal glyph must not be shown for a basketball match");
+  for (const sport of ["football", "basketball", "tennis", "cricket"]) {
+    assert.ok(new RegExp(`${sport}:`).test(src), `no glyph mapped for ${sport}`);
+  }
+});
