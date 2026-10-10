@@ -614,5 +614,5 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
   const first = valid[0];
   const same = valid.filter((r) => r.provider === first.provider);
   const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
-  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort()[0] };
+  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt };
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import Tabs from "@/components/ui/Tabs";
 import Crest from "@/components/ui/Crest";
 import MatchCard from "@/components/match/MatchCard";
@@ -46,6 +47,51 @@ function competitionNameAr(id: string): string {
   return majors.find((c) => c.slug === id || c.code === id)?.nameAr ?? id;
 }
 
+type RealTeamLookup = {
+  row: NormalizedStandingRow;
+  compId: string;
+  provider: string;
+  fromCache: boolean;
+  stale?: boolean;
+  fetchedAt: string;
+};
+
+/**
+ * Locate a team in the REAL league tables.
+ * ────────────────────────────────────────────
+ * `/teams` builds its directory from league-table rows (`teamsDirectory()` in
+ * lib/sdl-gateway.ts), so a directory link carries that row's
+ * `teamProviderId`. The keyless SportScore chain exposes no team-detail
+ * endpoint, so resolving those ids through `sdlTeam()` answered `unsupported`
+ * and every one of the ~100 directory links rendered a 404 — while the real
+ * position, points, record and fixtures for exactly those teams were already
+ * one table lookup away. This performs that lookup, using the same tables and
+ * the same id the link was built from, so a directory link always lands on the
+ * team it names. Nothing is invented: every field comes from a provider row.
+ */
+const findTeamInRealTables = cache(async function findTeamInRealTables(
+  teamId: string,
+): Promise<RealTeamLookup | null> {
+  const majors = footballDataCompetitions(true);
+  const ids = majors.map((c) => c.slug ?? c.code);
+  const tables = await Promise.all(ids.map((id) => footballStandings(id)));
+  for (let i = 0; i < tables.length; i += 1) {
+    const res = tables[i];
+    if (!res.ok || res.source.provider === "demo") continue;
+    const row = res.data.find((candidate) => candidate.teamProviderId === teamId);
+    if (!row) continue;
+    return {
+      row,
+      compId: ids[i] ?? "",
+      provider: res.source.provider,
+      fromCache: res.source.fromCache,
+      stale: res.source.stale,
+      fetchedAt: res.source.fetchedAt,
+    };
+  }
+  return null;
+});
+
 async function teamMetadataBody({
   params,
 }: {
@@ -65,6 +111,22 @@ async function teamMetadataBody({
       alternates: { canonical: `/teams/${slug}` },
       openGraph: { title, description, type: "article" },
     };
+  }
+
+  /* ── or a real team the directory links to, resolved from the tables ── */
+  if (!demoContentVisible()) {
+    const listed = await findTeamInRealTables(slug);
+    const name = listed?.row.teamName ?? listed?.row.teamShortName ?? null;
+    if (listed && name) {
+      const title = `${name} | الفريق`;
+      const description = `كل ما يخص ${name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
+      return {
+        title,
+        description,
+        alternates: { canonical: `/teams/${slug}` },
+        openGraph: { title, description, type: "article" },
+      };
+    }
   }
 
   const t = demoContentVisible() ? teamBySlug(slug) : undefined;
@@ -92,6 +154,36 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
   }
   if (real.ok && real.source === "provider") {
     return <RealTeamView slug={slug} provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} name={real.data.name} shortName={real.data.shortName} logoUrl={real.data.logoUrl} countryName={real.data.countryName} foundedYear={real.data.foundedYear} venueName={real.data.venueName} primaryColor={real.data.primaryColor} secondaryColor={real.data.secondaryColor} />;
+  }
+
+  /* ══ 1b) a real team that /teams links to, resolved from the tables ══
+     The directory on /teams is built from league-table rows, and the keyless
+     provider has no team-detail endpoint for those ids — so they used to fall
+     through to notFound() and every directory link was a 404. The same tables
+     that produced the link carry the team's real row. */
+  if (!demoContentVisible()) {
+    const listed = await findTeamInRealTables(slug);
+    const name = listed?.row.teamName ?? listed?.row.teamShortName ?? null;
+    if (listed && name) {
+      return (
+        <RealTeamView
+          slug={slug}
+          lookup={listed}
+          provider={listed.provider}
+          fromCache={listed.fromCache}
+          stale={listed.stale}
+          fetchedAt={listed.fetchedAt}
+          name={name}
+          shortName={listed.row.teamShortName ?? null}
+          logoUrl={listed.row.teamLogoUrl ?? null}
+          countryName={null}
+          foundedYear={null}
+          venueName={null}
+          primaryColor={null}
+          secondaryColor={null}
+        />
+      );
+    }
   }
 
   const team = demoContentVisible() ? teamBySlug(slug) : undefined;
@@ -378,6 +470,8 @@ function ProviderTeamFixtureList({ fixtures, showScore = false }: { fixtures: No
 
 async function RealTeamView(props: {
   slug: string;
+  /** Pre-resolved league-table row (the caller already looked it up). */
+  lookup?: RealTeamLookup | null;
   provider: string;
   fromCache: boolean;
   stale?: boolean;
@@ -394,16 +488,9 @@ async function RealTeamView(props: {
   /* Locate this team in a real league table: that row is the honest source for
    * its competition, position, points and form, and it also tells us which
    * competition to load matches from. */
-  const majors = footballDataCompetitions(true);
-  const ids = majors.map((c) => c.slug ?? c.code);
-  const tables = await Promise.all(ids.map((id) => footballStandings(id)));
-  let row: NormalizedStandingRow | null = null;
-  let compId: string | null = null;
-  tables.forEach((res, i) => {
-    if (row || !res.ok || res.source.provider === "demo") return;
-    const hit = res.data.find((r: NormalizedStandingRow) => r.teamProviderId === props.slug) ?? null;
-    if (hit) { row = hit; compId = ids[i] ?? null; }
-  });
+  const found = props.lookup ?? (await findTeamInRealTables(props.slug));
+  const row: NormalizedStandingRow | null = found?.row ?? null;
+  const compId: string | null = found?.compId ?? null;
 
   /* Matches of that competition, filtered to this team. */
   const fixturesRes = compId ? await footballMatches({ competitionId: compId }) : null;

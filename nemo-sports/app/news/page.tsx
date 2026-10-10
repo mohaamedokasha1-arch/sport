@@ -5,9 +5,10 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import NewsCard from "@/components/news/NewsCard";
 import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
-import { competitions, sports } from "@/lib/core-data";
+import { sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
-import { categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
+import { newsCompetitions } from "@/lib/news/entities";
+import { CATEGORIES, FALLBACK_CATEGORY, categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
 import { demoContentVisible } from "@/lib/site";
 import { relative } from "@/lib/format";
 import { ManualNewsSection } from "@/components/public/AdminPublished";
@@ -27,7 +28,10 @@ async function NewsPageBody({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const category = typeof sp.category === "string" ? sp.category : "";
+  // The store keeps the English category name; public links ship Arabic labels
+  // too (the footer links to /news?category=انتقالات and /news?category=تحليلات).
+  // Comparing those labels verbatim meant the query always matched zero rows.
+  const category = canonicalCategoryParam(typeof sp.category === "string" ? sp.category.slice(0, 120) : "");
   const team = typeof sp.team === "string" ? sp.team.slice(0, 160) : "";
   const sport = typeof sp.sport === "string" ? sp.sport : "";
   const competition = typeof sp.competition === "string" ? sp.competition : "";
@@ -54,6 +58,13 @@ async function NewsPageBody({
 
   const storyGroups = groupSimilarStories(feed.items);
   const hasAny = feed.items.length > 0 || editorial.length > 0;
+  // Echo the visitor's own label for a value that is not a real category, and
+  // the proper Arabic name for one that is — "no news in «رياضة»" would be a
+  // false statement about a made-up label.
+  const categoryLabel =
+    category === FALLBACK_CATEGORY || CATEGORIES.some((entry) => entry.name === category)
+      ? categoryMeta(category).nameAr
+      : category;
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
@@ -79,8 +90,22 @@ async function NewsPageBody({
 
       {!hasAny ? (
         <DataUnavailable
-          title="لا توجد أخبار منشورة حاليًا"
-          message="لم تُرجع قاعدة الأخبار محتوى منشورًا مطابقًا. التحديث يعتمد على المهام المجدولة وحالة المصادر، ولا نضمن تحديثًا كل بضع دقائق."
+          title={
+            category
+              ? "لا توجد أخبار بهذا التصنيف"
+              : team || competition
+                ? "لا توجد أخبار مطابقة لهذا الفلتر"
+                : "لا توجد أخبار منشورة حاليًا"
+          }
+          message={
+            category
+              ? `لم يُرجع آخر تحديث خبرًا منشورًا في تصنيف «${categoryLabel}». التصنيفات تمتلئ مع وصول أخبار جديدة، وقد يبقى بعضها فارغًا حتى ذلك الحين.`
+              : team || competition
+                ? "لم يُرجع آخر تحديث خبرًا منشورًا يطابق الفلتر المحدد. جرّب اسمًا أقصر أو امسح الفلتر."
+                : "لم تُرجع قاعدة الأخبار محتوى منشورًا مطابقًا. التحديث يعتمد على المهام المجدولة وحالة المصادر، ولا نضمن تحديثًا كل بضع دقائق."
+          }
+          actionHref={category || team || competition ? "/news" : undefined}
+          actionLabel={category || team || competition ? "عرض كل الأخبار" : undefined}
         />
       ) : null}
 
@@ -135,15 +160,12 @@ async function NewsPageBody({
         </div>
       ) : null}
 
-      {feed.items.length === 0 && editorial.length === 0 && hasAny ? (
-        <div className="card grid place-items-center gap-2 px-6 py-16 text-center">
-          <p className="text-[15px] font-bold">لا توجد أخبار بهذا التصنيف</p>
-          <Link href="/news" className="text-[13px] font-bold text-gold-600 dark:text-gold-400">
-            عرض كل الأخبار
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      {/* The empty case is handled by the filter-aware DataUnavailable above.
+          This branch only ever rendered when there was something to show; its
+          previous condition (`… && hasAny`) was unreachable, so the
+          "لا توجد أخبار بهذا التصنيف" copy could never be seen and a visitor
+          filtering by category was told instead that NO news is published. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-8">
             {/* automatic feed */}
             {feed.items.length > 0 ? (
@@ -198,10 +220,10 @@ async function NewsPageBody({
                 حسب البطولة
               </h2>
               <ul className="divide-y divide-line">
-                {competitions.slice(0, 8).map((c) => (
-                  <li key={c.slug}>
+                {newsCompetitions().slice(0, 8).map((c) => (
+                  <li key={c.id}>
                     <Link
-                      href={`/news?competition=${c.slug}`}
+                      href={`/news?competition=${encodeURIComponent(c.id)}`}
                       className="flex items-center justify-between gap-2 px-3 py-2.5 text-[12px] font-semibold transition hover:bg-navy-850/[0.03] dark:hover:bg-white/[0.04]"
                     >
                       <span className="truncate">{c.name}</span>
@@ -226,7 +248,6 @@ async function NewsPageBody({
             </div>
           </aside>
         </div>
-      )}
     </div>
   );
 }
@@ -237,7 +258,7 @@ export default async function NewsPage(props: {
   const sp = await props.searchParams;
   return (
     <>
-      <ManualNewsSection category={typeof sp.category === "string" ? sp.category : undefined} />
+      <ManualNewsSection category={canonicalCategoryParam(typeof sp.category === "string" ? sp.category.slice(0, 120) : "") || undefined} />
       <NewsPageBody {...props} />
     </>
   );

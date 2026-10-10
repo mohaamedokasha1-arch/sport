@@ -34,7 +34,7 @@ const groups = [
     title: "المحتوى",
     links: [
       { href: "/news", label: "كل الأخبار" },
-      { href: "/news?category=تحليل", label: "تحليلات" },
+      { href: "/news?category=تحليلات", label: "تحليلات" },
       { href: "/news?category=انتقالات", label: "الانتقالات" },
       { href: "/standings", label: "الترتيب والإحصائيات" },
       { href: "/search", label: "البحث" },

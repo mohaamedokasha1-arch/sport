@@ -33,6 +33,13 @@ export const CATEGORIES: NewsCategory[] = [
   { name: "La Liga", nameAr: "الدوري الإسباني", keywords: ["la liga", "real madrid", "barcelona", "atlético madrid", "atletico", "الدوري الإسباني"], minConfidence: 35, color: "#FFC107", icon: "🇪🇸" },
   { name: "Serie A", nameAr: "الدوري الإيطالي", keywords: ["serie a", "juventus", "ac milan", "inter milan", "الدوري الإيطالي"], minConfidence: 35, color: "#00A86B", icon: "🇮🇹" },
   { name: "Transfers", nameAr: "الانتقالات", keywords: ["transfer", "signing", "deal", "move", "loan", "sold", "acquired", "انتقالات", "تعاقد"], minConfidence: 60, color: "#673AB7", icon: "🔄" },
+  // Analysis is declared BEFORE Match Reports on purpose. Both match the word
+  // "analysis", and the scorer keeps the earliest category on a tie, so
+  // declaring it first is what makes a lone analysis hit land here instead of
+  // failing Match Reports' 60% bar and falling through to the generic Sports
+  // bucket. Reports that carry two generic hits ("report"+"highlights") still
+  // out-score it and stay in Match Reports, so nothing is reclassified wrongly.
+  { name: "Analysis", nameAr: "تحليلات", keywords: ["analysis", "analyses", "analyse", "analyze", "تحليل", "تحليلات", "تحليل فني"], minConfidence: 35, color: "#5E35B1", icon: "🧠" },
   { name: "Match Reports", nameAr: "تقارير المباريات", keywords: ["report", "recap", "summary", "highlights", "analysis", "result", "تقرير", "ملخص"], minConfidence: 60, color: "#00BCD4", icon: "📊" },
   { name: "Teams", nameAr: "الأندية", keywords: ["team", "club", "squad", "roster", "announcement", "فريق", "نادي"], minConfidence: 60, color: "#4CAF50", icon: "👥" },
   { name: "Players", nameAr: "اللاعبون", keywords: ["player", "footballer", "athlete", "star", "legend", "لاعب"], minConfidence: 60, color: "#8BC34A", icon: "👤" },

@@ -23,7 +23,11 @@ const pages = [
   "/teams",
   "/players",
   "/news",
+  "/news?category=تحليلات",
+  "/news?category=انتقالات",
+  "/news?category=رياضة",
   "/news?category=تحليل",
+  "/news?competition=premier-league",
   "/news?sport=football",
   "/watch",
   "/standings",
@@ -204,8 +208,18 @@ async function main() {
     console.log(`  ${anyLive.length > 0 ? "✓" : "✗"} live engine → ${anyLive.length} matches currently LIVE`);
     if (anyLive.length === 0) failures++;
   } else {
-    const emptyOk = liveIds.length === 0;
-    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches (production: must be empty, never fabricated)`);
+    /* "Never fabricated" is the invariant, not "always empty". The previous
+       assertion required the map to be EMPTY whenever demo content was off,
+       which only held while the provider happened to have no live matches — a
+       provider returning three real fixtures failed the suite on correct
+       behaviour. Assert the real thing instead: every id /api/live reports
+       must exist in the provider's own live feed, with the expected shape. */
+    const providerLive = await (await fetch(`${BASE}/api/v1/live`)).json();
+    const providerIds = new Set((providerLive.data ?? []).map((fixture) => fixture.providerId));
+    const fabricated = liveIds.filter((id) => !providerIds.has(id));
+    const shapeOk = liveIds.every((id) => ["status", "clock", "homeScore", "awayScore", "events"].every((key) => key in live[id]));
+    const emptyOk = fabricated.length === 0 && shapeOk;
+    console.log(`  ${emptyOk ? "✓" : "✗"} /api/live → ${liveIds.length} matches, ${fabricated.length} of them not backed by the provider`);
     if (!emptyOk) failures++;
   }
 

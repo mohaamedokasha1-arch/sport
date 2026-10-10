@@ -108,6 +108,23 @@ body {
   border-radius: var(--radius-card);
 }
 
+/* Small inline label: match status and competition chips on /teams/[slug].
+   Two call sites already asked for `.chip` while it was never declared, so
+   Tailwind emitted nothing for it and those labels rendered as bare text.
+   Styled from the tokens the rest of the site already uses for this shape
+   (the muted-on-navy-850 badge). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-card);
+  background-color: var(--color-navy-850);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
 .focus-ring:focus-visible {
   outline: 2px solid var(--color-gold-500);
   outline-offset: 2px;

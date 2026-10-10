@@ -427,7 +427,7 @@ export function inactiveStreamNote(status: string | null | undefined): string {
       return "توقّفت المباراة — لم يعد البث المباشر نشطًا.";
     case "walkover":
     case "awarded":
-      return "انتهت المباراة بقرار رسمي — لمrimination يعُد البث المباشر نشطًا.";
+      return "انتهت المباراة بقرار رسمي — لم يعد البث المباشر نشطًا.";
     case "finished":
     default:
       return "انتهت المباراة — لم يعد البث المباشر نشطًا.";

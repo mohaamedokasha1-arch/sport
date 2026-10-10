@@ -2,6 +2,8 @@ import { upsertOverride } from "@/lib/match-overrides";
 import { groupSimilarStories } from "@/lib/news/group";
 import type { NewsArticle } from "@/lib/news/types";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { isDateKey, siteDateKey, shiftDateKey } from "@/lib/tz";
 import { filterProviderMatches, isFixtureLive } from "@/lib/provider-match-filter";
@@ -11,9 +13,10 @@ import { createSource, listArticles } from "@/lib/news/store";
 import { runSource } from "@/lib/news/pipeline";
 import { validateMatchQuery } from "@/lib/match-query";
 import { createBroadcaster, setBroadcasterStatus, validateBroadcastLink } from "@/lib/broadcasts";
-import { createLiveStream, streamForMatch, streamPhase, updateLiveStream } from "@/lib/match-streams";
+import { createLiveStream, inactiveStreamNote, streamForMatch, streamPhase, updateLiveStream } from "@/lib/match-streams";
 import { adminFixtureInScope } from "@/lib/sdl-gateway";
-import { canonicalCategoryParam } from "@/lib/news/categorize";
+import { CATEGORIES, canonicalCategoryParam, categorizeArticle } from "@/lib/news/categorize";
+import { newsCompetitions } from "@/lib/news/entities";
 import { parsePreferences, emptyPreferences, favoriteMatch } from "@/lib/preferences";
 import { teamSample, headToHead } from "@/lib/scout";
 import { foldCalendarLine, matchCalendar } from "@/lib/calendar";
@@ -196,4 +199,78 @@ test("Newsroom groups similar same-day titles without deleting publisher records
   const unrelated = { ...story, id: "d", title: "Basketball team wins international tournament" };
   const groups = groupSimilarStories([story, second, nextDay, unrelated]);
   assert.equal(groups.length, 3); assert.equal(groups[0].length, 2); assert.equal(groups.flat().length, 4);
+});
+
+test("inactive stream notices are clean Arabic for every terminal status", () => {
+  // Regression: the walkover/awarded notice shipped with a Latin fragment
+  // pasted into the middle of the Arabic sentence ("… لمignation يعُد …"), which
+  // visitors read verbatim in place of the player.
+  const latin = /[A-Za-z]/;
+  for (const status of ["finished", "postponed", "cancelled", "suspended", "abandoned", "walkover", "awarded", "", null, undefined]) {
+    const note = inactiveStreamNote(status as string | null | undefined);
+    assert.equal(latin.test(note), false, `note for ${String(status)} contains Latin characters: ${note}`);
+    assert.ok(note.length > 10, `note for ${String(status)} is too short`);
+  }
+  assert.match(inactiveStreamNote("walkover"), /انتهت المباراة بقرار رسمي/);
+});
+
+test("the footer analysis link resolves to a real pipeline category", () => {
+  // Regression: /news?category=تحليل (the footer "تحليلات" link) matched no
+  // category at all and rendered a permanently empty feed.
+  assert.ok(CATEGORIES.some((category) => category.name === "Analysis"));
+  assert.equal(canonicalCategoryParam("تحليلات"), "Analysis");
+  assert.equal(canonicalCategoryParam("التحليلات"), "Analysis");
+  assert.equal(canonicalCategoryParam("analysis"), "Analysis");
+  // A lone analysis signal now lands in Analysis instead of falling through to
+  // the generic Sports bucket, while a real report keeps Match Reports.
+  assert.equal(categorizeArticle("Tactical analysis of the derby", "").primary, "Analysis");
+  assert.equal(categorizeArticle("Match report and highlights", "").primary, "Match Reports");
+});
+
+test("every /news competition sidebar link filters a category the store can match", () => {
+  // Regression: the sidebar listed offline-preview competition slugs; three of
+  // them (saudi-pro-league, bundesliga, ligue-1) have no news entity, so those
+  // links always resolved to an empty feed.
+  const ids = newsCompetitions().map((competition) => competition.id);
+  assert.ok(ids.length > 0);
+  for (const dead of ["saudi-pro-league", "bundesliga", "ligue-1", "eredivisie", "primeira-liga"]) {
+    assert.equal(ids.includes(dead), false, `${dead} is not a news entity and must not be linked`);
+  }
+  assert.deepEqual(ids, [...new Set(ids)], "competition ids are unique");
+});
+
+test("the /news page actually applies canonicalCategoryParam to the query", () => {
+  // Regression: PR #26 added the import to app/news/page.tsx but never used it,
+  // so /news?category=انتقالات still queried the store for an article whose
+  // category literally equals the Arabic label and returned nothing. An import
+  // is not a fix, so assert the call sits in the value the page queries with.
+  const page = readFileSync(join(process.cwd(), "app", "news", "page.tsx"), "utf8");
+  assert.match(
+    page,
+    /const category = canonicalCategoryParam\(/,
+    "app/news/page.tsx must canonicalize sp.category before it reaches getNewsFeed",
+  );
+  const feedCall = page.slice(page.indexOf("getNewsFeed("));
+  assert.match(feedCall, /category \}/, "the canonical category is what getNewsFeed receives");
+});
+
+test("an Arabic category label resolves to a stored article category", async () => {
+  const source = await createSource({ query: "arabic category link", language: "en" });
+  const date = new Date().toUTCString();
+  const xml = `<rss><channel><item><title>Transfer talks: football club agrees a loan deal</title><link>https://example.com/arabic-category</link><pubDate>${date}</pubDate><source>Transfer Desk</source></item></channel></rss>`;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(xml, { headers: { "content-type": "application/rss+xml" } });
+  try {
+    const run = await runSource(source, { force: true });
+    assert.equal(run.inserted, 1);
+    const stored = await listArticles({ sourceId: source.id });
+    assert.ok(stored.items.length > 0);
+    const canonical = canonicalCategoryParam("انتقالات");
+    const viaArabicLabel = await listArticles({ sourceId: source.id, category: canonical });
+    assert.equal(viaArabicLabel.items.length, stored.items.length, "the Arabic footer label must select the same rows as the English name");
+    const viaRawLabel = await listArticles({ sourceId: source.id, category: "انتقالات" });
+    assert.equal(viaRawLabel.items.length, 0, "the raw Arabic label is not what the store stores");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
