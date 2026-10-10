@@ -130,9 +130,27 @@ export interface EmbedUrlCheck {
  * reference list saves and publishes without being refused. Safety checks
  * (https, no markup/script, no credentials, no private host) still apply.
  * Pass `{ policy: "allowlist" }` to force the curated mode.
+ *
+ * This is the SAVE-time check: it also applies the strict rules (no bare IP,
+ * no single-label host, no URL shortener). Public display must not use it —
+ * see `isDisplayableEmbedUrl`.
  */
 export function validateEmbedUrl(raw: string, options: StreamPolicyOptions = {}): EmbedUrlCheck {
-  return validateBroadcastLink(raw, options);
+  return validateBroadcastLink(raw, { strict: true, ...options });
+}
+
+/**
+ * Display-time check: the same safety and domain rules WITHOUT the strict
+ * save-only checks. Records stored before the strict rules existed keep
+ * showing; the admin panel flags them with `needsReview` instead.
+ */
+export function isDisplayableEmbedUrl(raw: string, options: StreamPolicyOptions = {}): boolean {
+  return validateBroadcastLink(raw, { ...options, strict: false }).ok;
+}
+
+/** True when a stored URL would be refused if it were saved today. */
+export function needsReview(raw: string): boolean {
+  return isDisplayableEmbedUrl(raw) && !validateEmbedUrl(raw).ok;
 }
 
 /* ── seed: match-specific sources (each one belongs to ONE match) ─── */
@@ -287,7 +305,7 @@ function fromRow(r: Row): MatchStreamSource {
 
 /** A stream is publicly visible only when enabled, in a public status, and its URL still passes validation. */
 export function isPubliclyVisible(s: MatchStreamSource): boolean {
-  return s.enabled && PUBLIC_STATUSES.has(s.status) && validateEmbedUrl(s.embedUrl).ok;
+  return s.enabled && PUBLIC_STATUSES.has(s.status) && isDisplayableEmbedUrl(s.embedUrl);
 }
 
 /* ── reads ─────────────────────────────────────────────────────────── */

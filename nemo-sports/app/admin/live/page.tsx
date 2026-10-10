@@ -15,8 +15,9 @@ import {
   listLiveStreams,
   liveStreamStats,
   setLiveStreamStatus,
+  isDisplayableEmbedUrl,
+  needsReview,
   updateLiveStream,
-  validateEmbedUrl,
 } from "@/lib/match-streams";
 import {
   LIVE_STREAM_STATUSES,
@@ -306,7 +307,8 @@ export default async function AdminLive({
                 {dateAr(s.updatedAt)} · {timeOf(s.updatedAt)}
               </span>,
               <span key="a" className="flex flex-wrap gap-1.5">
-                {validateEmbedUrl(s.embedUrl).ok ? <StreamPreviewModal title={s.label} url={s.embedUrl} /> : null}
+                {isDisplayableEmbedUrl(s.embedUrl) ? <StreamPreviewModal title={s.label} url={s.embedUrl} /> : null}
+                {needsReview(s.embedUrl) ? <Pill tone="warn">يحتاج مراجعة</Pill> : null}
                 {s.status === "draft" || s.status === "disabled" ? (
                   <form action={setStreamStatusAction}>
                     <input type="hidden" name="id" value={s.id} />

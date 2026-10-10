@@ -291,7 +291,7 @@ export async function listBroadcasters(admin = false): Promise<BroadcasterEntry[
         [],
       );
       const entries = rows.map(fromRow);
-      return admin ? entries : entries.filter((b) => validateBroadcastLink(b.broadcastWebsite).ok);
+      return admin ? entries : entries.filter((b) => validateBroadcastLink(b.broadcastWebsite, { strict: false }).ok);
     } catch {
       // fall through
     }

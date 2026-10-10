@@ -17,8 +17,9 @@ import {
   deleteMatchStream,
   listMatchStreams,
   setMatchStreamEnabled,
+  isDisplayableEmbedUrl,
+  needsReview,
   upsertMatchStream,
-  validateEmbedUrl,
 } from "@/lib/match-streams";
 import StreamPreviewModal from "@/components/admin/StreamPreviewModal";
 import StreamPolicyNotice from "@/components/admin/StreamPolicyNotice";
@@ -232,9 +233,10 @@ export default async function AdminBroadcast({
               <a key="url" href={stream.embedUrl} target="_blank" rel="noopener noreferrer nofollow" className="num block max-w-[180px] truncate text-gold-400 hover:underline" dir="ltr">{stream.embedUrl}</a>,
               <Pill key="status" tone={stream.enabled ? "ok" : "idle"}>{stream.enabled ? "مفعّل" : "موقوف"}</Pill>,
               <span key="actions" className="flex flex-wrap gap-1.5">
-                {validateEmbedUrl(stream.embedUrl).ok ? (
+                {isDisplayableEmbedUrl(stream.embedUrl) ? (
                   <StreamPreviewModal title={stream.label} url={stream.embedUrl} />
                 ) : null}
+                {needsReview(stream.embedUrl) ? <Pill tone="warn">يحتاج مراجعة</Pill> : null}
                 <form action={toggleMatchStreamAction}>
                   <input type="hidden" name="id" value={stream.id} />
                   <input type="hidden" name="enabled" value={String(!stream.enabled)} />

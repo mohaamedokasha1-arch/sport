@@ -11,6 +11,12 @@
  *     link-local host (a URL only reachable from the operator's machine or the
  *     server would render as a dead player for every visitor).
  *
+ *  1b. STRICT checks (on for every NEW save and for the admin validator; off for
+ *     the public display path so records saved before this rule keep showing —
+ *     see `isDisplayableEmbedUrl` in lib/match-streams.ts). They refuse links
+ *     whose real destination cannot be judged: a bare IP address, a single-label
+ *     host (no dot), and known URL shorteners.
+ *
  *  2. DOMAIN layer (configurable — `StreamDomainPolicy`)
  *     · `open`      → ANY https host is accepted. The operator decides which
  *                     links to register; nothing is auto-rejected. THIS IS THE
@@ -40,6 +46,12 @@ export interface StreamPolicyOptions {
   policy?: StreamDomainPolicy;
   /** Extra allowlisted domains (merged with the env-provided ones). */
   extraDomains?: readonly string[];
+  /**
+   * Apply the strict save-time checks (IP literal, single-label host, URL
+   * shortener). Default `true`. Public display passes `false` so that records
+   * stored before the rule existed are not hidden.
+   */
+  strict?: boolean;
 }
 
 export interface StreamUrlCheck {
@@ -119,6 +131,18 @@ export function isNonPublicHost(host: string): boolean {
   return false;
 }
 
+/** URL shorteners hide the real destination, so the rights holder cannot be checked. */
+export const URL_SHORTENER_DOMAINS: readonly string[] = [
+  "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "is.gd", "buff.ly",
+  "rebrand.ly", "cutt.ly", "shorturl.at", "rb.gy", "lnkd.in", "tiny.cc", "shorte.st",
+];
+
+/** A bare IPv4 or IPv6 literal (no domain name). */
+export function isIpLiteral(host: string): boolean {
+  const h = normalizeHost(host);
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.includes(":");
+}
+
 /** Exact host or any subdomain of one of the listed domains. */
 export function hostInList(host: string, domains: readonly string[]): boolean {
   const h = normalizeHost(host);
@@ -182,6 +206,14 @@ export function inspectStreamUrl(
   const host = normalizeHost(url.hostname);
   if (!host) return fail("رابط غير صالح — اسم النطاق مفقود");
   if (isNonPublicHost(host)) return fail(`النطاق ${host} داخلي/محلي ولا يمكن للزوار الوصول إليه`);
+
+  if (options.strict ?? true) {
+    if (isIpLiteral(host)) return fail("عنوان IP مباشر غير مقبول — أدخل رابط النطاق الكامل (مثل example.com)", host);
+    if (!host.includes(".")) return fail(`النطاق ${host} ليس اسم نطاق كاملًا — أدخل الرابط الكامل`, host);
+    if (hostInList(host, URL_SHORTENER_DOMAINS)) {
+      return fail(`روابط الاختصار (${host}) تُخفي الوجهة الأصلية — أدخل الرابط الكامل للمصدر`, host);
+    }
+  }
 
   const listed = hostInList(host, allowlist);
 
