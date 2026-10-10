@@ -43,6 +43,7 @@ import path from "node:path";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { validateBroadcastLink, type StreamDomainPolicy, type StreamPolicyOptions } from "@/lib/broadcasts";
+import { siteDay } from "@/lib/tz";
 
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
 
@@ -391,11 +392,25 @@ const INACTIVE_STATUSES = new Set([
  *               (the requirement: show the player when the stream link exists).
  * "inactive"  → finished/cancelled/…: NEVER an active live player — a
  *               static notice is shown instead.
+ *
+ * A match still marked "scheduled" whose kickoff DAY (site calendar) has
+ * already passed is "inactive" too: a stored status can lag behind reality
+ * (an editorial match is not refreshed once its day is over), so the calendar
+ * — not the status — decides. The comparison is day-level on purpose: a match
+ * that just kicked off keeps its player until the status flips to live/finished.
  */
-export function streamPhase(status: string | null | undefined): MatchStreamPhase {
+export function streamPhase(
+  status: string | null | undefined,
+  scheduledAt?: string | null,
+  now: string | number | Date = Date.now(),
+): MatchStreamPhase {
   const s = String(status ?? "").trim().toLowerCase();
   if (LIVE_STATUSES.has(s)) return "live";
   if (INACTIVE_STATUSES.has(s)) return "inactive";
+  if (scheduledAt) {
+    const kickoff = new Date(scheduledAt);
+    if (Number.isFinite(+kickoff) && siteDay(kickoff) < siteDay(now)) return "inactive";
+  }
   return "upcoming";
 }
 

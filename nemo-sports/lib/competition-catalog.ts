@@ -1,7 +1,21 @@
-import { footballDataCompetitions, type FootballDataCompetitionRef } from "@/lib/football-data";
+import { FOOTBALL_DATA_COMPETITIONS } from "@/packages/sdl/src";
 import { matchesSearchText, normalizeSearchText } from "@/lib/search-text";
 
-export type CanonicalCompetition = FootballDataCompetitionRef & {
+// NOTE: the catalogue reads the competition list straight from the Sports
+// Data Layer package — NOT from lib/football-data. lib/football-data is the
+// service layer OVER lib/sdl-gateway, and this catalogue is imported BY the
+// gateway; importing the service here would create a module cycle
+// (sdl-gateway → competition-catalog → football-data → sdl-gateway) whose
+// evaluation order crashes the server with an uninitialized export.
+
+export type CanonicalCompetition = {
+  code: string;
+  /** Identifier the keyless SportScore provider understands (null when it has none). */
+  slug: string | null;
+  name: string;
+  nameAr: string;
+  countryAr: string;
+  featured: boolean;
   /** Stable public path retained for existing NEMO URLs. */
   canonicalSlug: string;
   /** Identifier accepted by the SDL's SportScore and Football-Data adapters. */
@@ -123,10 +137,18 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
 
 /** One canonical catalogue for the football competitions currently covered. */
 export const canonicalCompetitions: CanonicalCompetition[] = [
-  ...footballDataCompetitions(true).map((competition) => ({
-    ...competition,
+  ...FOOTBALL_DATA_COMPETITIONS.filter((competition) => competition.featured).map((competition) => ({
+    // Same mapping lib/football-data.footballDataCompetitions() applies:
+    // `slug` is the identifier the keyless SportScore provider understands, so
+    // one string drives either provider and the chain can fall through.
+    code: competition.code,
+    slug: competition.sportscoreSlug,
+    name: competition.name,
+    nameAr: competition.nameAr,
+    countryAr: competition.countryAr,
+    featured: competition.featured,
     canonicalSlug: SLUG_BY_CODE[competition.code] ?? competition.code.toLowerCase(),
-    providerId: competition.slug ?? competition.code,
+    providerId: competition.sportscoreSlug ?? competition.code,
   })),
   ...EXTRA_COMPETITIONS,
 ];
