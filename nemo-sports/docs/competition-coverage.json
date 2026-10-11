@@ -1,0 +1,339 @@
+{
+  "generatedAt": "2026-10-11T21:08:38.024Z",
+  "counts": {
+    "total": 15,
+    "canonical": 15,
+    "discovered": 0,
+    "published": 15
+  },
+  "bySport": {
+    "football": 15
+  },
+  "catalogProviders": [
+    {
+      "provider": "sportscore",
+      "capable": false
+    },
+    {
+      "provider": "demo",
+      "capable": false
+    }
+  ],
+  "entries": [
+    {
+      "path": "/competitions/premier-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "english-premier-league",
+      "name": "Premier League",
+      "nameAr": "الدوري الإنجليزي الممتاز",
+      "sport": "football",
+      "country": "إنجلترا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/la-liga",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "spanish-la-liga",
+      "name": "La Liga",
+      "nameAr": "الدوري الإسباني",
+      "sport": "football",
+      "country": "إسبانيا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/serie-a",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "italian-serie-a",
+      "name": "Serie A",
+      "nameAr": "الدوري الإيطالي",
+      "sport": "football",
+      "country": "إيطاليا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/bundesliga",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "bundesliga",
+      "name": "Bundesliga",
+      "nameAr": "الدوري الألماني",
+      "sport": "football",
+      "country": "ألمانيا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/ligue-1",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "french-ligue-1",
+      "name": "Ligue 1",
+      "nameAr": "الدوري الفرنسي",
+      "sport": "football",
+      "country": "فرنسا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/champions-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "uefa-champions-league",
+      "name": "UEFA Champions League",
+      "nameAr": "دوري أبطال أوروبا",
+      "sport": "football",
+      "country": "أوروبا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/saudi-pro-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "saudi-professional-league",
+      "name": "Saudi Pro League",
+      "nameAr": "دوري روشن السعودي",
+      "sport": "football",
+      "country": "السعودية",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/egyptian-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "egyptian-premier-league",
+      "name": "Egyptian Premier League",
+      "nameAr": "الدوري المصري الممتاز",
+      "sport": "football",
+      "country": "مصر",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/caf-champions-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "caf-champions-league",
+      "name": "CAF Champions League",
+      "nameAr": "دوري أبطال أفريقيا",
+      "sport": "football",
+      "country": "أفريقيا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/caf-confederation-cup",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "caf-confederation-cup",
+      "name": "CAF Confederation Cup",
+      "nameAr": "كأس الكونفدرالية الأفريقية",
+      "sport": "football",
+      "country": "أفريقيا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/uefa-europa-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "uefa-europa-league",
+      "name": "UEFA Europa League",
+      "nameAr": "الدوري الأوروبي",
+      "sport": "football",
+      "country": "أوروبا",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/concacaf-league-champions-cup",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "concacaf-league-champions-cup",
+      "name": "CONCACAF League Champions Cup",
+      "nameAr": "دوري أبطال كونكاكاف",
+      "sport": "football",
+      "country": "أمريكا الشمالية والوسطى",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/usl-championship",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "usl-championship",
+      "name": "USL Championship",
+      "nameAr": "دوري USL Championship",
+      "sport": "football",
+      "country": "الولايات المتحدة",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/japanese-j1-league",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "japanese-j1-league",
+      "name": "Japanese J1 League",
+      "nameAr": "الدوري الياباني J1",
+      "sport": "football",
+      "country": "اليابان",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    },
+    {
+      "path": "/competitions/brazilian-serie-a",
+      "status": "canonical",
+      "provider": null,
+      "providerId": "brazilian-serie-a",
+      "name": "Brazilian Serie A",
+      "nameAr": "الدوري البرازيلي",
+      "sport": "football",
+      "country": "البرازيل",
+      "capabilities": {
+        "listed": true,
+        "fixtures": null,
+        "live": null,
+        "results": null,
+        "standings": null,
+        "teams": null,
+        "players": null
+      },
+      "published": true,
+      "lastSeenAt": null
+    }
+  ]
+}

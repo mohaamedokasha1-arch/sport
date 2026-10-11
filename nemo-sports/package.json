@@ -32,7 +32,8 @@
     "verify:news-ingestion": "node scripts/verify-news-ingestion.mjs",
     "replay:today": "node scripts/replay-sportscore-today.mjs",
     "mock:news": "node scripts/mock-news-feeds.mjs",
-    "competitions:test": "tsx --test scripts/verify-competition-sync.test.ts"
+    "competitions:test": "tsx --test scripts/verify-competition-sync.test.ts",
+    "competitions:report": "tsx scripts/report-competition-coverage.ts docs/competition-coverage.json"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
