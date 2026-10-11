@@ -3,6 +3,7 @@ import { groupSimilarStories } from "@/lib/news/group";
 import type { NewsArticle } from "@/lib/news/types";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { isDateKey, siteDateKey, shiftDateKey } from "@/lib/tz";
 import {
   filterProviderMatches,
@@ -16,7 +17,7 @@ import { matchStateOf } from "@/lib/match-state";
 import { canonicalCategoryParam } from "@/lib/news/categorize";
 import { sportsRelevance } from "@/lib/news/relevance";
 import { isGoogleNewsWrapper, resolvePublisherUrl } from "@/lib/news/normalize";
-import { createSource, listArticles } from "@/lib/news/store";
+import { createSource, insertArticle, listArticles } from "@/lib/news/store";
 import { runSource } from "@/lib/news/pipeline";
 import { validateMatchQuery, validateMatchStatus } from "@/lib/match-query";
 import { attributionForProvider } from "@/lib/football-data";
@@ -263,4 +264,45 @@ test("Newsroom groups similar same-day titles without deleting publisher records
   const unrelated = { ...story, id: "d", title: "Basketball team wins international tournament" };
   const groups = groupSimilarStories([story, second, nextDay, unrelated]);
   assert.equal(groups.length, 3); assert.equal(groups[0].length, 2); assert.equal(groups.flat().length, 4);
+});
+
+test("admin dashboard news count uses the full RSS total, not its five-item preview", async () => {
+  const sourceId = `dashboard-counter-${Date.now()}`;
+  const now = new Date().toISOString();
+  for (let i = 0; i < 6; i++) {
+    const canonicalUrl = `https://counter-test.example/story-${i}`;
+    const article: NewsArticle = {
+      id: `${sourceId}-${i}`,
+      title: `Counter test story ${i}`,
+      sourceUrl: canonicalUrl,
+      canonicalUrl,
+      sourceName: "Counter test",
+      sourceDomain: "counter-test.example",
+      publicationDate: new Date(Date.now() + i * 1000).toISOString(),
+      fetchedDate: now,
+      description: "",
+      category: "football",
+      secondaryCategories: [],
+      categoryConfidence: 1,
+      relatedEntities: [],
+      rssSourceId: sourceId,
+      fingerprint: `${sourceId}-${i}`,
+      isDuplicate: false,
+      duplicateOf: null,
+      qualityScore: 100,
+      status: "published",
+      sourceBadge: "CT",
+      createdAt: now,
+      updatedAt: now,
+    };
+    await insertArticle(article);
+  }
+
+  const result = await listArticles({ sourceId, limit: 5 });
+  assert.equal(result.items.length, 5);
+  assert.equal(result.total, 6);
+
+  const dashboardSource = readFileSync(`${process.cwd()}/app/admin/page.tsx`, "utf8");
+  assert.match(dashboardSource, /const rssTotal = articleResult\.total/);
+  assert.doesNotMatch(dashboardSource, /const rssTotal = articleResult\.items\.length/);
 });

@@ -3,7 +3,7 @@
  * Tests every acceptance criterion specified by the user:
  * 1. Live page rendering & card structure
  * 2. Match detail page & legacy redirects
- * 3. 5 verified matches accuracy (SPL, Bundesliga, Ligue 1, La Liga)
+ * 3. The 5 bundled editorial match records retain their seeded values
  * 4. Embed URL security & allowlist enforcement
  * 5. Stream lifecycle transitions (draft, scheduled, live, ended, disabled)
  * 6. Stream isolation between matches
@@ -13,7 +13,7 @@
  * 10. Cairo/KSA timezone calculations
  * 11. Arabic RTL & UI consistency
  * 12. Public API security & diagnostics protection
- * 13. Data persistence & disk backup
+ * 13. Read-only JSON seed integrity; no database or disk writes
  */
 
 import assert from "node:assert/strict";
@@ -34,6 +34,16 @@ import { can } from "../lib/admin-roles";
 import { createAdminSession, verifyAdminSession } from "../lib/admin-auth-shared";
 import { SITE_TZ } from "../lib/tz";
 
+if (process.env.DATABASE_URL?.trim()) {
+  throw new Error("Offline scenario tests refuse any configured DATABASE_URL; no database was contacted.");
+}
+if (process.env.NODE_ENV === "production") {
+  throw new Error("Scenario tests refuse NODE_ENV=production; run them in a test/development environment.");
+}
+// Keep reading the checked-in match seed while preventing test-only stream
+// writes from changing either tracked JSON file, even if a scenario fails.
+process.env.NEMO_TEST_NO_DISK_WRITES = "1";
+
 let passed = 0;
 let total = 0;
 
@@ -50,6 +60,15 @@ async function test(scenarioNum: number, name: string, fn: () => Promise<void> |
 }
 
 async function runAll() {
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const dataSeedFiles = [
+    path.resolve(process.cwd(), "db/admin-matches.json"),
+    path.resolve(process.cwd(), "db/match-streams.json"),
+  ];
+  const dataSeedSnapshots = new Map<string, Buffer>();
+  for (const file of dataSeedFiles) dataSeedSnapshots.set(file, await fs.readFile(file));
+
   console.log("\n=======================================================");
   console.log("  NEMO SPORTS — 13 SCENARIOS VERIFICATION SUITE");
   console.log("=======================================================\n");
@@ -96,9 +115,9 @@ async function runAll() {
   });
 
   // ─────────────────────────────────────────────────────────────────
-  // SCENARIO 3: The 5 Verified Matches Real Fixtures & Competitions
+  // SCENARIO 3: The 5 Bundled Editorial Match Records
   // ─────────────────────────────────────────────────────────────────
-  console.log("\n--- SCENARIO 3: The 5 Verified Real Matches ---");
+  console.log("\n--- SCENARIO 3: The 5 Bundled Editorial Match Records ---");
   const expected5 = [
     {
       slug: "al-fateh-vs-al-ahli",
@@ -138,7 +157,7 @@ async function runAll() {
   ];
 
   for (const exp of expected5) {
-    await test(3, `Verified match: ${exp.home} × ${exp.away} (${exp.comp})`, async () => {
+    await test(3, `Seeded editorial record: ${exp.home} × ${exp.away} (${exp.comp})`, async () => {
       const match = await getAdminMatchBySlug(exp.slug);
       assert.ok(match, `Match ${exp.slug} must exist in seed/catalog`);
       assert.equal(match!.homeName, exp.home);
@@ -412,19 +431,25 @@ async function runAll() {
   });
 
   // ─────────────────────────────────────────────────────────────────
-  // SCENARIO 13: Data Integrity & Disk Persistence
+  // SCENARIO 13: Data Integrity & Read-only Seed Files
   // ─────────────────────────────────────────────────────────────────
-  console.log("\n--- SCENARIO 13: Data Integrity & Persistence ---");
-  await test(13, "admin matches and streams persist to JSON files on disk when DB is offline", async () => {
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const matchesFile = path.resolve(process.cwd(), "db/admin-matches.json");
-    const stat = await fs.stat(matchesFile);
-    assert.ok(stat.isFile());
-    const raw = await fs.readFile(matchesFile, "utf-8");
-    const parsed = JSON.parse(raw);
-    assert.ok(Array.isArray(parsed));
-    assert.ok(parsed.length >= 5);
+  console.log("\n--- SCENARIO 13: Data Integrity & Read-only Seed Files ---");
+  await test(13, "tracked match and stream JSON seeds parse and remain unchanged during scenarios", async () => {
+    const [matchesFile, streamsFile] = dataSeedFiles;
+    const matchesStat = await fs.stat(matchesFile);
+    const streamsStat = await fs.stat(streamsFile);
+    assert.ok(matchesStat.isFile());
+    assert.ok(streamsStat.isFile());
+
+    const matches = JSON.parse(await fs.readFile(matchesFile, "utf-8"));
+    const streams = JSON.parse(await fs.readFile(streamsFile, "utf-8"));
+    assert.ok(Array.isArray(matches));
+    assert.ok(matches.length >= 5);
+    assert.ok(Array.isArray(streams));
+
+    for (const [file, before] of dataSeedSnapshots) {
+      assert.deepEqual(await fs.readFile(file), before, `${path.basename(file)} must remain read-only in this suite`);
+    }
   });
 
   console.log("\n=======================================================");

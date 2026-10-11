@@ -117,7 +117,7 @@ export default async function AdminDashboard() {
     manualNewsCounts(),
     liveStreamStats(),
   ]);
-  const rssTotal = articleResult.items.length;
+  const rssTotal = articleResult.total;
 
   const live = liveResult.ok ? liveResult.data.filter((match) =>
     isLiveStatus(match.status),
