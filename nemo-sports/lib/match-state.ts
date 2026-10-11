@@ -68,6 +68,25 @@ export type MatchState =
   /** Stored status says "not started" but the kickoff day is already over. */
   | "unconfirmed";
 
+/**
+ * App-level status for a match whose last known state was "in play" but whose
+ * live claim is no longer backed by the freshest data: a newer live snapshot
+ * from the same provider does not list it, or the snapshot that said "live"
+ * is older than LIVE_CLAIM_MAX_AGE_MS (served from a stale cache while the
+ * provider was failing). It resolves to `unconfirmed` — never to "live"
+ * (it would inflate live counts) and never to "finished" (no result exists).
+ * Set only by lib/live-reconcile.ts; providers never send it.
+ */
+export const UNVERIFIED_STATUS = "unverified";
+
+/**
+ * Oldest snapshot allowed to present a match as live. The live cache lives
+ * ~50 s and may be served stale for 120 s during a provider outage; the
+ * fixtures cache may be served stale for an hour, which used to keep matches
+ * "live" on /matches long after they ended (while /live reported none).
+ */
+export const LIVE_CLAIM_MAX_AGE_MS = 3 * 60_000;
+
 function normalizeStatus(status: string | null | undefined): string {
   return String(status ?? "").trim().toLowerCase();
 }
@@ -99,6 +118,7 @@ export function matchStateOf(
 ): MatchState {
   const s = normalizeStatus(status);
   if (isLiveStatus(s)) return "live";
+  if (s === UNVERIFIED_STATUS) return "unconfirmed";
   if (FINISHED_STATUSES.has(s)) return "finished";
   if (INTERRUPTED_STATUSES.has(s)) {
     if (s === "postponed") return "postponed";
@@ -135,3 +155,17 @@ export function matchStateLabelAr(state: MatchState): string {
  */
 export const UNCONFIRMED_NOTE_AR =
   "انقضى يوم الموعد ولم يصل تحديث من المصدر يؤكد النتيجة أو التأجيل. لا نعرض نتيجة أو حالة غير مؤكدة.";
+
+/** Why a live claim was withdrawn (status `unverified`). Never claims a result. */
+export const UNVERIFIED_NOTE_AR =
+  "لم يؤكد آخر تحديث من المصدر أن المباراة ما زالت جارية. ننتظر تحديث الحالة، ولا نعرض نتيجة نهائية غير مؤكدة.";
+
+/** The explanation that matches the reason a match is `unconfirmed`. */
+export function unconfirmedNoteAr(status: string | null | undefined): string {
+  return normalizeStatus(status) === UNVERIFIED_STATUS ? UNVERIFIED_NOTE_AR : UNCONFIRMED_NOTE_AR;
+}
+
+/** True when the resolved state is "in play" — the one test every live count uses. */
+export function isLiveNow(status: string | null | undefined, scheduledAt?: string | number | Date | null, now: string | number | Date = Date.now()): boolean {
+  return matchStateOf(status, scheduledAt, now) === "live";
+}

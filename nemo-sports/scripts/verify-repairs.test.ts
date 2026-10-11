@@ -170,9 +170,14 @@ test("private/loopback hosts are never accepted as embeds", () => {
   }
 });
 test("a dated stream cannot leak to rematches or reversed teams", async () => {
-  const made = await createLiveStream({ matchSlug: "test-a-vs-b-2026-10-09", homeName: "A", awayName: "B", embedUrl: "https://www.youtube.com/embed/test", status: "published" });
+  // Rights evidence is required for any public stream (lib/broadcast-state.ts);
+  // this test is about slug isolation, so it records evidence.
+  const made = await createLiveStream({ matchSlug: "test-a-vs-b-2026-10-09", homeName: "A", awayName: "B", embedUrl: "https://www.youtube.com/embed/test", status: "published", rightsHolder: "Test Rights Holder", rightsEvidence: "https://example.com/licence/test" });
   assert.equal(made.ok, true); if (!made.ok) return;
   assert.equal((await streamForMatch({ slug: "test-a-vs-b-2026-10-09" }))?.id, made.entry.id);
+  const noEvidence = await createLiveStream({ matchSlug: "test-no-rights-2026-10-09", homeName: "C", awayName: "D", embedUrl: "https://www.youtube.com/embed/test2", status: "published" });
+  assert.equal(noEvidence.ok, true);
+  assert.equal(await streamForMatch({ slug: "test-no-rights-2026-10-09" }), null, "a published stream without rights evidence is never public");
   assert.equal(await streamForMatch({ slug: "test-a-vs-b-2026-10-20", home: "A", away: "B" }), null);
   assert.equal(await streamForMatch({ slug: "test-b-vs-a", home: "B", away: "A" }), null);
   await updateLiveStream(made.entry.id, { status: "disabled" });

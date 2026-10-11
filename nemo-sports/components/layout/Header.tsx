@@ -44,13 +44,16 @@ export default function Header() {
           </div>
 
           <div className="ms-auto flex items-center gap-2">
-            <div className="hidden xl:block">
+            {/* Inline search only from 2xl: at exactly 1280px (xl) the full nav
+                plus the search box overflowed the page by 8px. Below 2xl the
+                compact search button is used. */}
+            <div className="hidden 2xl:block">
               <SearchBox />
             </div>
             <Link
               href="/search"
               aria-label="البحث"
-              className="grid h-11 w-11 place-items-center rounded-[3px] border border-white/15 text-white transition hover:border-gold-500 hover:text-gold-400 focus-ring xl:hidden"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-[3px] border border-white/15 text-white transition hover:border-gold-500 hover:text-gold-400 focus-ring 2xl:hidden"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <circle cx="11" cy="11" r="7" />

@@ -27,7 +27,8 @@ import {
   validateArticle,
 } from "./normalize";
 import { checkDuplicate, type DedupCandidate } from "./dedup";
-import { sportsRelevance } from "./relevance";
+import { sportsRelevanceDetail } from "./relevance";
+import { AUTO_MODERATOR, autoModerationEnabled, moderatePublished } from "./moderation";
 import { categorizeArticle } from "./categorize";
 import { matchEntities } from "./entities";
 import {
@@ -184,6 +185,10 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
     const parsed = parseRss(feed.xml, source.query);
     base.processed = parsed.items.length;
     base.parseErrors = parsed.errors.length + parsed.skipped;
+    // One dedup window per domain per run (Google News items all share
+    // news.google.com): it used to be re-read from the database for EVERY item,
+    // which is what kept a once-a-day job from finishing all sources in time.
+    const windows = new Map<string, NewsArticle[]>();
 
     for (const raw of parsed.items.slice(0, 100)) {
       if (Date.now() - started > 35_000) throw new Error("source processing budget reached; remaining items deferred");
@@ -207,7 +212,8 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           continue;
         }
 
-        const relevance = sportsRelevance(title, cleanText(raw.description));
+        const relevanceDetail = sportsRelevanceDetail(title, cleanText(raw.description));
+        const relevance = relevanceDetail.verdict;
         if (relevance === "reject") { base.validationFailures++; continue; }
 
         // DEDUPLICATE — L1/L2 global, L3–L5 against the domain window
@@ -224,7 +230,11 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           sourceDomain: domain,
           publicationDate,
         };
-        const window = await recentByDomain(domain, 3, 60);
+        let window = windows.get(domain);
+        if (!window) {
+          window = await recentByDomain(domain, 3, 60);
+          windows.set(domain, window);
+        }
         let dupOf: string | null = null;
         for (const w of window) {
           const check = checkDuplicate(candidate, w);
@@ -273,9 +283,13 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           sourceBadge: sourceBadge(sourceName),
           createdAt: now,
           updatedAt: now,
+          // Provenance for items held back at ingestion (editor review queue).
+          ...(relevance === "publish" ? {} : { moderationReason: `ingest:relevance:${relevanceDetail.reason}`, moderatedAt: now, moderatedBy: "ingest" }),
         };
         await insertArticle(article);
         base.inserted++;
+        window.unshift(article);
+        if (window.length > 60) window.length = 60;
       } catch (error) {
         if (error instanceof StoreWriteError) throw error;
         base.validationFailures++;
@@ -355,9 +369,23 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
   let entityMatches = 0;
   let totalFetches = 0;
 
-  for (const source of sources) {
-    if (Date.now() - t0 > 40_000) break; // leave headroom under the route duration budget
-    const r = await runSource(source, { force: opts.force });
+  // A few sources in parallel (default 3, NEMO_NEWS_CONCURRENCY 1–4): the
+  // scheduled job runs once a day on the Hobby plan, so all enabled sources
+  // must fit in one ~40 s run. Each source still has its own timeouts.
+  const queue = [...sources];
+  const concurrency = Math.max(1, Math.min(4, Number(process.env.NEMO_NEWS_CONCURRENCY ?? 3) || 3));
+  const results: SourceRunResult[] = [];
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (queue.length > 0) {
+        if (Date.now() - t0 > 40_000) return; // leave headroom under the route duration budget
+        const source = queue.shift()!;
+        results.push(await runSource(source, { force: opts.force }));
+      }
+    }),
+  );
+
+  for (const r of results) {
     if (!r.skipped) totalFetches++;
     totalProcessed += r.processed;
     inserted += r.inserted;
@@ -378,6 +406,16 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
     });
   }
 
+  // Re-check already-published articles with the current relevance rules and
+  // quarantine clear non-sports content (records and provenance preserved).
+  // Skipped for single-source debug runs and when the job is out of time.
+  let moderation: IngestStats["moderation"];
+  if (!opts.sourceIds && Date.now() - t0 < 45_000) {
+    const apply = autoModerationEnabled();
+    const m = await moderatePublished({ apply, by: AUTO_MODERATOR, limit: 500 });
+    moderation = { scanned: m.scanned, quarantined: apply ? m.applied : m.quarantine.length, reviewOnly: m.review.length, applied: apply };
+  }
+
   const ms = Date.now() - t0;
   return {
     totalFetches,
@@ -388,6 +426,7 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
     parseErrors,
     entityMatches,
     avgProcessingMs: totalProcessed ? Math.round(ms / Math.max(1, totalProcessed)) : 0,
+    ...(moderation ? { moderation } : {}),
     perSource,
     startedAt,
     finishedAt: new Date().toISOString(),

@@ -7,7 +7,6 @@ import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
 import { sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
-import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { CATEGORIES, FALLBACK_CATEGORY, categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
 import { newsCompetitions } from "@/lib/news/entities";
 import { demoContentVisible } from "@/lib/site";
@@ -57,6 +56,7 @@ async function NewsPageBody({
     : [];
   const editorialCategories = Array.from(new Set(editorial.map((a) => a.category)));
 
+  const fresh = feed.freshness;
   const storyGroups = groupSimilarStories(feed.items);
   const hasAny = feed.items.length > 0 || editorial.length > 0;
   // Echo the visitor's own label for a value that is not a real category, and
@@ -75,21 +75,28 @@ async function NewsPageBody({
           <p className="eyebrow mb-1">التغطية الرياضية</p>
           <h1 className="text-2xl font-extrabold tracking-tight">NEMO Newsroom · الأخبار</h1>
         </div>
-        <p className="text-[12px] text-muted">
+        <p className="text-[12px] text-muted" role="status">
           <span className="num font-bold">{feed.total + editorial.length}</span> خبرًا ·{" "}
-          {feed.lastUpdated ? (
+          {fresh.lastSuccessAt ? (
             <>
-              آخر تحديث: <span className="num font-bold">{relative(feed.lastUpdated)}</span>
-              {feed.stale ? <span className="text-warn"> (بيانات قد لا تكون حالية)</span> : null}
+              آخر تحديث ناجح: <span className="num font-bold">{relative(fresh.lastSuccessAt)}</span>
+              {fresh.state === "stale" ? <span className="text-warn"> (بيانات قد لا تكون حالية)</span> : null}
             </>
           ) : (
-            "لا يوجد وقت تحديث ناجح مسجّل"
+            "لا يوجد تحديث ناجح مسجّل"
           )}
+          {fresh.lastAttemptOk === false && fresh.lastFailureAt ? (
+            <span className="text-warn">
+              {" "}· آخر محاولة تحديث فشلت <span className="num">{relative(fresh.lastFailureAt)}</span>
+            </span>
+          ) : null}
+          {!fresh.lastAttemptAt ? <span> · لم تُسجَّل أي محاولة تحديث بعد</span> : null}
         </p>
       </header>
 
       <p className="-mt-3 mb-5 text-[11px] text-muted">
-        تُجمع الأخبار عبر مهمة مجدولة تعمل {NEWS_CRON_DESCRIPTION_AR}، لذلك قد تتأخر عن الفاصل المستهدف لكل مصدر، ولا نضمن تحديثًا لحظيًا.
+        تُجمع الأخبار عبر مهمة مجدولة تعمل {fresh.schedule.descriptionAr}، لذلك قد تتأخر عن الفاصل المستهدف لكل مصدر، ولا نضمن تحديثًا لحظيًا. تُعتبر البيانات غير حالية إذا مضى على آخر تحديث ناجح أكثر من{" "}
+        <span className="num">{Math.round(fresh.schedule.staleAfterMinutes / 60)}</span> ساعة.
       </p>
 
       {editorial.length > 0 ? <p className="mb-5 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">المقالات الظاهرة بيانات توضيحية للتطوير فقط، ولا تمثل أخبارًا منشورة.</p> : null}

@@ -14,13 +14,13 @@ export async function GET() {
     deprecated: false,
     docs: "All responses are canonical: provider identifiers and payloads never leave the Sports Data Layer.",
     endpoints: {
-      "/api/v1/live": "GET ?sport=football — in-play matches",
-      "/api/v1/matches": "GET ?sport=&date=&competition= — fixtures · GET ?events=<providerMatchId> — match events",
+      "/api/v1/live": "GET ?sport=football (default) | basketball | tennis | cricket | all — in-play matches from the site-wide live board; meta.scope/meta.bySport state what the count covers",
+      "/api/v1/matches": "GET ?sport=football (default)|…|all&date=YYYY-MM-DD|today|yesterday|tomorrow&competition=&status= — fixtures (live states reconciled with the live board) · GET ?events=<providerMatchId> — match events",
       "/api/v1/football-data/standings": "GET ?competition=PL — league table (Football-Data.org, cached)",
       "/api/v1/football-data/matches": "GET ?date=YYYY-MM-DD&competition= — the day's fixtures and results",
       "/api/v1/football-data/scorers": "GET ?competition=PL — top scorers (plan-dependent upstream resource)",
       "/api/v1/football-data/status": "GET — key configured? quota left? cache TTLs and hit rates",
-      "/api/v1/news": "GET ?category=&team=&player=&competition=&limit=&offset= — ingested headlines (metadata + original links)",
+      "/api/v1/news": "GET ?category=&team=&player=&competition=&limit=&offset= — ingested headlines (metadata + original links); meta.lastSuccessfulUpdate / meta.lastFailedAttempt / meta.freshness separate success from failure",
       "/api/v1/system": "GET — provider health, cost, cache and conflict state (admin)",
     },
     meta: {

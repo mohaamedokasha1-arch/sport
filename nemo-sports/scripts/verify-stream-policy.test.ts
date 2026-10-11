@@ -65,8 +65,9 @@ test("unsafe links stay refused everywhere, including display", () => {
 });
 
 test("a stored record with a legacy URL is still publicly visible", () => {
-  const base = { enabled: true, status: "live", embedUrl: "https://bit.ly/3abcdef" } as unknown as MatchStreamSource;
+  const base = { enabled: true, status: "live", embedUrl: "https://bit.ly/3abcdef", rightsHolder: "Holder", rightsEvidence: "LIC-1" } as unknown as MatchStreamSource;
   assert.equal(isPubliclyVisible(base), true, "display path keeps the record");
+  assert.equal(isPubliclyVisible({ ...base, rightsEvidence: "" } as MatchStreamSource), false, "no rights evidence → not public");
   assert.equal(isPubliclyVisible({ ...base, enabled: false } as MatchStreamSource), false, "disabled stays hidden");
   assert.equal(isPubliclyVisible({ ...base, status: "draft" } as unknown as MatchStreamSource), false, "draft stays hidden");
 });

@@ -27,6 +27,9 @@ import {
   type LiveStreamType,
 } from "@/lib/live-stream-consts";
 import { getSiteSettings } from "@/lib/site-settings";
+import { broadcastBadgeAr, hasRightsEvidence, streamApproval } from "@/lib/broadcast-state";
+import { broadcastFor, streamFacts } from "@/lib/match-streams";
+import { resolveStreamFixture } from "@/lib/public-streams";
 import { broadcastDomainPolicy, STREAM_POLICY_AR } from "@/lib/broadcasts";
 import { logActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
@@ -56,6 +59,8 @@ const statusTone: Record<LiveStreamStatus, "ok" | "warn" | "bad" | "idle"> = {
   disabled: "warn",
 };
 
+const RIGHTS_REQUIRED_AR = "لا يمكن نشر البث قبل توثيق الحقوق: أدخل الجهة صاحبة الحقوق ومرجع الترخيص أو رابطًا رسميًا.";
+
 const btnGhost =
   "rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400";
 
@@ -77,6 +82,8 @@ async function saveStreamAction(form: FormData): Promise<void> {
     streamType: (String(form.get("streamType") ?? "embed") as LiveStreamType) || "embed",
     embedUrl: String(form.get("embedUrl") ?? "").trim(),
     label: String(form.get("label") ?? "").trim(),
+    rightsHolder: String(form.get("rightsHolder") ?? "").trim(),
+    rightsEvidence: String(form.get("rightsEvidence") ?? "").trim(),
   };
 
   if (intent === "publish" && !settings.live.publishingEnabled) {
@@ -91,6 +98,12 @@ async function saveStreamAction(form: FormData): Promise<void> {
     status = rawFormStatus === "draft" ? "scheduled" : rawFormStatus;
   } else {
     status = "scheduled";
+  }
+
+  // Approval and rights evidence are independent: an operator may save a draft
+  // without evidence, but never publish one.
+  if (status !== "draft" && status !== "ended" && status !== "disabled" && !hasRightsEvidence(input)) {
+    redirect(`/admin/live?err=${encodeURIComponent(RIGHTS_REQUIRED_AR)}${id ? `&edit=${encodeURIComponent(id)}` : ""}`);
   }
 
   const result = id
@@ -124,6 +137,12 @@ async function setStreamStatusAction(form: FormData): Promise<void> {
   const settings = await getSiteSettings();
   if ((status === "published" || status === "scheduled" || status === "live") && !settings.live.publishingEnabled) {
     redirect(`/admin/live?err=${encodeURIComponent("نشر البث موقوف مؤقتًا من إعدادات الموقع")}`);
+  }
+  if (status === "published" || status === "scheduled" || status === "live") {
+    const current = await getLiveStream(id);
+    if (current && !hasRightsEvidence(current)) {
+      redirect(`/admin/live?err=${encodeURIComponent(RIGHTS_REQUIRED_AR)}&edit=${encodeURIComponent(id)}#stream-form`);
+    }
   }
   const result = await setLiveStreamStatus(id, status);
   if (!result.ok) {
@@ -203,6 +222,18 @@ export default async function AdminLive({
   });
 
   const kickoffLabel = (iso: string | null) => (iso ? `${dateAr(iso)} · ${timeOf(iso)}` : "—");
+
+  // Computed public broadcast state per stream, resolved exactly like the
+  // public pages (editorial match first, then the provider match — cached).
+  const verdicts = new Map(
+    await Promise.all(
+      filtered.map(async (s) => {
+        const fixture = await resolveStreamFixture(s).catch(() => null);
+        const match = fixture ? { status: fixture.status, scheduledAt: fixture.scheduledAt, sport: fixture.sport } : null;
+        return [s.id, broadcastFor(s, match)] as const;
+      }),
+    ),
+  );
 
   return (
     <div>
@@ -302,7 +333,16 @@ export default async function AdminLive({
               >
                 {s.embedUrl}
               </a>,
-              <Pill key="s" tone={statusTone[s.status]}>{LIVE_STREAM_STATUS_AR[s.status]}</Pill>,
+              <span key="s" className="flex flex-col items-start gap-1">
+                <Pill tone={statusTone[s.status]}>{LIVE_STREAM_STATUS_AR[s.status]}</Pill>
+                {streamApproval(streamFacts(s)) === "review" ? <Pill tone="warn">بانتظار توثيق الحقوق</Pill> : null}
+                {(() => {
+                  const v = verdicts.get(s.id);
+                  return v && (v.state === "expired" || v.state === "live" || v.state === "standby") ? (
+                    <span className="text-[10px] text-white/50" title={v.noticeAr}>للزوار: {broadcastBadgeAr(v)}</span>
+                  ) : null;
+                })()}
+              </span>,
               <span key="d" className="num whitespace-nowrap text-[10px] text-white/40">
                 {dateAr(s.updatedAt)} · {timeOf(s.updatedAt)}
               </span>,

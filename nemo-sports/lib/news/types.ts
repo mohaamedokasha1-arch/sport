@@ -84,6 +84,14 @@ export interface NewsArticle {
   sourceBadge: string;
   createdAt: string;
   updatedAt: string;
+  /* ── moderation provenance (migration 0005) ── */
+  /** why the article is not published, e.g. "auto:relevance:commercial" */
+  moderationReason?: string | null;
+  moderatedAt?: string | null;
+  /** "auto:relevance-2026-10-11", an editor username, or "ingest" */
+  moderatedBy?: string | null;
+  /** status before an automatic quarantine (for one-click restore) */
+  previousStatus?: ArticleStatus | null;
 }
 
 export interface DuplicateCheck {
@@ -125,6 +133,8 @@ export interface IngestStats {
   parseErrors: number;
   entityMatches: number;
   avgProcessingMs: number;
+  /** relevance moderation of already-published articles (end of run) */
+  moderation?: { scanned: number; quarantined: number; reviewOnly: number; applied: boolean };
   perSource: {
     sourceId: string;
     query: string;

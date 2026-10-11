@@ -16,6 +16,7 @@ import {
 } from "@/lib/news/store";
 import { runSource, ingestAllSources } from "@/lib/news/pipeline";
 import { sourceFreshness } from "@/lib/news/freshness";
+import { schedulerCadence } from "@/lib/news/schedule";
 import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
@@ -159,16 +160,20 @@ export default async function AdminNews({
   // "سليمة" means fresh AND not failing — a source that stopped succeeding days
   // ago is not healthy, whatever its failure counter says.
   const now = Date.now();
-  const healthy = enabled.filter((s) => sourceFreshness(s, now) === "fresh");
+  // Same rule as the public feed: a source cannot be fresher than the
+  // scheduler that runs it (lib/news/schedule.ts).
+  const cadence = schedulerCadence();
+  const schedulerConfigured = Boolean(process.env.NEMO_INGEST_TOKEN || process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET);
+  const healthy = enabled.filter((s) => sourceFreshness(s, now, cadence.minutes) === "fresh");
   const failing = enabled.filter((s) => s.consecutiveFailures > 0);
-  const stale = enabled.filter((s) => sourceFreshness(s, now) === "stale");
+  const stale = enabled.filter((s) => sourceFreshness(s, now, cadence.minutes) === "stale");
   const categories = [...new Set(feed.items.map((a) => a.category))];
 
   const statusOf = (s: (typeof sources)[number]): { tone: "ok" | "warn" | "bad" | "idle"; label: string } => {
     if (!s.enabled) return { tone: "idle", label: "معطّل" };
     if (s.consecutiveFailures >= 3) return { tone: "bad", label: "متعثر" };
     if (s.consecutiveFailures > 0) return { tone: "warn", label: "تحذير" };
-    const freshness = sourceFreshness(s, now);
+    const freshness = sourceFreshness(s, now, cadence.minutes);
     if (freshness === "never") return { tone: "idle", label: "لم يُجلب بعد" };
     if (freshness === "stale") return { tone: "warn", label: "قديم" };
     return { tone: "ok", label: "سليم" };
@@ -195,6 +200,19 @@ export default async function AdminNews({
           </span>
         }
       />
+
+      {/* scheduler configuration — presence only, never the value */}
+      <p
+        role="status"
+        className={`mb-4 rounded-[6px] border px-4 py-3 text-[12px] font-bold ${
+          schedulerConfigured ? "border-win/40 bg-win/10 text-win" : "border-live/50 bg-live/10 text-live"
+        }`}
+      >
+        {schedulerConfigured
+          ? `المُجدول مفعّل (سرّ التفويض مضبوط) · الوتيرة: ${cadence.descriptionAr}.`
+          : "التحديث التلقائي معطّل: لم يُضبط CRON_SECRET أو NEMO_INGEST_TOKEN في متغيرات البيئة، لذلك ترفض مهمة Vercel Cron كل تشغيل (503). اضبط أحدهما في Vercel ثم أعد النشر."}
+        {backend !== "postgres" ? " · تحذير: لا يوجد تخزين دائم (DATABASE_URL)، والتحديث المجدول في الإنتاج يتطلبه." : ""}
+      </p>
 
       {/* overview */}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

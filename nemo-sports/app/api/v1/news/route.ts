@@ -8,8 +8,10 @@ export const runtime = "nodejs";
  * GET /api/v1/news — public news feed (ingested RSS metadata).
  * ───────────────────────────────────────────────────────────
  * Query: ?category=&team=&player=&competition=&limit=&offset=
- * Serves cached feed instantly; triggers a coalesced background refresh when
- * stale. Articles are metadata + snippet + original link — never full bodies.
+ * Read-only: updates happen only in the authorized cron/admin ingestion job.
+ * `meta.lastSuccessfulUpdate` / `meta.lastFailedAttempt` / `meta.freshness`
+ * separate a successful refresh from a failed attempt. Articles are metadata +
+ * snippet + original link — never full bodies.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -50,8 +52,23 @@ export async function GET(request: Request) {
           total: feed.total,
           limit,
           offset,
+          // Last SUCCESSFUL update (unchanged meaning, kept for clients).
           lastUpdated: feed.lastUpdated,
           stale: feed.stale,
+          // Success and failure are reported separately.
+          lastSuccessfulUpdate: feed.freshness.lastSuccessAt,
+          lastFailedAttempt: feed.freshness.lastFailureAt,
+          lastAttempt: feed.freshness.lastAttemptAt,
+          lastAttemptOk: feed.freshness.lastAttemptOk,
+          freshness: {
+            state: feed.freshness.state,
+            sources: feed.freshness.sources,
+            schedule: {
+              intervalMinutes: feed.freshness.schedule.intervalMinutes,
+              source: feed.freshness.schedule.source,
+              staleAfterMinutes: feed.freshness.schedule.staleAfterMinutes,
+            },
+          },
           categories: feed.categories,
           notice: "metadata + snippet only — read full articles at the original publisher",
         },

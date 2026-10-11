@@ -15,10 +15,24 @@ export default async function ScoutPage({ searchParams }: { searchParams: Promis
   const data = matches.ok && matches.source === "provider" ? matches.data.filter(hasMatchIdentity).filter((f) => fixtureBelongsToCompetition(f, competition.slug ?? competition.code)) : [];
   return <div className="mx-auto max-w-[1280px] space-y-6 px-4 py-6"><header className="border-b-2 border-line pb-4"><p className="eyebrow">NEMO Scout</p><h1 className="mt-2 text-3xl font-extrabold">مساحة المقارنة</h1><p className="mt-2 text-sm text-muted">سياق إحصائي محايد، لا نصائح مراهنة ولا توقعات مضمونة.</p></header>
     <form className="flex flex-wrap items-end gap-3"><label className="grid gap-1 text-sm">البطولة<select name="competition" defaultValue={competition.code} className="min-h-11 rounded border border-line bg-surface p-2">{choices.map((c) => <option key={c.code} value={c.code}>{c.nameAr}</option>)}</select></label><button className="focus-ring min-h-11 rounded bg-navy-850 px-4 font-bold text-white">عرض البيانات</button></form>
-    {matches.ok ? <DataSourceNote provider={matches.provider} fromCache={matches.fromCache} stale={matches.stale} fetchedAt={matches.fetchedAt} /> : <p role="status" className="card p-4">تعذّر تحميل مباريات البطولة. لا نستبدلها بنتائج مصطنعة.</p>}
-    {scorers.ok && <DataSourceNote provider={scorers.source.provider} fromCache={scorers.source.fromCache} stale={scorers.source.stale} fetchedAt={scorers.source.fetchedAt} />}
+    {/* One provenance line per dataset, labelled — merged when both come from
+        the same provider at the same minute (the page used to print the same
+        "SportScore · آخر تحديث …" line twice with nothing telling them apart). */}
+    {matches.ok && scorers.ok && sameProvenance(matches, scorers.source) ? (
+      <DataSourceNote subject="المباريات والهدافين" provider={matches.provider} fromCache={matches.fromCache && scorers.source.fromCache} stale={matches.stale || scorers.source.stale} fetchedAt={matches.fetchedAt} />
+    ) : (
+      <>
+        {matches.ok ? <DataSourceNote subject="المباريات" provider={matches.provider} fromCache={matches.fromCache} stale={matches.stale} fetchedAt={matches.fetchedAt} /> : <p role="status" className="card p-4">تعذّر تحميل مباريات البطولة. لا نستبدلها بنتائج مصطنعة.</p>}
+        {scorers.ok && <DataSourceNote subject="الهدافين" provider={scorers.source.provider} fromCache={scorers.source.fromCache} stale={scorers.source.stale} fetchedAt={scorers.source.fetchedAt} />}
+      </>
+    )}
     <p className="text-sm"><Link href="/learn" className="underline">كيف تقرأ الأرقام وحدود العينة؟</Link></p>
     <ScoutWorkspace key={competition.code} fixtures={data} scorers={scorers.ok && scorers.source.provider !== "demo" ? scorers.data : []} />
   </div>;
 }
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
+
+/** Same provider, same cache origin and the same minute → one provenance line is enough. */
+function sameProvenance(a: { provider: string; fromCache: boolean; fetchedAt: string }, b: { provider: string; fromCache: boolean; fetchedAt: string }): boolean {
+  return a.provider === b.provider && a.fromCache === b.fromCache && a.fetchedAt.slice(0, 16) === b.fetchedAt.slice(0, 16);
+}

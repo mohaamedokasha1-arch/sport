@@ -77,3 +77,74 @@ test("scheduler-facing errors are distinct classes with the original messages", 
   assert.match(durable.message, /Durable news storage is required/);
   assert.ok(!(busy instanceof DurableStorageRequiredError));
 });
+
+/* ── 2026-10-11: scheduler cadence, stale threshold and source intervals are compatible ── */
+
+import { cronIntervalMinutes, effectiveIntervalMinutes, schedulerCadence } from "@/lib/news/schedule";
+import { summarizeFreshness } from "@/lib/news/service";
+import type { RSSSource } from "@/lib/news/types";
+
+test("the shipped cron is daily, and the derived cadence says so", () => {
+  assert.equal(cronIntervalMinutes(NEWS_CRON_SCHEDULE_UTC), 24 * 60);
+  assert.equal(cronIntervalMinutes("*/15 * * * *"), 15);
+  assert.equal(cronIntervalMinutes("0 * * * *"), 60);
+  assert.equal(cronIntervalMinutes("0 */6 * * *"), 360);
+  assert.equal(cronIntervalMinutes("nonsense"), null);
+  const cadence = schedulerCadence({});
+  assert.equal(cadence.minutes, 24 * 60);
+  assert.equal(cadence.source, "vercel-cron");
+});
+
+test("with a daily scheduler a 30-minute source is NOT stale an hour later (it can only refresh daily)", () => {
+  const daily = schedulerCadence({}).minutes;
+  const s = { ...base, refreshInterval: 30 };
+  assert.equal(sourceFreshness({ ...s, lastSuccessfulFetch: at(61) }, NOW, daily), "fresh", "old rule: stale after 60 min");
+  assert.equal(sourceFreshness({ ...s, lastSuccessfulFetch: at(23 * 60) }, NOW, daily), "fresh", "a whole day between runs is normal");
+  assert.equal(allowedAgeMinutes(s, daily), 2 * 24 * 60, "one missed daily run is tolerated");
+  assert.equal(sourceFreshness({ ...s, lastSuccessfulFetch: at(49 * 60) }, NOW, daily), "stale", "two missed runs → stale");
+});
+
+test("an operator-declared external scheduler tightens the threshold; invalid declarations are ignored", () => {
+  const ext = schedulerCadence({ NEMO_NEWS_SCHEDULER_INTERVAL_MINUTES: "15" });
+  assert.equal(ext.minutes, 15);
+  assert.equal(ext.source, "external");
+  assert.equal(effectiveIntervalMinutes(30, ext), 30, "a source never refreshes faster than its own target");
+  assert.equal(effectiveIntervalMinutes(30, schedulerCadence({})), 24 * 60);
+  for (const bad of ["0", "-5", "abc", "100000", "2.5"]) {
+    assert.equal(schedulerCadence({ NEMO_NEWS_SCHEDULER_INTERVAL_MINUTES: bad }).source, "vercel-cron", bad);
+  }
+});
+
+const src = (over: Partial<RSSSource>): RSSSource => ({
+  ...defaultSources(new Date(NOW).toISOString())[0],
+  ...over,
+});
+
+test("freshness metadata separates a successful update from a failed attempt", () => {
+  const daily = schedulerCadence({});
+  // nothing ever ran (production on 2026-10-11: lastUpdated null)
+  const never = summarizeFreshness([src({ id: "a" }), src({ id: "b" })], NOW, daily);
+  assert.equal(never.state, "never");
+  assert.equal(never.lastSuccessAt, null);
+  assert.equal(never.lastAttemptAt, null);
+  assert.equal(never.lastAttemptOk, null);
+  // attempts happened but all failed
+  const onlyFailures = summarizeFreshness([src({ id: "a", lastFailedFetch: at(10), consecutiveFailures: 1 })], NOW, daily);
+  assert.equal(onlyFailures.state, "never");
+  assert.equal(onlyFailures.lastFailureAt, at(10));
+  assert.equal(onlyFailures.lastAttemptOk, false);
+  // success, then a newer failure → failing, and the success time is still reported
+  const failing = summarizeFreshness([src({ id: "a", lastSuccessfulFetch: at(120), lastFailedFetch: at(5), consecutiveFailures: 1 })], NOW, daily);
+  assert.equal(failing.state, "failing");
+  assert.equal(failing.lastSuccessAt, at(120));
+  assert.equal(failing.lastFailureAt, at(5));
+  assert.equal(failing.lastAttemptAt, at(5));
+  // success newer than an old failure → fresh
+  const fresh = summarizeFreshness([src({ id: "a", lastSuccessfulFetch: at(5), lastFailedFetch: at(600) })], NOW, daily);
+  assert.equal(fresh.state, "fresh");
+  assert.equal(fresh.lastAttemptOk, true);
+  assert.equal(fresh.schedule.intervalMinutes, 24 * 60);
+  assert.equal(fresh.schedule.staleAfterMinutes, 2 * 24 * 60);
+  // no enabled source
+  assert.equal(summarizeFreshness([src({ id: "a", enabled: false })], NOW, daily).state, "no_sources");
+});

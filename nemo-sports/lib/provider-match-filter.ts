@@ -2,7 +2,7 @@ import type { NormalizedFixture } from "@/packages/sdl/src";
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { matchesSearchText } from "@/lib/search-text";
 import { siteDay, siteDateKey, isDateKey } from "@/lib/tz";
-import { isFinishedStatus, isLiveStatus, matchStateOf } from "@/lib/match-state";
+import { isFinishedStatus, isLiveNow, matchStateOf } from "@/lib/match-state";
 
 export type ProviderMatchQuery = {
   sport?: string;
@@ -24,7 +24,7 @@ export type ProviderMatchQuery = {
  * finished either (we do not know a result), but it still appears under
  * «الكل» so no match ever disappears from the list.
  */
-export const isFixtureLive = (fixture: NormalizedFixture) => isLiveStatus(fixture.status);
+export const isFixtureLive = (fixture: NormalizedFixture, now = Date.now()) => isLiveNow(fixture.status, fixture.scheduledAt, now);
 
 export const isFixtureUpcoming = (fixture: NormalizedFixture, now = Date.now()) =>
   matchStateOf(fixture.status, fixture.scheduledAt, now) === "upcoming";
@@ -33,18 +33,31 @@ export const isFixtureFinished = (fixture: NormalizedFixture) => isFinishedStatu
 export const isFixtureUnconfirmed = (fixture: NormalizedFixture, now = Date.now()) =>
   matchStateOf(fixture.status, fixture.scheduledAt, now) === "unconfirmed";
 
+/**
+ * Date scope. A match in play RIGHT NOW belongs to "today" whatever day it
+ * kicked off (a 23:30 kickoff is still being played after midnight) — otherwise
+ * /matches?date=today counted fewer live matches than /live for the same sport.
+ */
 function onDate(fixture: NormalizedFixture, date: string | undefined, now: number): boolean {
   if (!Number.isFinite(Date.parse(fixture.scheduledAt))) return false;
-  if (date && isDateKey(date)) return siteDateKey(fixture.scheduledAt) === date;
+  const liveNow = isFixtureLive(fixture, now);
+  if (date && isDateKey(date)) return siteDateKey(fixture.scheduledAt) === date || (liveNow && date === siteDateKey(now));
   const day = Math.round((siteDay(fixture.scheduledAt) - siteDay(now)) / 86_400_000);
   switch (date ?? "today") {
     case "all": return true;
     case "yesterday": return day === -1;
     case "tomorrow": return day === 1;
-    case "week": return day >= 0 && day <= 6;
+    case "week": return (day >= 0 && day <= 6) || liveNow;
     case "today":
-    default: return day === 0;
+    default: return day === 0 || liveNow;
   }
+}
+
+/** True when a date filter value covers the current site day. */
+export function dateScopeIncludesToday(date: string | undefined, now = Date.now()): boolean {
+  const value = date ?? "today";
+  if (isDateKey(value)) return value === siteDateKey(now);
+  return value === "today" || value === "week" || value === "all";
 }
 
 function withinScope(fixture: NormalizedFixture, query: ProviderMatchQuery): boolean {
@@ -56,7 +69,7 @@ function withinScope(fixture: NormalizedFixture, query: ProviderMatchQuery): boo
 
 function onStatus(fixture: NormalizedFixture, status: string | undefined, now: number): boolean {
   switch (status) {
-    case "live": return isFixtureLive(fixture);
+    case "live": return isFixtureLive(fixture, now);
     case "upcoming": return isFixtureUpcoming(fixture, now);
     case "finished": return isFixtureFinished(fixture);
     case "unconfirmed": return isFixtureUnconfirmed(fixture, now);
@@ -96,7 +109,7 @@ export function providerMatchCounts(
     }
     if (!onDate(fixture, query.date, now)) continue;
     counts["status:all"]++;
-    if (isFixtureLive(fixture)) counts["status:live"]++;
+    if (isFixtureLive(fixture, now)) counts["status:live"]++;
     if (isFixtureUpcoming(fixture, now)) counts["status:upcoming"]++;
     if (isFixtureFinished(fixture)) counts["status:finished"]++;
     if (isFixtureUnconfirmed(fixture, now)) counts["status:unconfirmed"]++;
@@ -107,7 +120,7 @@ export function providerMatchCounts(
 
 export function sortProviderMatches(fixtures: NormalizedFixture[], now = Date.now()): NormalizedFixture[] {
   return [...fixtures].sort((a, b) => {
-    const rank = (fixture: NormalizedFixture) => isFixtureLive(fixture) ? 0 : isFixtureUpcoming(fixture, now) ? 1 : 2;
+    const rank = (fixture: NormalizedFixture) => isFixtureLive(fixture, now) ? 0 : isFixtureUpcoming(fixture, now) ? 1 : 2;
     return rank(a) - rank(b) || +new Date(a.scheduledAt) - +new Date(b.scheduledAt);
   });
 }

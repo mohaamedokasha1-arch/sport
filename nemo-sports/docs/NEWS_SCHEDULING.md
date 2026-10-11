@@ -1,3 +1,24 @@
+> **2026-10-11 update (post-deployment verification):**
+> 1. Production check (read-only, no secret exposed): `GET /api/cron/fetch-news`
+>    answered `503 not_configured` — **neither `CRON_SECRET` nor `NEMO_INGEST_TOKEN`
+>    is set**, so every scheduled Vercel run is refused and no source has a success
+>    timestamp (`/api/v1/news` → `lastUpdated: null`). Set `CRON_SECRET` in Vercel
+>    (Production) and redeploy; Vercel then sends it automatically.
+> 2. Freshness now follows the scheduler that actually runs: stale after
+>    `2 × max(source interval, scheduler interval)` — 48 h with the daily cron.
+>    If you add an external scheduler, declare its cadence with
+>    `NEMO_NEWS_SCHEDULER_INTERVAL_MINUTES` (e.g. `15`) and the threshold tightens.
+> 3. `/api/v1/news` reports `meta.lastSuccessfulUpdate`, `meta.lastFailedAttempt`,
+>    `meta.lastAttemptOk` and `meta.freshness.state` (fresh / stale / failing / never).
+> 4. Each authorized run ends with a relevance pass that quarantines clear
+>    non-sports articles already published (status `hidden`, reason/moderator/time/
+>    previous status recorded, nothing deleted). `npm run news:moderate` shows the
+>    plan (dry run) and `-- --apply` applies it manually. `NEMO_NEWS_AUTO_MODERATION=0` disables the automatic pass.
+> 5. Verify after configuring: an unauthenticated call must return `401`; an
+>    authorized run must return `storage: "postgres"`; then `/api/v1/news` must show
+>    a non-null `meta.lastSuccessfulUpdate` that changes after the next run.
+>    The same flow is automated offline in `scripts/verify-news-ingestion.mjs`.
+
 > **2026-10-09 implementation update:** Public reads no longer start traffic-driven
 > background refreshes. Only awaited cron/admin jobs update the feed. Production
 > ingestion requires Postgres; the process/transaction locks and 40-second job

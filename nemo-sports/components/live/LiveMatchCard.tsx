@@ -1,8 +1,9 @@
 import Link from "next/link";
 import ProviderCrest from "@/components/ui/ProviderCrest";
+import ScorePair from "@/components/ui/ScorePair";
 import { SITE_TZ } from "@/lib/tz";
 import { dateAr } from "@/lib/format";
-import { isPubliclyVisible, type MatchStreamSource } from "@/lib/match-streams";
+import { broadcastFor, type MatchStreamSource } from "@/lib/match-streams";
 import { matchStateOf, MATCH_STATE_LABEL_AR } from "@/lib/match-state";
 
 export interface LiveCardData {
@@ -16,20 +17,25 @@ export interface LiveCardData {
   competitionSlug?: string | null;
   scheduledAt: string;
   status: string;
+  sport?: string | null;
+  /** Arabic sport name, shown when the page mixes sports. */
+  sportLabel?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
   minute?: number | null;
   stream: MatchStreamSource | null;
 }
 
-export default function LiveMatchCard({ match }: { match: LiveCardData }) {
-  // The badge used to be a three-way branch (live / finished / "قريبًا"), so a
-  // postponed, cancelled or stale-scheduled match was announced as "coming
-  // soon". Resolve the state once, through the site-wide rule, and label it.
-  const state = matchStateOf(match.status, match.scheduledAt);
+const BREAK_STATUSES = new Set(["halftime", "extra_time_halftime"]);
+
+export default function LiveMatchCard({ match, now = Date.now() }: { match: LiveCardData; now?: number }) {
+  // Resolve the state once, through the site-wide rule, and label it.
+  const state = matchStateOf(match.status, match.scheduledAt, now);
   const isLive = state === "live";
   const isFinished = state === "finished";
-  const hasStream = match.stream && isPubliclyVisible(match.stream);
+  // Broadcast is judged separately from the match (approval + rights evidence
+  // + match state + window). A watch action exists only while it can play.
+  const broadcast = broadcastFor(match.stream, { status: match.status, scheduledAt: match.scheduledAt, sport: match.sport }, now);
   const played = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
 
   const timeFormatted = new Date(match.scheduledAt).toLocaleTimeString("ar-EG", {
@@ -48,29 +54,32 @@ export default function LiveMatchCard({ match }: { match: LiveCardData }) {
 
       {/* Header: Competition & Status Badge */}
       <header className="mb-3 flex items-center justify-between gap-2 border-b border-line pb-2.5">
-        <span className="truncate text-[11.5px] font-bold text-muted">
-          {match.competitionName || "مباراة"}
+        <span className="flex min-w-0 items-center gap-1 text-[11.5px] font-bold text-muted" title={match.competitionName || undefined}>
+          {match.sportLabel ? <span className="shrink-0 rounded-[3px] bg-navy-850/10 px-1 py-px text-[10px] dark:bg-white/10">{match.sportLabel}</span> : null}
+          {/* dir="auto": a Latin name is cut at its END ("National Basketball…"),
+              not at its start as an RTL ellipsis did ("…onal Basketball Association"). */}
+          <span dir="auto" className="min-w-0 truncate">{match.competitionName || "مباراة"}</span>
         </span>
 
         {isLive ? (
-          <span className="inline-flex items-center gap-1.5 rounded-[4px] bg-live-red/15 px-2 py-0.5 text-[11px] font-black text-live-red">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-[4px] bg-live-red/15 px-2 py-0.5 text-[11px] font-black text-live-red">
             <span className="live-dot !bg-live-red" aria-hidden />
-            <span>مباشر</span>
-            {match.minute !== null && match.minute !== undefined ? (
-              <span className="num font-bold">({match.minute}&apos;)</span>
+            <span>{BREAK_STATUSES.has(match.status) ? "استراحة" : "مباشر"}</span>
+            {!BREAK_STATUSES.has(match.status) && match.minute !== null && match.minute !== undefined ? (
+              <span className="num font-bold" dir="ltr">({match.minute}&apos;)</span>
             ) : null}
           </span>
         ) : isFinished ? (
-          <span className="inline-flex items-center rounded-[4px] bg-navy-850 px-2 py-0.5 text-[11px] font-bold text-muted">
+          <span className="inline-flex shrink-0 items-center rounded-[4px] bg-navy-850 px-2 py-0.5 text-[11px] font-bold text-muted">
             انتهت
           </span>
         ) : state === "upcoming" ? (
-          <span className="inline-flex items-center rounded-[4px] bg-gold-500/15 px-2 py-0.5 text-[11px] font-bold text-gold-500 dark:text-gold-400">
-            قريبًا
+          <span className="inline-flex shrink-0 items-center rounded-[4px] bg-gold-500/15 px-2 py-0.5 text-[11px] font-bold text-gold-500 dark:text-gold-400">
+            لم تبدأ
           </span>
         ) : (
           <span
-            className={`inline-flex items-center rounded-[4px] px-2 py-0.5 text-[11px] font-bold ${
+            className={`inline-flex shrink-0 items-center rounded-[4px] px-2 py-0.5 text-[11px] font-bold ${
               state === "unconfirmed"
                 ? "bg-warn-500/15 text-warn-600 dark:text-warn-400"
                 : "bg-navy-850 text-muted"
@@ -81,54 +90,63 @@ export default function LiveMatchCard({ match }: { match: LiveCardData }) {
         )}
       </header>
 
-      {/* Main: Teams & Score / Kickoff */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-2">
-        {/* Home Team */}
-        <div className="flex flex-col items-center gap-2 text-center">
+      {/* Main: Teams & Score / Kickoff (home = first column = right side in RTL) */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 py-2">
+        <div className="flex min-w-0 flex-col items-center gap-2 text-center">
           <ProviderCrest name={match.homeName} logoUrl={match.homeLogo} size={42} />
-          <span className="text-[13px] font-extrabold text-ink line-clamp-1">{match.homeName}</span>
+          <span dir="auto" className="line-clamp-2 break-words text-[13px] font-extrabold leading-snug text-ink" title={match.homeName}>
+            {match.homeName}
+          </span>
         </div>
 
-        {/* Center: Score or Kickoff Time */}
-        <div className="flex flex-col items-center justify-center px-2">
+        <div className="flex flex-col items-center justify-center px-1 sm:px-2">
           {isLive || isFinished ? (
-            <span className="num text-2xl font-extrabold tabular-nums tracking-tight text-ink" dir="ltr">
-              {played ? `${match.homeScore} : ${match.awayScore}` : "— : —"}
-            </span>
+            played ? (
+              <ScorePair home={match.homeScore} away={match.awayScore} className="text-2xl font-extrabold tracking-tight text-ink" />
+            ) : (
+              <span className="num text-2xl font-extrabold text-muted">— : —</span>
+            )
           ) : (
             <div className="flex flex-col items-center">
               <span className="num text-[17px] font-black text-gold-500 dark:text-gold-400" dir="ltr">
                 {timeFormatted}
-              </span>
-              <span className="text-[10px] text-muted">مكة المكرمة والقاهرة</span>
+              </span>{" "}
+              <span className="text-[10px] text-muted">بتوقيت مكة المكرمة والقاهرة</span>
             </div>
           )}
-          <span className="mt-1 text-[10.5px] text-muted">
-            {dateAr(match.scheduledAt)}
-          </span>
+          <span className="mt-1 text-[10.5px] text-muted">{dateAr(match.scheduledAt)}</span>
         </div>
 
-        {/* Away Team */}
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex min-w-0 flex-col items-center gap-2 text-center">
           <ProviderCrest name={match.awayName} logoUrl={match.awayLogo} size={42} />
-          <span className="text-[13px] font-extrabold text-ink line-clamp-1">{match.awayName}</span>
+          <span dir="auto" className="line-clamp-2 break-words text-[13px] font-extrabold leading-snug text-ink" title={match.awayName}>
+            {match.awayName}
+          </span>
         </div>
       </div>
 
-      {/* Footer: Stream CTA or Fallback notice */}
+      {/* Footer: watch action ONLY while the broadcast can play */}
       <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        {hasStream ? (
+        {broadcast?.state === "live" ? (
           <Link
             href={`/matches/${encodeURIComponent(match.slug)}#live-stream`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-[4px] bg-gold-500 px-3.5 py-1.5 text-[12px] font-black text-navy-950 transition hover:bg-gold-400 focus-ring shadow-sm"
+            className="inline-flex items-center justify-center gap-1.5 rounded-[4px] bg-gold-500 px-3.5 py-1.5 text-[12px] font-black text-navy-950 shadow-sm transition hover:bg-gold-400 focus-ring"
           >
-            <span className="text-[13px]">▶</span>
+            <span className="text-[13px]" aria-hidden>▶</span>
             <span>مشاهدة المباراة</span>
+          </Link>
+        ) : broadcast?.state === "standby" ? (
+          <Link
+            href={`/matches/${encodeURIComponent(match.slug)}#live-stream`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-[4px] border border-gold-500/60 px-3 py-1.5 text-[11.5px] font-bold text-gold-600 transition hover:bg-gold-500/10 focus-ring dark:text-gold-400"
+          >
+            <span aria-hidden>📺</span>
+            <span>بث موثّق — يبدأ مع المباراة</span>
           </Link>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-line bg-navy-850/50 px-2.5 py-1 text-[11px] font-medium text-muted">
             <span aria-hidden>📺</span>
-            <span>سيتم إتاحة البث عند توفره</span>
+            <span>{broadcast?.state === "expired" || broadcast?.state === "ended" ? "لا يوجد بث نشط" : "لا يوجد بث موثّق"}</span>
           </span>
         )}
 

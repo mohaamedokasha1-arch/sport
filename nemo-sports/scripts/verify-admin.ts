@@ -201,7 +201,15 @@ async function main() {
     assert.equal(await streamForMatch({ slug: matchSlug }), null);
     assert.equal((await publicStreamCards()).some((c) => c.stream.id === streamId), false);
   });
+  await test("publishing WITHOUT rights evidence keeps the stream off every public surface", async () => {
+    const r = await setLiveStreamStatus(streamId, "published");
+    assert.equal(r.ok, true);
+    assert.equal(await streamForMatch({ slug: matchSlug }), null, "approval alone is not enough");
+    assert.equal((await publicStreamCards()).some((c) => c.stream.id === streamId), false);
+  });
   await test("publishing makes the stream visible on the match and in /live cards", async () => {
+    const withRights = await updateLiveStream(streamId, { rightsHolder: "أون سبورت", rightsEvidence: "https://www.onsport.tv/rights/egyptian-league" });
+    assert.equal(withRights.ok, true);
     const r = await setLiveStreamStatus(streamId, "published");
     assert.equal(r.ok, true);
     const s = await streamForMatch({ slug: matchSlug, home: "الأهلي", away: "الزمالك" });

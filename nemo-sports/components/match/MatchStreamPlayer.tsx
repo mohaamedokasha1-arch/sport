@@ -10,7 +10,9 @@
  * Behaviour contract:
  *   · no source           → renders NOTHING (page keeps its current look).
  *   · phase "inactive"    → a static notice instead of an active live player
- *                           (the match is over / cancelled / postponed).
+ *                           (worded by lib/broadcast-state.ts from what the
+ *                           fixture data actually says — never "finished"
+ *                           for a match whose state is unconfirmed).
  *   · phase "live"/"up…") → the player, with a LIVE badge while live.
  *   · source fails to load → a proper error panel (retry + open-in-new-tab)
  *                           instead of an empty box.
@@ -72,8 +74,8 @@ export default function MatchStreamPlayer({
           <p aria-hidden className="text-xl">
             📺
           </p>
-          <p className="mt-1.5 text-[13px] font-extrabold">{inactiveNote ?? "انتهت المباراة — لم يعد البث المباشر نشطًا."}</p>
-          <p className="mt-1 text-[11.5px] text-muted">لا يظهر البث المباشر كمصدر حي بعد انتهاء المباراة.</p>
+          <p className="mt-1.5 text-[13px] font-extrabold">{inactiveNote ?? "البث غير نشط حاليًا."}</p>
+          <p className="mt-1 text-[11.5px] text-muted">لا نعرض البث كمصدر نشط خارج نافذة المباراة أو بعد إنهائه من الإدارة.</p>
         </div>
       ) : (
         <PlayerCard stream={stream} phase={phase} home={home} away={away} />

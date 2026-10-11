@@ -7,8 +7,8 @@ import { allMatches, broadcastPartners } from "@/lib/data";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { dateAr, timeOf } from "@/lib/format";
 import { listBroadcasters } from "@/lib/broadcasts";
-import { listMatchStreams, streamPhase, type MatchStreamSource } from "@/lib/match-streams";
-import { hasMatchIdentity, matchDetail as sdlMatchDetail, sportForMatchId } from "@/lib/sdl-gateway";
+import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
+import { broadcastBadgeAr } from "@/lib/broadcast-state";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -29,69 +29,55 @@ type StreamRow = {
   away: string;
   competition: string | null;
   kickoff: string | null;
-  phase: "live" | "upcoming" | "inactive" | "unlinked";
+  group: "live" | "upcoming" | "inactive" | "unlinked";
+  badge: string;
+  note: string;
 };
 
 /**
- * Join ONE admin-registered stream with its match (best-effort, never throws).
- * Streams are admin-curated so N is small; each lookup rides the SDL cache.
- * Unresolvable streams still render — with alias names and a link to the
- * match page when a slug exists — instead of silently disappearing.
+ * One APPROVED stream (operator approval + rights evidence) joined with its
+ * match and judged by the broadcast lifecycle (lib/broadcast-state.ts) — the
+ * same verdict the match page, /live and the live cards use, so the Watch
+ * Guide can no longer say "ended" while another surface offers a watch action.
  */
-async function resolveStreamRow(s: MatchStreamSource): Promise<StreamRow> {
-  const slug = s.slugs[0] ?? null;
-  const aliasHome = s.homeAliases[0] ?? null;
-  const aliasAway = s.awayAliases[0] ?? null;
-  if (slug) {
-    try {
-      // The stream's slug carries no sport: resolve it, or a basketball /
-      // tennis / cricket stream would be shown as "unlinked" (the football
-      // chain has no row for that id).
-      const sport = (await sportForMatchId(slug)) ?? "football";
-      const res = await sdlMatchDetail(sport, slug);
-      if (res.ok && res.source === "provider" && hasMatchIdentity(res.data)) {
-        const f = res.data;
-        return {
-          key: s.id,
-          slug,
-          home: f.homeName ?? aliasHome ?? "—",
-          away: f.awayName ?? aliasAway ?? "—",
-          competition: f.competitionName ?? null,
-          kickoff: f.scheduledAt,
-          phase: streamPhase(f.status, f.scheduledAt),
-        };
-      }
-    } catch {
-      // fall through to the alias fallback below
-    }
-  }
+function rowOf(card: PublicStreamCard): StreamRow {
+  const slug = card.stream.matchSlug || card.stream.slugs[0] || null;
+  const group: StreamRow["group"] = !card.fixture
+    ? card.verdict.playable ? "upcoming" : "unlinked"
+    : card.verdict.state === "live"
+      ? "live"
+      : card.verdict.state === "standby"
+        ? "upcoming"
+        : "inactive";
   return {
-    key: s.id,
+    key: card.stream.id,
     slug,
-    home: aliasHome ?? slug ?? "—",
-    away: aliasAway ?? "—",
-    competition: null,
-    kickoff: null,
-    phase: "unlinked",
+    home: card.home,
+    away: card.away,
+    competition: card.competition || null,
+    kickoff: card.kickoff,
+    group,
+    badge: group === "unlinked" ? "غير مرتبط بمباراة" : broadcastBadgeAr(card.verdict),
+    note: card.verdict.noticeAr,
   };
 }
 
 /* ── page ─────────────────────────────────────────────────────── */
 
 export default async function WatchPage() {
-  const [broadcasters, streams] = await Promise.all([listBroadcasters(false), listMatchStreams(false)]);
+  const [broadcasters, judged] = await Promise.all([listBroadcasters(false), judgedStreams(48).catch(() => [] as PublicStreamCard[])]);
 
   // Dev/preview only: the legacy static schedule renders when the live
   // registry is empty. Production never takes this branch with real data.
-  if (demoContentVisible() && broadcasters.length === 0 && streams.length === 0) {
+  if (demoContentVisible() && broadcasters.length === 0 && judged.length === 0) {
     return <LegacyDemoWatch />;
   }
 
-  const rows = await Promise.all(streams.map(resolveStreamRow));
-  const live = rows.filter((r) => r.phase === "live");
-  const soon = rows.filter((r) => r.phase === "upcoming");
-  const done = rows.filter((r) => r.phase === "inactive");
-  const unlinked = rows.filter((r) => r.phase === "unlinked");
+  const rows = judged.map(rowOf);
+  const live = rows.filter((r) => r.group === "live");
+  const soon = rows.filter((r) => r.group === "upcoming");
+  const done = rows.filter((r) => r.group === "inactive");
+  const unlinked = rows.filter((r) => r.group === "unlinked");
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
@@ -101,8 +87,8 @@ export default async function WatchPage() {
           <h1 className="text-2xl font-extrabold tracking-tight">NEMO Watch Guide · دليل المشاهدة</h1>
         </div>
         <p className="text-[12px] text-muted">
-          <span className="num font-bold">{rows.length}</span> مباراة مربوطة ببث رسمي ·{" "}
-          <span className="num font-bold">{broadcasters.length}</span> ناقل موثّق
+          <span className="num font-bold">{live.length}</span> يبث الآن · <span className="num font-bold">{soon.length}</span> قريبًا ·{" "}
+          <span className="num font-bold">{rows.length}</span> بث موثّق مسجّل · <span className="num font-bold">{broadcasters.length}</span> ناقل موثّق
         </p>
       </header>
 
@@ -129,8 +115,8 @@ export default async function WatchPage() {
 
       {live.length > 0 ? <StreamSchedule title="يبث الآن" list={live} tone="live" /> : null}
       {soon.length > 0 ? <StreamSchedule title="يبدأ قريبًا" list={soon} tone="soon" /> : null}
-      {unlinked.length > 0 ? <StreamSchedule title="بث مسجّل" list={unlinked} tone="unlinked" /> : null}
-      {done.length > 0 ? <StreamSchedule title="انتهى بثها" list={done} tone="done" /> : null}
+      {unlinked.length > 0 ? <StreamSchedule title="بث مسجّل غير مرتبط بمباراة معروفة" list={unlinked} tone="unlinked" /> : null}
+      {done.length > 0 ? <StreamSchedule title="خارج نافذة البث" list={done} tone="done" /> : null}
 
       <section className="mt-10">
         <SectionHead eyebrow="النواقل المرخّصون" title="النواقل المسجّلون" href="/broadcast-rights" linkLabel="سياسة الحقوق" />
@@ -199,7 +185,7 @@ function StreamSchedule({
   return (
     <section className="mb-8">
       <SectionHead
-        eyebrow={tone === "live" ? "مباشر" : tone === "soon" ? "قادمة" : tone === "unlinked" ? "مسجّلة" : "إعادة البث"}
+        eyebrow={tone === "live" ? "مباشر" : tone === "soon" ? "قادمة" : tone === "unlinked" ? "مسجّلة" : "سجل البث — غير قابل للتشغيل"}
         title={title}
       />
       <ul className="space-y-2">
@@ -219,8 +205,8 @@ function StreamSchedule({
 
               <span className="flex items-center justify-end gap-2">
                 {r.kickoff ? <span className="num text-[12px] font-extrabold">{timeOf(r.kickoff)}</span> : null}
-                <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`}>
-                  {tone === "live" ? "مباشر" : tone === "soon" ? "قريبًا" : tone === "unlinked" ? "مسجّل" : "انتهى"}
+                <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`} title={r.note}>
+                  {r.badge}
                 </span>
               </span>
             </>
@@ -230,7 +216,7 @@ function StreamSchedule({
           return (
             <li key={r.key}>
               {r.slug ? (
-                <Link href={`/matches/${r.slug}#live-stream`} className={cls}>
+                <Link href={tone === "live" || tone === "soon" ? `/matches/${r.slug}#live-stream` : `/matches/${r.slug}`} className={cls}>
                   {inner}
                 </Link>
               ) : (

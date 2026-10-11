@@ -39,7 +39,7 @@
  *        goals, assists, minutes, rating, yellow_cards, red_cards, shots, … } }
  */
 
-import { parseMinute, toInt, toIso, str, withDefaults, type HttpOptions } from "./base";
+import { toInt, toIso, str, withDefaults, type HttpOptions } from "./base";
 import type {
   DataType,
   DateRange,
@@ -62,6 +62,15 @@ export type SportScoreConfig = HttpOptions & {
   src?: string;
   /** sport used for endpoints whose input carries no sport (default football) */
   defaultSport?: string;
+  /**
+   * How long (ms) one successful `matches/` feed response is reused across
+   * data types. `live_matches` and `fixtures` are two filtered views of the
+   * SAME upstream feed; without this they were fetched — and cached — as two
+   * independent snapshots, so /live and /matches could show different states
+   * for the same match. Default 15 s (below the provider's 60 s edge cache).
+   * Tests pass 0 to disable.
+   */
+  feedTtlMs?: number;
 };
 
 /* ── raw payload types (only the fields we actually read) ──── */
@@ -120,27 +129,91 @@ type SSStandings = {
 type SSTopScorers = { scorers?: Record<string, unknown>[] | null; error?: string };
 type SSPlayer = { player?: { name?: string; logo?: string | null; slug?: string } | null; stats?: Record<string, unknown> | null; error?: string };
 
-/** Map a SportScore status/status_text pair onto the NEMO vocabulary. */
-export function mapStatus(status: string | null | undefined, statusText: string | null | undefined): { status: string; minute: number | null } {
-  const s = String(status ?? "").toLowerCase();
+/** Canonical statuses that mean "in play right now" (all of them, including
+ *  breaks inside a live match). Shared by getLiveMatches() so the live feed and
+ *  the fixtures feed cannot disagree about which statuses are live. */
+export const SPORTSCORE_LIVE_STATUSES: ReadonlySet<string> = new Set([
+  "live",
+  "halftime",
+  "extra_time",
+  "extra_time_halftime",
+  "penalty_shootout",
+]);
+
+const CANONICAL_STATUSES: ReadonlySet<string> = new Set([
+  "scheduled", "live", "halftime", "extra_time", "extra_time_halftime", "penalty_shootout",
+  "finished", "postponed", "cancelled", "suspended", "abandoned", "walkover", "awarded",
+]);
+
+/**
+ * A running-clock minute, and ONLY a running-clock minute.
+ *
+ * SportScore's `status_text` mixes clocks ("61'", "45+2'", "90'+3") with period
+ * labels ("1st half", "2nd quarter", "3rd set", "1st innings"). The generic
+ * parseMinute() reads the leading digit of any string, so "1st half" became
+ * minute 1 and "2nd quarter" minute 2 — production rendered "1'" / "2'" on
+ * matches that were 30 minutes in. A period label carries no minute.
+ */
+export function clockMinute(statusText: string | null | undefined): number | null {
   const text = String(statusText ?? "").trim();
-  const fromText = parseMinute(text);
+  const m = text.match(/^(\d{1,3})\s*'?\s*(?:\+\s*(\d{1,2})\s*'?)?$/);
+  if (!m) return null;
+  const minute = Number(m[1]);
+  return Number.isFinite(minute) && minute >= 0 && minute <= 200 ? minute : null;
+}
 
-  if (s.includes("finish") || s.includes("ended") || s === "ft" || text === "Finished") return { status: "finished", minute: null };
-  if (s.includes("half") && !s.includes("final")) return { status: "halftime", minute: fromText.minute };
-  if (s.includes("extra") || text.includes("extra")) return { status: "extra_time", minute: fromText.minute };
-  if (s.includes("penalt")) return { status: "penalty_shootout", minute: fromText.minute };
-  if (s.includes("postpone")) return { status: "postponed", minute: null };
-  if (s.includes("cancel")) return { status: "cancelled", minute: null };
-  if (s.includes("suspend")) return { status: "suspended", minute: null };
-  if (s.includes("abandon")) return { status: "abandoned", minute: null };
-  if (s.includes("walkover")) return { status: "walkover", minute: null };
+/**
+ * Map a SportScore status/status_text pair onto the NEMO vocabulary.
+ *
+ * The feed's `status` is coarse ("live" | "upcoming" | "finished"); the real
+ * state often lives only in `status_text` (captured from the production feed
+ * on 2026-10-11): `live` + "Half time" is a half-time break, and
+ * `upcoming` + "Postponed" is a postponed match — it used to be published as
+ * an upcoming fixture and later as "unconfirmed". Both fields are read, the
+ * terminal/interruption states first, and nothing is guessed: an unknown pair
+ * without a live signal stays "scheduled".
+ */
+export function mapStatus(status: string | null | undefined, statusText: string | null | undefined): { status: string; minute: number | null } {
+  const s = String(status ?? "").trim().toLowerCase();
+  const text = String(statusText ?? "").trim();
+  const t = text.toLowerCase();
+  const either = (re: RegExp) => re.test(s) || re.test(t);
+  const minute = clockMinute(text);
 
-  const looksLive = s.includes("live") || s.includes("play") || s.includes("1st") || s.includes("2nd") || /^\d+('\+)?$/.test(text) || /^\d+\+\d+$/.test(text);
-  if (looksLive) return { status: "live", minute: fromText.minute };
+  // Some payloads already carry the canonical value; keep it (the text can only
+  // refine "live" and "scheduled", which are handled below).
+  if (CANONICAL_STATUSES.has(s) && s !== "live" && s !== "scheduled") {
+    return { status: s, minute: s === "extra_time" ? minute : null };
+  }
+
+  if (either(/finish|ended|^ft$|full[ -]?time|^aet$|^ap$|after (?:extra time|penalties)/)) return { status: "finished", minute: null };
+  if (either(/postpon/)) return { status: "postponed", minute: null };
+  if (either(/cancel/)) return { status: "cancelled", minute: null };
+  if (either(/abandon/)) return { status: "abandoned", minute: null };
+  if (either(/suspend|interrupt/)) return { status: "suspended", minute: null };
+  if (either(/walk ?over/)) return { status: "walkover", minute: null };
+  if (either(/awarded/)) return { status: "awarded", minute: null };
+
+  const isBreak = /^(?:ht|half[ -]?time|break|interval)$/.test(t) || /^(?:ht|half[ -]?time|halftime)$/.test(s);
+  const isPens = either(/penalt|shoot-?out/);
+  const isExtra = either(/extra[ _-]?time|overtime|^et$|^ot$/);
+  // An explicit "not started" status wins over any decoration in the text.
+  const notStarted = /^(?:upcoming|scheduled|not ?started|ns|tbd|delayed|pre-?match|fixture)$/.test(s);
+  const periodLabel = either(/^(?:1st|2nd|3rd|\d+th)\b/) || either(/\b(?:half|quarter|period|set|innings?)\b/);
+  const looksLive =
+    /live|inplay|in play|playing/.test(s) ||
+    (!notStarted && (isBreak || isPens || isExtra || minute !== null || periodLabel));
+
+  if (looksLive) {
+    if (isPens) return { status: "penalty_shootout", minute: null };
+    if (isExtra && isBreak) return { status: "extra_time_halftime", minute: null };
+    if (isBreak) return { status: "halftime", minute: null };
+    if (isExtra) return { status: "extra_time", minute };
+    return { status: "live", minute };
+  }
 
   // "upcoming" / "scheduled" / "not started" / "delayed" / anything unknown
-  // without a live minute → scheduled (never invent a state).
+  // without a live signal → scheduled (never invent a state).
   return { status: "scheduled", minute: null };
 }
 
@@ -154,10 +227,24 @@ export function competitionSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** "/football/match/cruz-azul-vs-inter-miami-cf/" → "cruz-azul-vs-inter-miami-cf" */
+/**
+ * The provider's own match slug from its permalink.
+ *   "/football/match/cruz-azul-vs-inter-miami-cf/"                  → "cruz-azul-vs-inter-miami-cf"
+ *   "/football/match/sao-paulo-vs-vitoria-ba/k82rekhg0vyzrep/"      → "sao-paulo-vs-vitoria-ba"
+ * SportScore added the trailing id segment (seen in production 2026-10-11).
+ * The old pattern only accepted the slug as the LAST segment, so every new
+ * permalink fell back to a name-derived id ("s-o-paulo-sp-vs-vit-ria-ba") that
+ * the provider's match endpoint does not know — the match page 404'd for
+ * nearly every live match. `match/?slug=` resolves the slug segment.
+ */
 export function matchSlugFromUrl(url: string | null | undefined): string | null {
-  const m = String(url ?? "").match(/\/match\/([^/]+)\/?$/);
-  return m ? decodeURIComponent(m[1]) : null;
+  const m = String(url ?? "").match(/\/match\/([^/?#]+)(?:\/[^/?#]+)?\/?(?:[?#].*)?$/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
 }
 
 function score(v: string | number | null | undefined): number | null {
@@ -187,12 +274,16 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
   private baseUrlOverride: string | null;
   private src: string;
   private defaultSport: string;
+  private feedTtlMs: number;
+  /** Last successful feed per sport+limit — one snapshot for every data type. */
+  private feedMemo = new Map<string, { at: number; result: ProviderResult<SSMatch[]> }>();
 
   constructor(cfg: SportScoreConfig = {}) {
     super(cfg);
     this.baseUrlOverride = cfg.baseUrl ?? null;
     this.src = cfg.src ?? "nemo-sports";
     this.defaultSport = cfg.defaultSport ?? "football";
+    this.feedTtlMs = Math.max(0, cfg.feedTtlMs ?? 15_000);
     // free open API: be polite — short timeout, no retries beyond one
     this.timeoutMs = cfg.timeoutMs ?? 8000;
     this.retries = cfg.retries ?? 1;
@@ -268,14 +359,22 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     };
   }
 
-  /** The feed is the unit of pagination — 50 = max limit (1..50 documented). */
+  /** The feed is the unit of pagination — 50 = max limit (1..50 documented).
+   *  Successful responses are shared for `feedTtlMs` so the live view and the
+   *  fixtures view of one sport are computed from the same snapshot. */
   private async feed(sport: string, limit = 50): Promise<ProviderResult<SSMatch[]>> {
-    const res = await this.getJson<SSFeed>("matches/", { sport, limit: Math.min(Math.max(limit, 1), 50) });
+    const size = Math.min(Math.max(limit, 1), 50);
+    const memoKey = `${sport}:${size}`;
+    const hit = this.feedMemo.get(memoKey);
+    if (hit && this.feedTtlMs > 0 && Date.now() - hit.at < this.feedTtlMs) return hit.result;
+    const res = await this.getJson<SSFeed>("matches/", { sport, limit: size });
     if (!res.ok) return res;
     if (!Array.isArray(res.data.matches)) {
       return { ok: false, provider: this.name, requestKey: res.requestKey, fromCache: false, error: { code: "bad_response", message: "sportScore: feed without matches array" } };
     }
-    return { ok: true, data: res.data.matches, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
+    const result: ProviderResult<SSMatch[]> = { ok: true, data: res.data.matches, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
+    if (this.feedTtlMs > 0) this.feedMemo.set(memoKey, { at: Date.now(), result });
+    return result;
   }
 
   private async detail(sport: string, slug: string): Promise<ProviderResult<SSMatch & { incidents?: SSIncident[] | null; stats?: unknown; lineups?: SSLineups | null }>> {
@@ -306,7 +405,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     const live = res.data
       .map((m) => this.fixtureFrom(m, input.sport))
       .filter((f): f is NormalizedFixture => f !== null)
-      .filter((f) => f.status === "live" || f.status === "halftime" || f.status === "extra_time" || f.status === "penalty_shootout");
+      .filter((f) => SPORTSCORE_LIVE_STATUSES.has(f.status));
     return { ok: true, data: live, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }
 

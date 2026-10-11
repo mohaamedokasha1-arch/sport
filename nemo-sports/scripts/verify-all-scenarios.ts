@@ -29,6 +29,7 @@ import {
   isPubliclyVisible,
 } from "../lib/match-streams";
 import { publicStreamCards } from "../lib/public-streams";
+import { broadcastFor } from "../lib/match-streams";
 import { can } from "../lib/admin-roles";
 import { createAdminSession, verifyAdminSession } from "../lib/admin-auth-shared";
 import { SITE_TZ } from "../lib/tz";
@@ -207,6 +208,9 @@ async function runAll() {
       awayName: "فيردر بريمن",
       embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
       label: "بث تجريبي رسمي",
+      // Rights evidence is required before any stream can be public.
+      rightsHolder: "Test Rights Holder",
+      rightsEvidence: "https://example.com/licence/dortmund-bremen",
     });
     assert.equal(res.ok, true);
     if (res.ok) {
@@ -231,6 +235,20 @@ async function runAll() {
     const publicStream = await streamForMatch({ slug: testMatchSlug });
     assert.ok(publicStream);
     assert.equal(publicStream!.status, "live");
+  });
+
+  await test(5, "an approved 'live' stream on a past, still-'scheduled' fixture is NOT playable", async () => {
+    // Dortmund–Bremen is an editorial fixture on 2026-10-09 still stored as
+    // upcoming: its state is "unconfirmed", so the broadcast is expired even
+    // though the stream record says "live" — and the notice never claims the
+    // match finished.
+    const publicStream = await streamForMatch({ slug: testMatchSlug });
+    const verdict = broadcastFor(publicStream, { status: "scheduled", scheduledAt: "2026-10-09T18:30:00.000Z", sport: "football" }, Date.parse("2026-10-11T01:00:00Z"));
+    assert.ok(verdict);
+    assert.equal(verdict!.state, "expired");
+    assert.equal(verdict!.playable, false);
+    assert.doesNotMatch(verdict!.noticeAr, /انتهت المباراة/);
+    assert.equal((await publicStreamCards(24, Date.parse("2026-10-11T01:00:00Z"))).some((c) => c.stream.id === testStreamId), false);
   });
 
   await test(5, "stopping stream (ended / disabled) hides it from visitors", async () => {
