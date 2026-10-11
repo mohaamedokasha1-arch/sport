@@ -19,15 +19,14 @@ const STATUS = [
   { id: "finished", label: "منتهية" },
 ];
 
-/**
- * Matches still stored as `scheduled` whose kickoff day has passed: not
- * upcoming, not finished, and not something we may guess about
- * (lib/match-state.ts). The chip is rendered only when the current selection
- * actually contains such matches, so the filter bar is unchanged in the normal
- * case and the count in the header always adds up to the items shown.
- */
-const UNCONFIRMED_STATUS = { id: "unconfirmed", label: "غير مؤكدة" };
-
+/** Exact interruptions reported by a provider, plus stale/uncertain states. */
+const REPORTED_STATES = [
+  { id: "postponed", label: "مؤجلة" },
+  { id: "cancelled", label: "ملغاة" },
+  { id: "suspended", label: "موقوفة" },
+  { id: "abandoned", label: "متوقفة" },
+  { id: "unconfirmed", label: "غير مؤكدة" },
+];
 export default function MatchesFilters({
   counts,
   sportsOptions,
@@ -60,7 +59,7 @@ export default function MatchesFilters({
   const status = params.get("status") ?? initialStatus;
   const view = (params.get("view") as "grid" | "list") ?? initialView;
 
-  const visibleComps = competitionOptions.filter((c) => !sport || c.sport === sport);
+  const visibleComps = competitionOptions.filter((c) => !sport || c.sport === sport || c.id === comp);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -102,11 +101,11 @@ export default function MatchesFilters({
     <div className="card space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="eyebrow ms-1">الرياضة</span>
-        <button type="button" onClick={() => set("sport", null)} className={chip(!sport)}>
+        <button type="button" aria-pressed={!sport} onClick={() => set("sport", null)} className={chip(!sport)}>
           كل الرياضات
         </button>
         {sportsOptions.map((s) => (
-          <button key={s.slug} type="button" onClick={() => set("sport", s.slug)} className={chip(sport === s.slug)}>
+          <button key={s.slug} type="button" aria-pressed={sport === s.slug} onClick={() => set("sport", s.slug)} className={chip(sport === s.slug)}>
             <span aria-hidden className="ms-1">{s.icon}</span> {s.name}
           </button>
         ))}
@@ -115,7 +114,7 @@ export default function MatchesFilters({
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <span className="eyebrow ms-1">التاريخ</span>
         {DATES.map((d) => (
-          <button key={d.id} type="button" onClick={() => set("date", d.id)} className={chip(date === d.id)}>
+          <button key={d.id} type="button" aria-pressed={date === d.id} onClick={() => set("date", d.id)} className={chip(date === d.id)}>
             {d.label}
             <span className="num ms-1.5 text-[10px]">{counts[`date:${d.id}`] ?? 0}</span>
           </button>
@@ -129,8 +128,11 @@ export default function MatchesFilters({
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <span className="eyebrow ms-1">الحالة</span>
-        {[...STATUS, ...(counts[`status:${UNCONFIRMED_STATUS.id}`] ? [UNCONFIRMED_STATUS] : [])].map((s) => (
-          <button key={s.id} type="button" onClick={() => set("status", s.id)} className={chip(status === s.id)}>
+        {[
+          ...STATUS,
+          ...REPORTED_STATES.filter((s) => (counts[`status:${s.id}`] ?? 0) > 0 || status === s.id),
+        ].map((s) => (
+          <button key={s.id} type="button" aria-pressed={status === s.id} onClick={() => set("status", s.id)} className={chip(status === s.id)}>
             {s.label}
             <span className="num ms-1.5 text-[10px]">{counts[`status:${s.id}`] ?? 0}</span>
           </button>
@@ -172,6 +174,7 @@ export default function MatchesFilters({
                 type="button"
                 onClick={() => set("view", v)}
                 aria-label={v === "grid" ? "عرض شبكي" : "عرض قائمة"}
+                aria-pressed={view === v}
                 className={`focus-ring min-h-11 px-2.5 py-1.5 text-[11px] font-bold transition ${
                   view === v ? "bg-navy-850 text-white" : "bg-surface text-muted hover:text-ink"
                 }`}

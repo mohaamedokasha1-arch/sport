@@ -18,7 +18,9 @@ import { sportsRelevance } from "@/lib/news/relevance";
 import { isGoogleNewsWrapper, resolvePublisherUrl } from "@/lib/news/normalize";
 import { createSource, listArticles } from "@/lib/news/store";
 import { runSource } from "@/lib/news/pipeline";
-import { validateMatchQuery } from "@/lib/match-query";
+import { validateMatchQuery, validateMatchStatus } from "@/lib/match-query";
+import { attributionForProvider } from "@/lib/football-data";
+import { competitionByPath, fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { createBroadcaster, setBroadcasterStatus, validateBroadcastLink } from "@/lib/broadcasts";
 import { createLiveStream, streamForMatch, updateLiveStream } from "@/lib/match-streams";
 import { parsePreferences, emptyPreferences, favoriteMatch } from "@/lib/preferences";
@@ -54,6 +56,50 @@ test("arbitrary date, team, status and competition filters compose", () => {
   assert.equal(filterProviderMatches([f], { date: "2026-10-08" }).length, 0);
   assert.equal(filterProviderMatches([f], { date: "all", competition: "other" }).length, 0);
   assert.equal(filterProviderMatches([fixture({ scheduledAt: "bad" })], { date: "today" }).length, 0);
+});
+test("football standings/scorers API attribution follows the actual fallback provider", () => {
+  assert.deepEqual(attributionForProvider("football_data"), {
+    label: "Powered by Football-Data.org",
+    url: "https://www.football-data.org/",
+  });
+  assert.deepEqual(attributionForProvider("sportscore"), {
+    label: "Powered by SportScore",
+    url: "https://sportscore.com/",
+  });
+  assert.deepEqual(attributionForProvider("sportmonks"), { label: "Data source: sportmonks" });
+});
+
+test("canonical competition filters require an exact id or alias, not a shared substring", () => {
+  assert.equal(competitionByPath("%"), undefined, "malformed percent escapes must not crash query rendering");
+  const fixtures = [
+    fixture({ providerId: "epl", competitionProviderId: "english-premier-league", competitionName: "English Premier League" }),
+    fixture({ providerId: "bermuda", competitionProviderId: "Bermuda Premier League", competitionName: "Bermuda Premier League" }),
+    fixture({ providerId: "hong-kong", competitionProviderId: "Hong Kong Premier League", competitionName: "Hong Kong Premier League" }),
+    fixture({ providerId: "mexico", competitionProviderId: "MEX Liga Premier", competitionName: "MEX Liga Premier" }),
+  ];
+  assert.equal(fixtureBelongsToCompetition(fixtures[0], "english-premier-league"), true);
+  assert.equal(fixtureBelongsToCompetition(fixtures[1], "english-premier-league"), false);
+  assert.equal(fixtureBelongsToCompetition(fixtures[2], "PL"), false);
+  assert.equal(fixtureBelongsToCompetition(fixtures[3], "english-premier-league"), false);
+  assert.deepEqual(
+    filterProviderMatches(fixtures, { date: "all", competition: "english-premier-league" }).map((f) => f.providerId),
+    ["epl"],
+  );
+  assert.equal(fixtureBelongsToCompetition(fixtures[3], "MEX Liga Premier"), true, "unknown/provider competition names still match exactly");
+});
+test("reported interrupted match states are independently filterable and counted", () => {
+  const now = Date.parse("2026-10-11T09:00:00Z");
+  const fixtures = ["postponed", "cancelled", "suspended", "abandoned"].map((status) =>
+    fixture({ providerId: status, scheduledAt: "2026-10-11T18:00:00Z", status: status as NormalizedFixture["status"] }),
+  );
+  for (const state of ["postponed", "cancelled", "suspended", "abandoned"]) {
+    assert.deepEqual(filterProviderMatches(fixtures, { date: "2026-10-11", status: state }, now).map((f) => f.status), [state]);
+    assert.equal(providerMatchCounts(fixtures, { date: "2026-10-11" }, now)[`status:${state}`], 1);
+    assert.equal(validateMatchStatus(state), null);
+    assert.equal(validateMatchQuery(new URLSearchParams(`status=${state}`)), null);
+  }
+  assert.equal(validateMatchStatus("still-live"), "Unsupported status");
+  assert.equal(validateMatchQuery(new URLSearchParams("status=still-live")), "Unsupported status");
 });
 test("a stored 'scheduled' whose kickoff day passed is no longer counted as upcoming", () => {
   // Regression: /matches used to list these under «قادمة» and /matches/[slug]

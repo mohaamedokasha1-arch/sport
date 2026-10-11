@@ -72,6 +72,10 @@ function onStatus(fixture: NormalizedFixture, status: string | undefined, now: n
     case "live": return isFixtureLive(fixture, now);
     case "upcoming": return isFixtureUpcoming(fixture, now);
     case "finished": return isFixtureFinished(fixture);
+    case "postponed": return matchStateOf(fixture.status, fixture.scheduledAt, now) === "postponed";
+    case "cancelled": return matchStateOf(fixture.status, fixture.scheduledAt, now) === "cancelled";
+    case "suspended": return matchStateOf(fixture.status, fixture.scheduledAt, now) === "suspended";
+    case "abandoned": return matchStateOf(fixture.status, fixture.scheduledAt, now) === "abandoned";
     case "unconfirmed": return isFixtureUnconfirmed(fixture, now);
     default: return true;
   }
@@ -100,6 +104,10 @@ export function providerMatchCounts(
     "status:live": 0,
     "status:upcoming": 0,
     "status:finished": 0,
+    "status:postponed": 0,
+    "status:cancelled": 0,
+    "status:suspended": 0,
+    "status:abandoned": 0,
     "status:unconfirmed": 0,
   };
 
@@ -112,6 +120,10 @@ export function providerMatchCounts(
     if (isFixtureLive(fixture, now)) counts["status:live"]++;
     if (isFixtureUpcoming(fixture, now)) counts["status:upcoming"]++;
     if (isFixtureFinished(fixture)) counts["status:finished"]++;
+    if (onStatus(fixture, "postponed", now)) counts["status:postponed"]++;
+    if (onStatus(fixture, "cancelled", now)) counts["status:cancelled"]++;
+    if (onStatus(fixture, "suspended", now)) counts["status:suspended"]++;
+    if (onStatus(fixture, "abandoned", now)) counts["status:abandoned"]++;
     if (isFixtureUnconfirmed(fixture, now)) counts["status:unconfirmed"]++;
   }
 

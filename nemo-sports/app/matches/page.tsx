@@ -15,6 +15,8 @@ import { demoContentVisible } from "@/lib/site";
 import { dateScopeIncludesToday, filterProviderMatches, providerMatchCounts, sortProviderMatches } from "@/lib/provider-match-filter";
 import { liveBoard, reconcileResult, scopeLabelAr, SPORT_NAME_AR } from "@/lib/live-board";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
+import { validateMatchStatus } from "@/lib/match-query";
+import { competitionByPath } from "@/lib/competition-catalog";
 import { siteDay, siteDateKey, isDateKey, shiftDateKey } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
@@ -36,10 +38,23 @@ export default async function MatchesPage({
     sport: typeof sp.sport === "string" ? sp.sport : "",
     competition: typeof sp.competition === "string" ? sp.competition : "",
     date: typeof sp.date === "string" ? sp.date : "today",
-    status: typeof sp.status === "string" ? sp.status : "all",
+    status: typeof sp.status === "string" ? sp.status : Array.isArray(sp.status) ? "__invalid__" : "all",
     team: typeof sp.team === "string" ? sp.team : "",
     view: sp.view === "list" ? "list" as const : "grid" as const,
   };
+  const statusError = validateMatchStatus(query.status);
+  if (statusError) {
+    return (
+      <div className="mx-auto max-w-[1280px] px-4 py-6">
+        <DataUnavailable
+          title="فلتر الحالة غير مدعوم"
+          message="اختر حالة من الفلاتر المتاحة أو امسح الفلاتر. لم نعرض جميع المباريات بدلًا من الحالة المطلوبة."
+          actionHref="/matches"
+          actionLabel="مسح الفلاتر"
+        />
+      </div>
+    );
+  }
   const demoMode = demoContentVisible();
   const demoMatches = await applyDemoOverrides(filterMatches(query));
 
@@ -82,6 +97,16 @@ export default async function MatchesPage({
       if (!fixture.competitionProviderId && !fixture.competitionName) continue;
       const id = fixture.competitionProviderId || fixture.competitionName || "";
       optionMap.set(id, { id, name: fixture.competitionName || id, sport: fixture.sport });
+    }
+    // Keep a requested competition selected even when the current date has no
+    // fixtures for it (the feed-derived options may not contain that league).
+    if (query.competition && !optionMap.has(query.competition)) {
+      const canonical = competitionByPath(query.competition);
+      optionMap.set(query.competition, {
+        id: query.competition,
+        name: canonical?.name ?? query.competition,
+        sport: query.sport || "football",
+      });
     }
     const activeResult = successfulFeeds[0] ?? null;
     const scopeLabel = scopeLabelAr(requestedSports);

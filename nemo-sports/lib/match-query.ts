@@ -7,6 +7,25 @@ export const DATE_TOKENS = ["today", "yesterday", "tomorrow"] as const;
 /** `sport=all` asks for every public sport (the scope /matches and /live use by default). */
 export const ALL_SPORTS = "all";
 
+/** Exact provider/app states that can be selected in match filters. */
+export const MATCH_FILTER_STATUSES = [
+  "all",
+  "live",
+  "upcoming",
+  "finished",
+  "postponed",
+  "cancelled",
+  "suspended",
+  "abandoned",
+  "unconfirmed",
+] as const;
+
+export function validateMatchStatus(value: string | null | undefined): string | null {
+  return value && !(MATCH_FILTER_STATUSES as readonly string[]).includes(value)
+    ? "Unsupported status"
+    : null;
+}
+
 /**
  * `?date=` → a Cairo calendar key. /matches has always accepted
  * `today|yesterday|tomorrow` while /api/v1/matches rejected them with
@@ -32,10 +51,7 @@ export function validateMatchQuery(params: URLSearchParams): string | null {
   if (sport && sport !== ALL_SPORTS && !PUBLIC_SPORTS.some((s) => s.slug === sport)) return "Unsupported sport";
   const date = params.get("date");
   if (date !== null && resolveDateParam(date) === null) return "Expected a valid YYYY-MM-DD date (Africa/Cairo) or today|yesterday|tomorrow";
-  const status = params.get("status");
-  // "unconfirmed" is the honest bucket for a match still stored as `scheduled`
-  // whose kickoff day has passed (lib/match-state.ts). Accepted here so the API
-  // and the public filters share one vocabulary.
-  if (status && !["all", "live", "upcoming", "finished", "unconfirmed"].includes(status)) return "Unsupported status";
+  const statusError = validateMatchStatus(params.get("status"));
+  if (statusError) return statusError;
   return null;
 }
