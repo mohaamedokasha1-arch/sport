@@ -45,19 +45,30 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Start production server (empty-data mode, no secrets)
-        run: |
-          npm run start > "$RUNNER_TEMP/server.log" 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -fsS -o /dev/null http://127.0.0.1:3000/; then echo "server up after ${i}s"; exit 0; fi
-            sleep 1
-          done
-          echo "server did not start"; cat "$RUNNER_TEMP/server.log"; exit 1
-
-      - name: Smoke (HTTP routes, security headers, sitemap)
+      # The server and the smoke test run in ONE step. A server started in one
+      # step is not reliably alive in a later step, and the readiness loop must
+      # not exit the step early (it used to call `exit 0`).
+      - name: Smoke against a production server (empty-data mode, no secrets)
         env:
           BASE: http://127.0.0.1:3000
-        run: npm run smoke
+        run: |
+          # setsid gives the server its own process group, so the whole tree can be stopped.
+          setsid npm run start > "$RUNNER_TEMP/server.log" 2>&1 &
+          SERVER_PID=$!
+          ready=0
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null "$BASE/"; then ready=1; echo "server up after ${i}s"; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            echo "server did not start"; cat "$RUNNER_TEMP/server.log"; kill -- -"$SERVER_PID" 2>/dev/null || true; exit 1
+          fi
+          set +e
+          npm run smoke
+          rc=$?
+          set -e
+          kill -- -"$SERVER_PID" 2>/dev/null || true
+          exit $rc
 
       - name: Server log on failure
         if: failure()
