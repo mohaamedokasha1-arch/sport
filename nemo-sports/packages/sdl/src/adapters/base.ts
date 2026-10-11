@@ -10,6 +10,7 @@ import {
   type DateRange,
   type ProviderError,
   type NormalizedCompetition,
+  type NormalizedCatalogCompetition,
   type NormalizedEvent,
   type NormalizedFixture,
   type NormalizedLineup,
@@ -236,6 +237,9 @@ export function withDefaults<N extends ProviderName>(name: N) {
     }
     getCompetition(_input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedCompetition>> {
       return Promise.resolve(notSupported(this.name, "competition", this.key("competition", _input)));
+    }
+    getCompetitions(_input: { sport?: string; country?: string }): Promise<ProviderResult<NormalizedCatalogCompetition[]>> {
+      return Promise.resolve(notSupported(this.name, "competitions", this.key("competitions", _input)));
     }
     getCompetitionSeasons(_input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedSeason[]>> {
       return Promise.resolve(notSupported(this.name, "competition_seasons", this.key("competition_seasons", _input)));

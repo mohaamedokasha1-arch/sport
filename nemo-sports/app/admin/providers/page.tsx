@@ -1,5 +1,6 @@
 import { AdminHead, Panel, Pill, Table } from "@/components/admin/ui";
 import { diagnostics, chainFor } from "@/lib/sdl-gateway";
+import { competitionSyncStatus } from "@/lib/competition-sync";
 import { SITE_TZ } from "@/lib/tz";
 import { requirePermission } from "@/lib/admin-session";
 
@@ -13,8 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminProviders() {
   await requirePermission("providers");
-  const [d, liveChain, eventsChain, fixturesChain, standingsChain, imagesChain] = await Promise.all([
+  const [d, sync, liveChain, eventsChain, fixturesChain, standingsChain, imagesChain] = await Promise.all([
     diagnostics(),
+    competitionSyncStatus(),
     chainFor("football", null, "live_matches"),
     chainFor("football", null, "match_events"),
     chainFor("football", null, "fixtures"),
@@ -32,6 +34,13 @@ export default async function AdminProviders() {
     rate_limited: "مقيّد",
     down: "منقطع",
     disabled: "معطّل",
+  };
+
+  const RUN_STATUS_AR: Record<string, string> = {
+    success: "ناجحة",
+    partial: "ناجحة جزئيًا",
+    failed: "فاشلة",
+    skipped: "متخطّاة",
   };
 
   const fmt = (l: { provider: string; role: string }[]) => l.map((x) => `${x.provider} (${x.role})`).join(" ← ");
@@ -176,6 +185,60 @@ export default async function AdminProviders() {
           <p className="mt-3 text-[11px] leading-5 text-white/40">
             الطبقة تعمل بلا قاعدة بيانات وبلا Redis (ذاكرة داخل العملية)، لكن البيانات الكنسية
             تصبح غير دائمة. هذا الجدول يعكس ما هو موصول فعلًا الآن.
+          </p>
+        </Panel>
+
+        <Panel title="اكتشاف البطولات تلقائيًا">
+          <Table
+            head={["المكوّن", "الحالة", "التفاصيل"]}
+            rows={[
+              [
+                <span key="n" className="font-bold">آخر مزامنة ناجحة</span>,
+                <Pill key="ns" tone={sync.lastSuccessfulAt ? "ok" : "warn"}>
+                  {sync.lastSuccessfulAt ? "نجحت" : "لم تنجح بعد"}
+                </Pill>,
+                <span key="nd" className="num text-[12px] text-white/50">
+                  {sync.lastSuccessfulAt ? new Date(sync.lastSuccessfulAt).toLocaleString("ar-EG", { timeZone: SITE_TZ }) : "—"}
+                </span>,
+              ],
+              [
+                <span key="a" className="font-bold">آخر محاولة</span>,
+                <Pill key="as" tone={sync.lastRun ? (sync.lastRun.status === "failed" ? "bad" : "ok") : "idle"}>
+                  {sync.lastRun ? RUN_STATUS_AR[sync.lastRun.status] ?? sync.lastRun.status : "لم تُنفَّذ"}
+                </Pill>,
+                <span key="ad" className="num text-[12px] text-white/50">
+                  {sync.lastAttemptAt ? new Date(sync.lastAttemptAt).toLocaleString("ar-EG", { timeZone: SITE_TZ }) : "—"}
+                </span>,
+              ],
+              [
+                <span key="c" className="font-bold">بطولات مخزَّنة</span>,
+                <Pill key="cs" tone={sync.storedCompetitions > 0 ? "ok" : "idle"}>{String(sync.storedCompetitions)}</Pill>,
+                <span key="cd" className="text-[12px] text-white/50">
+                  منشورة للعامة: <span className="num">{sync.publishedCompetitions}</span> — الاكتشاف لا ينشر شيئًا تلقائيًا
+                </span>,
+              ],
+              [
+                <span key="d" className="font-bold">التخزين</span>,
+                <Pill key="ds" tone={sync.durable ? "ok" : "warn"}>{sync.durable ? "قاعدة بيانات" : "ذاكرة مؤقتة"}</Pill>,
+                <span key="dd" className="text-[12px] text-white/50">
+                  {sync.durable ? "السجلات دائمة" : "تُفقد عند إعادة التشغيل — اضبط DATABASE_URL"}
+                </span>,
+              ],
+            ]}
+          />
+          {sync.lastRun && sync.lastRun.providersFailed.length > 0 && (
+            <p className="mt-3 text-[11px] leading-5 text-gold-300/80">
+              مزوّدون تعذّر تعداد بطولاتهم:{" "}
+              <span className="num">{sync.lastRun.providersFailed.map((f) => `${f.provider} (${f.reason})`).join("، ")}</span>
+              {" "}— لم يُحذف أي سجل موجود.
+            </p>
+          )}
+          <p className="mt-3 text-[11px] leading-5 text-white/40">
+            يُنفَّذ عبر <span className="num">GET /api/cron/sync-competitions</span> (أسبوعيًا في{" "}
+            <span className="num">vercel.json</span>) بمصادقة <span className="num">CRON_SECRET</span>.
+            المزوّد الرئيسي SportScore لا يملك endpoint لتعداد البطولات إطلاقًا، فالاكتشاف يعتمد على
+            Football-Data أو TheSportsDB عند ضبط مفتاحيهما. القراءة الآلية للتغطية:{" "}
+            <span className="num">/api/v1/competitions</span>.
           </p>
         </Panel>
 

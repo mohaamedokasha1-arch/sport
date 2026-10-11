@@ -16,8 +16,10 @@
  */
 
 import { withDefaults, str, toInt, toIso, type HttpOptions } from "./base";
+import { emptyCapabilities } from "../provider";
 import type {
   DataType,
+  NormalizedCatalogCompetition,
   NormalizedCompetition,
   NormalizedPlayer,
   NormalizedSeason,
@@ -121,7 +123,7 @@ type TsdLeague = {
 type TsdSeason = { idSeason: string; strSeason: string; strLeague?: string; idLeague?: string };
 
 export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
-  readonly capabilities: DataType[] = ["team", "team_squad", "player", "competition", "competition_seasons", "venue", "images", "fixtures", "health"];
+  readonly capabilities: DataType[] = ["team", "team_squad", "player", "competition", "competitions", "competition_seasons", "venue", "images", "fixtures", "health"];
   readonly supportedSports = ["football", "basketball", "tennis", "volleyball", "handball", "hockey", "baseball", "boxing"];
 
   private apiKey: string | null;
@@ -245,6 +247,56 @@ export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
       requestKey: list.requestKey,
       fromCache: false,
     };
+  }
+
+  /**
+   * `search_all_leagues.php` — the documented league catalog. This is the one
+   * free endpoint that can answer "which competitions exist at all", and it is
+   * multi-sport, so it is the only realistic route to automatic competition
+   * discovery for basketball / tennis / cricket on this stack.
+   *
+   * It is a METADATA listing. TheSportsDB's free tier does not grant live
+   * scores, and this method deliberately sets no capability flag: every field
+   * under `capabilities` leaves here `null` except `listed`. A page may not
+   * claim fixtures for a league just because this list contained it.
+   */
+  override async getCompetitions(input: { sport?: string; country?: string } = {}): Promise<ProviderResult<NormalizedCatalogCompetition[]>> {
+    const params: Record<string, unknown> = {};
+    if (input.sport) params.s = input.sport === "football" ? "Soccer" : input.sport;
+    if (input.country) params.c = input.country;
+    // With neither filter the community endpoint refuses to answer; report that
+    // as unsupported rather than pretending the catalog is empty.
+    if (Object.keys(params).length === 0) {
+      return {
+        ok: false,
+        provider: this.name,
+        requestKey: this.key("competitions", {}),
+        fromCache: false,
+        error: { code: "not_supported", message: "thesportsdb search_all_leagues.php requires a sport (?s=) or country (?c=) filter" },
+      };
+    }
+    const res = await this.getJson<Record<string, TsdLeague[] | null>>("search_all_leagues.php", params);
+    if (!res.ok) return res;
+    const rows = Object.values(res.data)[0];
+    const list = Array.isArray(rows) ? rows : [];
+    const data: NormalizedCatalogCompetition[] = [];
+    for (const l of list) {
+      const id = str(l.idLeague);
+      const name = str(l.strLeague);
+      if (!id || !name) continue; // no stable id ⇒ cannot be de-duplicated safely
+      data.push({
+        providerId: id,
+        name,
+        shortName: str(l.strLeagueAlternate),
+        countryCode: null,
+        countryName: str(l.strCountry),
+        type: str(l.strSport)?.toLowerCase() ?? null,
+        logoUrl: str(l.strBadge) ?? str(l.strLogo),
+        sport: str(l.strSport)?.toLowerCase() ?? input.sport ?? null,
+        capabilities: emptyCapabilities(true),
+      });
+    }
+    return { ok: true, data, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }
 
   override async getCompetitionSeasons(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedSeason[]>> {

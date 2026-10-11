@@ -125,6 +125,11 @@ export const DEFAULT_CACHE_POLICY: Record<DataType, { raw: number; canonical: nu
   player: { raw: 3600, canonical: 21600, staleGrace: 259200 },
   player_stats: { raw: 1800, canonical: 7200, staleGrace: 86400 },
   competition: { raw: 3600, canonical: 21600, staleGrace: 259200 },
+  // A competition catalog changes on the order of seasons, not minutes. The
+  // long TTL is what keeps a daily sync job from re-spending quota when it is
+  // retried, and it is the reason one provider request can serve every page
+  // that needs the catalog.
+  competitions: { raw: 43200, canonical: 86400, staleGrace: 604800 },
   competition_seasons: { raw: 3600, canonical: 43200, staleGrace: 259200 },
   venue: { raw: 7200, canonical: 86400, staleGrace: 604800 },
   images: { raw: 7200, canonical: 86400, staleGrace: 604800 },

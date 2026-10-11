@@ -127,6 +127,19 @@ export const DEFAULT_PRIORITY_RULES: PriorityRule[] = [
   // never asked. Registered last, so a keyed premium provider still wins.
   rule("fd-7", "football", WILDCARD, "team", "football_data", "fallback"),
   rule("fd-8", "football", WILDCARD, "competition", "football_data", "fallback"),
+  /* Competition CATALOG discovery. Only two providers on this stack expose a
+     documented listing endpoint, and they answer different questions:
+       · football_data  → the exact set of leagues its key can actually serve
+                          (authoritative for football, 12 on the free plan);
+       · thesportsdb    → a multi-sport index (soccer/basketball/tennis/…),
+                          metadata only, so it may never lead a scores chain.
+     SportScore — the platform's primary live source — has NO catalog endpoint
+     at all (its 5 widget routes are match/standings/scorers/player), so it is
+     deliberately absent here rather than silently returning "no competitions".
+     Declared after the `images` rules keep their own ordering intact. */
+  rule("cd-1", "football", WILDCARD, "competitions", "football_data", "primary"),
+  rule("cd-2", WILDCARD, WILDCARD, "competitions", "thesportsdb", "primary"),
+  rule("cd-3", "football", WILDCARD, "competitions", "thesportsdb", "secondary"),
 
   // Images/metadata: TheSportsDB first (rich artwork), never for live scores
   rule("pr-13", WILDCARD, WILDCARD, "images", "thesportsdb", "primary"),
