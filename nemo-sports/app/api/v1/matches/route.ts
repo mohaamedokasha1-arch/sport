@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   if (eventsFor) {
     const match = await matchDetail(params.get("sport") ?? "football", eventsFor);
     if (!match.ok) return NextResponse.json({ ok: false, data: [] }, { status: 503 });
-    const result = await matchEvents(match.data.providerId, match.provider);
+    const result = await matchEvents(match.data.providerId, match.provider, match.data.sport);
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: { code: result.error.kind, message: result.error.message }, data: [] }, { status: 503 });
     }

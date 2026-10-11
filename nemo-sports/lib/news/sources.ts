@@ -78,10 +78,23 @@ export function defaultSources(now = new Date().toISOString()): RSSSource[] {
   }));
 }
 
-/** Refresh cadence rationale (minutes) — higher volume = faster refresh. */
+/**
+ * Scheduled ingestion cadence actually configured for this deployment.
+ * Must equal the `/api/cron/fetch-news` entry in vercel.json — a test enforces
+ * it, so the public copy never describes a schedule the platform does not run.
+ */
+export const NEWS_CRON_PATH = "/api/cron/fetch-news";
+export const NEWS_CRON_SCHEDULE_UTC = "30 3 * * *";
+export const NEWS_CRON_DESCRIPTION_AR = "مرة واحدة يوميًا (03:30 بتوقيت UTC)";
+
+/**
+ * Per-source interval (minutes) is the TARGET cadence used by the freshness
+ * rule. It is not a guarantee: a run only happens when the scheduled job runs
+ * (see NEWS_CRON_DESCRIPTION_AR) or when an operator triggers it.
+ */
 export const REFRESH_RATIONALE: Record<number, string> = {
-  1: "تغطية أساسية — تحديث كل 30 دقيقة",
-  2: "تغطية مهمة — تحديث كل 30–60 دقيقة",
-  3: "تغطية متوسطة — تحديث كل ساعة",
-  4: "تغطية خفيفة — تحديث كل ساعتين",
+  1: "تغطية أساسية — فاصل مستهدف 30 دقيقة",
+  2: "تغطية مهمة — فاصل مستهدف 30–60 دقيقة",
+  3: "تغطية متوسطة — فاصل مستهدف ساعة",
+  4: "تغطية خفيفة — فاصل مستهدف ساعتان",
 };

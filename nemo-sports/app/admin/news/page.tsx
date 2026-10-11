@@ -15,6 +15,8 @@ import {
   updateSource,
 } from "@/lib/news/store";
 import { runSource, ingestAllSources } from "@/lib/news/pipeline";
+import { sourceFreshness } from "@/lib/news/freshness";
+import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
@@ -154,15 +156,21 @@ export default async function AdminNews({
   ]);
 
   const enabled = sources.filter((s) => s.enabled);
-  const healthy = enabled.filter((s) => s.consecutiveFailures === 0);
+  // "سليمة" means fresh AND not failing — a source that stopped succeeding days
+  // ago is not healthy, whatever its failure counter says.
+  const now = Date.now();
+  const healthy = enabled.filter((s) => sourceFreshness(s, now) === "fresh");
   const failing = enabled.filter((s) => s.consecutiveFailures > 0);
+  const stale = enabled.filter((s) => sourceFreshness(s, now) === "stale");
   const categories = [...new Set(feed.items.map((a) => a.category))];
 
   const statusOf = (s: (typeof sources)[number]): { tone: "ok" | "warn" | "bad" | "idle"; label: string } => {
     if (!s.enabled) return { tone: "idle", label: "معطّل" };
     if (s.consecutiveFailures >= 3) return { tone: "bad", label: "متعثر" };
     if (s.consecutiveFailures > 0) return { tone: "warn", label: "تحذير" };
-    if (!s.lastSuccessfulFetch) return { tone: "idle", label: "لم يُجلب بعد" };
+    const freshness = sourceFreshness(s, now);
+    if (freshness === "never") return { tone: "idle", label: "لم يُجلب بعد" };
+    if (freshness === "stale") return { tone: "warn", label: "قديم" };
     return { tone: "ok", label: "سليم" };
   };
 
@@ -192,7 +200,7 @@ export default async function AdminNews({
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           { k: "مصادر RSS", v: sources.length, hint: `${enabled.length} مفعّلة` },
-          { k: "سليمة", v: healthy.length, hint: `${failing.length} متعثرة` },
+          { k: "سليمة وحديثة", v: healthy.length, hint: `${failing.length} متعثرة · ${stale.length} قديمة` },
           { k: "مقالات (7 أيام)", v: stats.processed, hint: `${stats.duplicates} مكرر أُزيل` },
           { k: "عمليات جلب (7 أيام)", v: stats.fetches, hint: backend === "postgres" ? "من السجل" : "تقديري (ذاكرة)" },
           { k: "في الخلاصة الآن", v: feed.total, hint: "منشورة + مخفية" },
@@ -218,14 +226,14 @@ export default async function AdminNews({
         aside={<Pill tone={failing.length ? "warn" : "ok"}>{failing.length ? `${failing.length} تحتاج انتباهًا` : "كل المصادر سليمة"}</Pill>}
       >
         <Table
-          head={["الاستعلام", "اللغة/الدولة", "الأولوية", "التحديث", "الحالة", "آخر جلب ناجح", "مقالات", "إجراءات"]}
+          head={["الاستعلام", "اللغة/الدولة", "الأولوية", "الفاصل المستهدف", "الحالة", "آخر جلب ناجح", "مقالات", "إجراءات"]}
           rows={sources.map((s) => {
             const st = statusOf(s);
             return [
               <span key="q" className="font-bold">{s.query}</span>,
               <span key="l" className="num text-white/60">{s.language}/{s.country}</span>,
               <span key="p" className="num">P{s.priority}</span>,
-              <span key="r" className="num text-white/60">كل {s.refreshInterval}د</span>,
+              <span key="r" className="num text-white/60" title={`يُفحص عند تشغيل المهمة المجدولة: ${NEWS_CRON_DESCRIPTION_AR}`}>كل {s.refreshInterval}د</span>,
               <span key="s">
                 <Pill tone={st.tone}>{st.label}</Pill>
                 {s.lastError ? (
@@ -295,7 +303,7 @@ export default async function AdminNews({
               </select>
             </label>
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-[11px] font-bold text-white/60">التحديث (دقائق)</span>
+              <span className="mb-1 block text-[11px] font-bold text-white/60">الفاصل المستهدف (دقائق) — يُطبَّق عند تشغيل المهمة المجدولة</span>
               <select name="refreshInterval" className={inputCls} defaultValue="30">
                 {[15, 30, 60, 120, 240].map((m) => (
                   <option key={m} value={m}>كل {m} دقيقة</option>

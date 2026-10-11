@@ -5,6 +5,8 @@ import { listAdminTeams } from "@/lib/admin-teams";
 import { listAdminPlayers } from "@/lib/admin-players";
 import { listAdminCompetitions } from "@/lib/admin-competitions";
 import { listManualNews } from "@/lib/manual-news";
+import { matchUrl } from "@/lib/match-links";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
@@ -89,25 +91,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // never fail the sitemap because of admin content
   }
 
-  // Real match pages (provider slugs) — live matches first, then the rest of
-  // the feed. Capped to keep the file meaningful (real pages only).
+  // Real match pages (provider slugs) for every sport the site links to
+  // (PUBLIC_SPORTS: football, basketball, tennis, cricket). Live matches first,
+  // then the rest of each sport's feed. Capped to keep the file meaningful.
+  // Before this, only football fixtures were listed, so the other sports'
+  // match pages were reachable from the site but absent from the sitemap.
   if (indexable) {
     try {
-      const [liveRes, feedRes] = await Promise.all([liveMatches("football"), fixtures({ sport: "football" })]);
+      const requests = PUBLIC_SPORTS.flatMap((sport) => [liveMatches(sport.slug), fixtures({ sport: sport.slug })]);
+      const results = await Promise.all(requests.map((request) => request.catch(() => null)));
       const slugs = new Set<string>();
       // Only fixtures that can actually render a page. A provider can return a
       // shell with no team identities; listing it here would advertise a URL
       // whose page 404s (see hasMatchIdentity in lib/sdl-gateway.ts).
-      const add = (list: NormalizedFixture[]) => {
-        for (const f of list) if (f.providerId && hasMatchIdentity(f)) slugs.add(f.providerId);
-      };
-      if (liveRes.ok) add(liveRes.data);
-      if (feedRes.ok) add(feedRes.data);
+      for (const result of results) {
+        if (!result || !result.ok) continue;
+        for (const f of result.data as NormalizedFixture[]) {
+          if (f.providerId && hasMatchIdentity(f)) slugs.add(f.providerId);
+        }
+      }
       let i = 0;
       for (const slug of slugs) {
         if (i++ >= 200) break;
         entries.push({
-          url: `${SITE_URL}/matches/${slug}`,
+          url: matchUrl(slug),
           changeFrequency: "hourly",
           priority: 0.9,
         });

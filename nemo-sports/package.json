@@ -6,7 +6,9 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && node scripts/smoke.mjs",
+    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run stream-policy:test && npm run news:classify:test && npm run scenarios:test",
+    "smoke": "node scripts/smoke.mjs",
+    "scenarios:test": "tsx scripts/verify-all-scenarios.ts",
     "sdl:typecheck": "tsc -p packages/sdl/tsconfig.json --noEmit",
     "sdl:test": "tsc -p packages/sdl/tsconfig.test.json && node --test \"packages/sdl/dist-test/test/*.test.js\"",
     "test": "npm run sdl:test",
@@ -18,6 +20,11 @@
     "admin:hash": "node scripts/hash-admin-password.mjs",
     "admin:test": "tsx scripts/verify-admin.ts",
     "repairs:test": "tsx --test scripts/verify-repairs.test.ts",
+    "freshness:test": "tsx --test scripts/verify-freshness.test.ts",
+    "sports:test": "tsx --test scripts/verify-sports-links.test.ts",
+    "stream-policy:test": "tsx --test scripts/verify-stream-policy.test.ts",
+    "news:classify:test": "tsx --test scripts/verify-classify.test.ts",
+    "news:recategorize": "tsx scripts/recategorize-news.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

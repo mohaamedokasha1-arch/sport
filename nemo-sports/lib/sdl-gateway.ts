@@ -270,18 +270,24 @@ export async function sportForMatchId(providerMatchId: string): Promise<string |
   return null;
 }
 
-/** Events of one match, in canonical vocabulary. */
-export async function matchEvents(providerMatchId: string, provider?: GatewayProvider): Promise<GatewayResult<NormalizedEvent[]>> {
+/**
+ * Events of one match, in canonical vocabulary.
+ * The sport must be passed: it selects the provider chain AND the upstream
+ * detail endpoint. It used to be hard-coded to football, so a basketball,
+ * tennis or cricket match asked the football chain (and the adapter's football
+ * default) for its events and received none.
+ */
+export async function matchEvents(providerMatchId: string, provider?: GatewayProvider, sport = "football"): Promise<GatewayResult<NormalizedEvent[]>> {
   if (provider === "admin") return { ok: false, error: { kind: "unsupported", message: "Manual matches have no provider telemetry", dataType: "match_events", attempts: [] } };
   const { sdl } = await sdlContext();
   return wrap(
     await sdl.fetch<NormalizedEvent[]>({
-      sport: "football",
+      sport,
       dataType: "match_events",
       provider,
       endpoint: "events",
-      params: { providerMatchId },
-      call: (p) => p.getMatchEvents({ providerMatchId }),
+      params: { sport, providerMatchId },
+      call: (p) => p.getMatchEvents({ providerMatchId, sport }),
     }),
     "match_events",
   );

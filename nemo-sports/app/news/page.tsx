@@ -5,8 +5,9 @@ import DataUnavailable from "@/components/ui/DataUnavailable";
 import NewsCard from "@/components/news/NewsCard";
 import RssArticleCard from "@/components/news/RssArticleCard";
 import { articles } from "@/lib/data";
-import { competitions, sports } from "@/lib/core-data";
+import { sports } from "@/lib/core-data";
 import { getNewsFeed } from "@/lib/news/service";
+import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { CATEGORIES, FALLBACK_CATEGORY, categoryMeta, canonicalCategoryParam } from "@/lib/news/categorize";
 import { newsCompetitions } from "@/lib/news/entities";
 import { demoContentVisible } from "@/lib/site";
@@ -86,6 +87,10 @@ async function NewsPageBody({
           )}
         </p>
       </header>
+
+      <p className="-mt-3 mb-5 text-[11px] text-muted">
+        تُجمع الأخبار عبر مهمة مجدولة تعمل {NEWS_CRON_DESCRIPTION_AR}، لذلك قد تتأخر عن الفاصل المستهدف لكل مصدر، ولا نضمن تحديثًا لحظيًا.
+      </p>
 
       {editorial.length > 0 ? <p className="mb-5 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">المقالات الظاهرة بيانات توضيحية للتطوير فقط، ولا تمثل أخبارًا منشورة.</p> : null}
 

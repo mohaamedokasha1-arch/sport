@@ -24,6 +24,7 @@ import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
 import { isLiveStatus } from "@/lib/match-state";
+import { matchPath, matchUrl, schemaSportName } from "@/lib/match-links";
 
 // Rendered per request: the page carries admin-controlled stream state
 // (publish / stop / edit / delete). ISR with revalidatePath() does not reliably
@@ -246,7 +247,7 @@ export async function generateMetadata({
     return {
       title,
       description,
-      alternates: { canonical: `/matches/${slug}` },
+      alternates: { canonical: matchPath(slug) },
       openGraph: { title, description, type: "article" },
     };
   }
@@ -263,7 +264,7 @@ export async function generateMetadata({
     return {
       title,
       description,
-      alternates: { canonical: `/matches/${adminM.slug}` },
+      alternates: { canonical: matchPath(adminM.slug) },
       openGraph: { title, description, type: "article" },
     };
   }
@@ -278,7 +279,7 @@ export async function generateMetadata({
       return {
         title: `${home.name} ضد ${away.name} | ${comp.name} | ${dateAr(m.kickoff)}`,
         description: `نتيجة وتفاصيل مباراة ${home.name} و${away.name} في ${comp.name}.`,
-        alternates: { canonical: `/matches/${m.slug}` },
+        alternates: { canonical: matchPath(m.slug) },
         openGraph: { title: `${home.name} ضد ${away.name}`, type: "article" },
       };
     }
@@ -350,7 +351,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
     const [eventsRes, lineupsRes, statsRes, stream, override] = await Promise.all([
-      matchEvents(f.providerId, providerName),
+      matchEvents(f.providerId, providerName, f.sport),
       matchLineups(f.sport, f.providerId, providerName),
       matchStats(f.sport, f.providerId, providerName),
       streamForMatch({ slug, home, away }),
@@ -415,8 +416,8 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             : isLiveStatus(f.status)
               ? undefined
               : "https://schema.org/EventScheduled",
-      sport: "Football",
-      url: `/matches/${slug}`,
+      sport: schemaSportName(f.sport),
+      url: matchUrl(slug),
       homeTeam: { "@type": "SportsTeam", name: home },
       awayTeam: { "@type": "SportsTeam", name: away },
       competitor: [{ "@type": "SportsTeam", name: home }, { "@type": "SportsTeam", name: away }],
@@ -513,7 +514,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
           </header>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={`/matches/${encodeURIComponent(slug)}`} />
+            <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={matchPath(slug)} />
             {matchState === "upcoming" && !stale && <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>}
             <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
           </div>

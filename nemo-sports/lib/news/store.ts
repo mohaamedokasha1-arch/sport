@@ -640,6 +640,41 @@ export async function setArticleStatus(id: string, status: NewsArticle["status"]
   return true;
 }
 
+/**
+ * Re-classification only: writes the three category fields and nothing else.
+ * Status, source, dates and the record itself are never changed here, so a
+ * re-run of the classifier cannot hide, delete or re-publish an article.
+ */
+export async function updateArticleCategory(
+  id: string,
+  c: { category: string; secondaryCategories: string[]; categoryConfidence: number },
+): Promise<boolean> {
+  const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
+  if (db) {
+    try {
+      await db.run(
+        "UPDATE news_articles SET category = $2, secondary_categories = $3, category_confidence = $4, updated_at = now() WHERE id = $1",
+        [id, c.category, c.secondaryCategories, c.categoryConfidence],
+      );
+      return true;
+    } catch {
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
+    }
+  }
+  seedMemory();
+  const a = memArticles.get(id);
+  if (!a) return false;
+  memArticles.set(id, {
+    ...a,
+    category: c.category,
+    secondaryCategories: c.secondaryCategories,
+    categoryConfidence: c.categoryConfidence,
+    updatedAt: new Date().toISOString(),
+  });
+  return true;
+}
+
 export async function deleteArticle(id: string): Promise<boolean> {
   const db = await pg();
   if (!db) await persistOrThrow(null, async () => {});
