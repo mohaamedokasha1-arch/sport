@@ -47,9 +47,9 @@ jobs:
 
       - name: Diagnostics (names and presence only, no values)
         run: |
-          echo "date(UTC)=$(date -u +%F_%T) tz=${TZ:-unset} node=$(node -v) NODE_ENV=${NODE_ENV:-unset}"
+          echo "::notice title=diag::date(UTC)=$(date -u +%F_%T) tz=${TZ:-unset} node=$(node -v) NODE_ENV=${NODE_ENV:-unset}"
           for v in CI GITHUB_ACTIONS NEMO_SDL_MODE NEMO_SPORTSCORE_ENABLED NEMO_TEST_MEMORY_ONLY DATABASE_URL REDIS_URL SPORTRADAR_KEY SPORTMONKS_TOKEN SPORTMONKS_API_TOKEN API_FOOTBALL_KEY THESPORTSDB_KEY THESPORTSDB_API_KEY FOOTBALL_DATA_API_KEY NEMO_NEWS_DISABLE NEMO_DEBUG VERCEL_URL NEXT_PUBLIC_DEMO_CONTENT NEXT_PUBLIC_SITE_URL CRON_SECRET ADMIN_ACCESS_TOKEN; do
-            if [ -n "${!v:-}" ]; then echo "  $v=set"; else echo "  $v=unset"; fi
+            if [ -n "${!v:-}" ]; then echo "::notice title=diag::$v=set"; else echo "::notice title=diag::$v=unset"; fi
           done
 
       # The server and the smoke test run in ONE step. A server started in one
