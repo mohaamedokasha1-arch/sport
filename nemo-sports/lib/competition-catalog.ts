@@ -1,5 +1,5 @@
 import { FOOTBALL_DATA_COMPETITIONS } from "@/packages/sdl/src";
-import { matchesSearchText, normalizeSearchText } from "@/lib/search-text";
+import { normalizeSearchText } from "@/lib/search-text";
 
 export type CanonicalCompetition = {
   code: string;
@@ -144,7 +144,14 @@ export const canonicalCompetitions: CanonicalCompetition[] = [
 ];
 
 export function competitionByPath(path: string): CanonicalCompetition | undefined {
-  const value = decodeURIComponent(path).trim();
+  let value: string;
+  try {
+    value = decodeURIComponent(path).trim();
+  } catch {
+    // Query-string values may contain a literal or malformed percent escape.
+    // Treat those as unknown identifiers instead of crashing the route.
+    return undefined;
+  }
   const normalized = normalizeSearchText(value).replace(/\s+/g, "-");
   return canonicalCompetitions.find((competition) => {
     const aliases = [
@@ -175,16 +182,13 @@ export function fixtureBelongsToCompetition(
 ): boolean {
   const ref = typeof competition === "string" ? competitionByPath(competition) : competition;
   const values = [fixture.competitionProviderId, fixture.competitionName].filter(Boolean) as string[];
-  if (ref) {
-    return values.some((value) => {
-      const normalized = normalizeSearchText(value);
-      return [ref.code, ref.slug, ref.providerId, ref.name, ref.nameAr, ref.canonicalSlug]
-        .filter(Boolean)
-        .some((alias) => {
-          const needle = normalizeSearchText(alias as string);
-          return normalized === needle || (needle.length > 3 && normalized.includes(needle)) || (normalized.length > 3 && needle.includes(normalized));
-        });
-    });
-  }
-  return values.some((value) => matchesSearchText(competition as string, value));
+  const aliases = ref
+    ? [ref.code, ref.slug, ref.providerId, ref.name, ref.nameAr, ref.canonicalSlug]
+    : [competition as string];
+  const exactAliases = new Set(aliases.filter(Boolean).map((alias) => normalizeSearchText(alias as string)));
+
+  // Provider IDs and known names are aliases in the set above; matching them
+  // exactly avoids e.g. "Premier League" also selecting the Hong Kong and
+  // Bermuda competitions. Partial search belongs in the team field, not here.
+  return values.some((value) => exactAliases.has(normalizeSearchText(value)));
 }

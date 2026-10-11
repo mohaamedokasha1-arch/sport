@@ -32,13 +32,18 @@ export function filterMatches(q: MatchQuery, now = Date.now()) {
     if (q.competition && m.competition !== q.competition) return false;
 
     const s = states[m.id]?.status ?? m.status;
+    const d = dayDiff(m.kickoff);
     if (q.status && q.status !== "all") {
       if (q.status === "live" && s !== "LIVE" && s !== "HT") return false;
       if (q.status === "upcoming" && s !== "UPCOMING") return false;
       if (q.status === "finished" && s !== "FINISHED") return false;
+      if (q.status === "postponed" && s !== "POSTPONED") return false;
+      if (q.status === "cancelled" && s !== "CANCELLED") return false;
+      if (q.status === "suspended" && s !== "SUSPENDED") return false;
+      if (q.status === "abandoned") return false;
+      if (q.status === "unconfirmed" && (s !== "UPCOMING" || d >= 0)) return false;
     }
 
-    const d = dayDiff(m.kickoff);
     switch (q.date) {
       case "yesterday":
         if (d !== -1) return false;
@@ -83,6 +88,11 @@ export function matchCounts(now = Date.now()) {
     }).length,
     "status:upcoming": today.filter((m) => states[m.id]?.status === "UPCOMING").length,
     "status:finished": today.filter((m) => states[m.id]?.status === "FINISHED").length,
+    "status:postponed": today.filter((m) => states[m.id]?.status === "POSTPONED").length,
+    "status:cancelled": today.filter((m) => states[m.id]?.status === "CANCELLED").length,
+    "status:suspended": today.filter((m) => states[m.id]?.status === "SUSPENDED").length,
+    "status:abandoned": 0,
+    "status:unconfirmed": today.filter((m) => states[m.id]?.status === "UPCOMING" && dayDiff(m.kickoff) < 0).length,
   };
   return counts;
 }

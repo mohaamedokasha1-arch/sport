@@ -45,6 +45,8 @@ export const FOOTBALL_DATA_URL = FOOTBALL_DATA_HOME;
 /** The exact wording shown whenever the feed cannot be served. */
 export const DATA_UNAVAILABLE_MESSAGE = "Data temporarily unavailable";
 
+export type ProviderAttribution = { label: string; url?: string };
+
 export type FootballDataSource = {
   provider: ProviderName;
   /** true when the payload was served from a cache layer instead of the network */
@@ -54,7 +56,7 @@ export type FootballDataSource = {
   fetchedAt: string;
   /** seconds the canonical cache entry is valid for (SDL cache policy) */
   ttlSeconds: number;
-  attribution: { label: string; url: string };
+  attribution: ProviderAttribution;
 };
 
 export type FootballDataResult<T> =
@@ -110,6 +112,20 @@ export function dayKey(date: Date = new Date()): string {
 }
 
 const ATTRIBUTION = { label: "Powered by Football-Data.org", url: FOOTBALL_DATA_URL };
+const SPORTSCORE_ATTRIBUTION: ProviderAttribution = {
+  label: "Powered by SportScore",
+  url: "https://sportscore.com/",
+};
+
+/** Keep the attribution paired with the provider that actually returned data. */
+export function attributionForProvider(provider: ProviderName | "admin"): ProviderAttribution {
+  if (provider === "football_data") return ATTRIBUTION;
+  if (provider === "sportscore") return SPORTSCORE_ATTRIBUTION;
+  if (provider === "demo") return { label: "Demo data (preview only)" };
+  if (provider === "admin") return { label: "Editorial data" };
+  // Do not misattribute an unrecognized fallback to Football-Data.org.
+  return { label: `Data source: ${provider}` };
+}
 
 /**
  * Translate a gateway result into the service contract: cache metadata on
@@ -140,7 +156,7 @@ async function wrap<T>(result: GatewayResult<T>, dataType: DataType): Promise<Fo
       stale: result.stale,
       fetchedAt: result.fetchedAt,
       ttlSeconds: policy?.canonical ?? 0,
-      attribution: ATTRIBUTION,
+      attribution: attributionForProvider(result.provider),
     },
   };
 }
