@@ -51,6 +51,10 @@ jobs:
       - name: Smoke against a production server (empty-data mode, no secrets)
         env:
           BASE: http://127.0.0.1:3000
+          # Pin the empty-data configuration. The keyless SportScore provider is
+          # enabled by default and would make real outbound calls on a runner
+          # with internet access, changing the responses smoke asserts on.
+          NEMO_SPORTSCORE_ENABLED: "0"
         run: |
           # setsid gives the server its own process group, so the whole tree can be stopped.
           setsid npm run start > "$RUNNER_TEMP/server.log" 2>&1 &
