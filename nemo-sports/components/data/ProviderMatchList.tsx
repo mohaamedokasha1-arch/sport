@@ -1,10 +1,11 @@
 import Link from "next/link";
 import PoweredBy from "@/components/ui/PoweredBy";
 import ProviderCrest from "@/components/ui/ProviderCrest";
+import ScorePair from "@/components/ui/ScorePair";
 import { SITE_TZ } from "@/lib/tz";
-import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
+import { matchStateOf, MATCH_STATE_LABEL_AR, unconfirmedNoteAr } from "@/lib/match-state";
 import type { NormalizedFixture } from "@/packages/sdl/src";
-import { isLiveStatus } from "@/lib/match-state";
+import { isLiveNow } from "@/lib/match-state";
 
 /**
  * Renders REAL matches coming from the Sports Data Layer (SportScore) in the
@@ -21,7 +22,7 @@ export function MatchStatePill({ fixture, now = Date.now() }: { fixture: Normali
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-[3px] bg-live-red/10 px-1.5 py-0.5 text-[11px] font-extrabold text-live-red">
         <span className="live-dot" aria-hidden />
-        {["halftime", "extra_time_halftime"].includes(fixture.status) ? "استراحة" : fixture.minute !== null ? `${fixture.minute}'` : "مباشر"}
+        {["halftime", "extra_time_halftime"].includes(fixture.status) ? "استراحة" : fixture.minute !== null ? <span dir="ltr">{`${fixture.minute}'`}</span> : "مباشر"}
       </span>
     );
   }
@@ -36,7 +37,7 @@ export function MatchStatePill({ fixture, now = Date.now() }: { fixture: Normali
     // Show the kickoff (it is the only thing the source gave us) flagged as
     // unverified, instead of presenting it as a match still to come.
     return (
-      <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={UNCONFIRMED_NOTE_AR}>
+      <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={unconfirmedNoteAr(fixture.status)}>
         <span className="num">{timeOf(fixture.scheduledAt)}</span>
         <span className="mt-0.5 block text-[10px] font-extrabold">غير مؤكدة</span>
       </span>
@@ -64,7 +65,7 @@ export default function ProviderMatchList({
     <div className="space-y-2">
       <ul className={view === "list" ? "space-y-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>
         {fixtures.map((f) => {
-          const live = isLiveStatus(f.status);
+          const live = isLiveNow(f.status, f.scheduledAt);
           const played = f.homeScore !== null && f.awayScore !== null;
           return (
             <li key={f.providerId}>
@@ -75,22 +76,20 @@ export default function ProviderMatchList({
                 <div className="min-w-0 flex-1">
                   {f.editorialUpdatedAt && <p className="mb-1 text-[10px] text-muted">إدخال تحريري · ليس تحققًا آليًا من المزود</p>}
                   {showCompetition && f.competitionName ? (
-                    <p className="mb-1 truncate text-[10.5px] text-muted">{f.competitionName}</p>
+                    <p dir="auto" className="mb-1 truncate text-right text-[10.5px] text-muted">{f.competitionName}</p>
                   ) : null}
-                  <p className="flex items-center gap-1.5 truncate text-[13px] font-bold">
+                  <p className="flex min-w-0 items-center gap-2 text-[13px] font-bold">
                     <ProviderCrest name={f.homeName ?? f.homeProviderId ?? "الفريق المستضيف"} logoUrl={f.homeLogoUrl} size={22} />
-                    <span className="truncate">{f.homeName ?? f.homeProviderId ?? "—"}</span>
+                    <span dir="auto" className="min-w-0 truncate" title={f.homeName ?? f.homeProviderId ?? undefined}>{f.homeName ?? f.homeProviderId ?? "—"}</span>
                   </p>
-                  <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px] font-bold">
+                  <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] font-bold">
                     <ProviderCrest name={f.awayName ?? f.awayProviderId ?? "الفريق الضيف"} logoUrl={f.awayLogoUrl} size={22} />
-                    <span className="truncate">{f.awayName ?? f.awayProviderId ?? "—"}</span>
+                    <span dir="auto" className="min-w-0 truncate" title={f.awayName ?? f.awayProviderId ?? undefined}>{f.awayName ?? f.awayProviderId ?? "—"}</span>
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-center gap-1">
                   {played ? (
-                    <span className="num text-[16px] font-extrabold tabular-nums">
-                      {f.homeScore} : {f.awayScore}
-                    </span>
+                    <ScorePair home={f.homeScore} away={f.awayScore} className="text-[16px] font-extrabold" />
                   ) : (
                     <span className="text-[13px] font-extrabold text-muted">— : —</span>
                   )}

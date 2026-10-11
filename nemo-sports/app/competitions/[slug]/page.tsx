@@ -26,7 +26,7 @@ import { playerBySlug, sportBySlug, teamBySlug, teamsByCompetition } from "@/lib
 import { getAdminCompetitionBySlug } from "@/lib/admin-competitions";
 import { AdminCompetitionDetail } from "@/components/public/AdminPublished";
 import { decodeSlug } from "@/lib/slug";
-import { isLiveStatus } from "@/lib/match-state";
+import { isLiveStatus, matchStateOf, isFinishedStatus } from "@/lib/match-state";
 
 /**
  * Bound the lifetime of an on-demand ISR entry.
@@ -279,8 +279,10 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
   const scorerData = scorerResult?.ok && scorerResult.source.provider !== "demo" ? scorerResult : null;
   const scorers: NormalizedTopScorer[] = scorerData?.data ?? [];
   const live = fixtures.filter((fixture) => isLiveStatus(fixture.status));
-  const upcoming = fixtures.filter((fixture) => fixture.status === "scheduled").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)).slice(0, 9);
-  const results = fixtures.filter((fixture) => fixture.status === "finished").sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)).slice(0, 9);
+  // Shared state rule: a stale "scheduled" (kickoff day passed) is not upcoming,
+  // and walkover/awarded results count as results.
+  const upcoming = fixtures.filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt) === "upcoming").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)).slice(0, 9);
+  const results = fixtures.filter((fixture) => isFinishedStatus(fixture.status)).sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)).slice(0, 9);
   const tableGroups = new Map<string, NormalizedStandingRow[]>();
   for (const row of rows) {
     const group = row.group ?? "";

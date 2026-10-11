@@ -12,11 +12,24 @@
 
 import type { RSSSource } from "./types";
 
+export const DEFAULT_FEED_BASE_URL = "https://news.google.com/rss/search";
+
+/**
+ * Feed search endpoint. NEMO_NEWS_FEED_BASE_URL overrides the host for a local
+ * mock or a proxy (same convention as SPORTSCORE_BASE_URL and
+ * FOOTBALL_DATA_BASE_URL) — used to verify an authorized ingestion run end to
+ * end without reaching Google from CI/sandboxes. Must be http(s).
+ */
+export function feedBaseUrl(env: Record<string, string | undefined> = process.env): string {
+  const raw = String(env.NEMO_NEWS_FEED_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  return /^https?:\/\/[^\s]+$/i.test(raw) ? raw : DEFAULT_FEED_BASE_URL;
+}
+
 export function buildFeedUrl(query: string, language: string, country: string): string {
   const hl = language === "ar" ? "ar" : "en";
   const gl = country.toUpperCase();
   const ceid = `${gl}:${hl}`;
-  return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
+  return `${feedBaseUrl()}?q=${encodeURIComponent(query)}&hl=${hl}&gl=${gl}&ceid=${ceid}`;
 }
 
 type Seed = Pick<RSSSource, "query" | "language" | "country" | "priority" | "refreshInterval"> & {

@@ -1,5 +1,6 @@
 "use client";
 
+import ScorePair from "@/components/ui/ScorePair";
 import Link from "next/link";
 import Crest from "@/components/ui/Crest";
 import Tabs from "@/components/ui/Tabs";
@@ -74,11 +75,7 @@ export default function MatchLive({
 
             <div className="flex flex-col items-center px-3">
               {isDone || isLive ? (
-                <span className="num text-5xl font-extrabold leading-none" dir="ltr">
-                  {state.homeScore}
-                  <span className="mx-2 text-gold-500">–</span>
-                  {state.awayScore}
-                </span>
+                <ScorePair home={state.homeScore} away={state.awayScore} separator="–" separatorClassName="text-gold-500" className="text-5xl font-extrabold leading-none" />
               ) : (
                 <>
                   <span className="num text-4xl font-extrabold leading-none text-gold-400" dir="ltr">

@@ -195,3 +195,10 @@ body {
     animation: none !important;
   }
 }
+
+/* Team monogram fallback (components/ui/ProviderCrest.tsx). The letters are
+   drawn by CSS, not DOM text, so the badge never merges with the adjacent full
+   name in copy/paste, reader modes or text extraction ("VaqVaqueros"). */
+.crest-monogram::before {
+  content: attr(data-monogram);
+}

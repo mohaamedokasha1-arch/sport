@@ -22,7 +22,10 @@ assert.equal((await fetch(`${base}/api/v1/system`, { headers: { cookie: admin } 
 const editor = await login("qa_editor", credentials.NEMO_QA_PASSWORD);
 assert.equal((await fetch(`${base}/api/v1/system`, { headers: { cookie: editor } })).status, 403);
 assert.equal((await fetch(`${base}/admin/users`, { headers: { cookie: editor } })).status, 404);
-assert.equal((await fetch(`${base}/api/admin/streams/validate`, { method: "POST", headers: { cookie: editor, "content-type": "application/json" }, body: JSON.stringify({ url: "https://attacker.invalid/embed" }) })).status, 422);
+// Policy-independent: an insecure link is refused under both the default
+// `open` domain policy and `allowlist` (an unlisted https host is refused only
+// under `allowlist`, which this check used to assume).
+assert.equal((await fetch(`${base}/api/admin/streams/validate`, { method: "POST", headers: { cookie: editor, "content-type": "application/json" }, body: JSON.stringify({ url: "http://attacker.invalid/embed" }) })).status, 422);
 const slug = "qa-nemo-a-vs-b-2030-01-01";
 const response = await fetch(`${base}/matches/${slug}`); assert.equal(response.status, 200);
 const html = await response.text(); assert.ok(html.includes("QA Nemo A")); assert.ok(html.includes("https://www.youtube.com/embed/qa-only"));

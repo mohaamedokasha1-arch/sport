@@ -1,3 +1,4 @@
+import { isFinishedStatus } from "@/lib/match-state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import DataUnavailable from "@/components/ui/DataUnavailable";
@@ -63,7 +64,7 @@ export default async function ResultsPage({
   const realData = real.ok && real.source === "provider" ? real : null;
   const finished = realData
     ? realData.data
-        .filter((fixture) => fixture.status === "finished" && hasMatchIdentity(fixture) && matchesDay(fixture.scheduledAt, dayFilter, now))
+        .filter((fixture) => isFinishedStatus(fixture.status) && hasMatchIdentity(fixture) && matchesDay(fixture.scheduledAt, dayFilter, now))
         .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
         .slice(0, 60)
     : [];

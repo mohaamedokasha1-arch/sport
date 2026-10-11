@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ProviderCrest from "@/components/ui/ProviderCrest";
+import ScorePair from "@/components/ui/ScorePair";
 import { SITE_TZ } from "@/lib/tz";
 import { isLiveStatus } from "@/lib/match-state";
 
@@ -27,6 +28,8 @@ type RailResponse = {
   matches: RailMatch[];
   mode: "live" | "upcoming" | "empty" | "unavailable" | "preview";
   updatedAt: string;
+  /** Matches in play across every public sport (the /live count). */
+  liveTotal?: number;
 };
 
 const clockText = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
@@ -69,7 +72,7 @@ export default function ScoreRail() {
       <div className="mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-2">
         <Link href="/live" className="flex min-h-11 shrink-0 items-center gap-2 border-e border-navy-800 pe-3 text-[11px] font-extrabold text-gold-400 transition hover:text-white focus-ring">
           {isLiveMode && hasMatches ? <span className="live-dot" aria-hidden /> : null}
-          {isPreview ? "معاينة التطوير" : isLiveMode ? "مباشر الآن" : "متابعة المباريات"}
+          {isPreview ? "معاينة التطوير" : isLiveMode ? `مباشر الآن${data?.liveTotal ? ` (${data.liveTotal})` : ""}` : "متابعة المباريات"}
         </Link>
 
         {hasMatches ? (
@@ -84,13 +87,19 @@ export default function ScoreRail() {
                   href={`/matches/${encodeURIComponent(match.slug)}`}
                   className={`flex min-h-11 shrink-0 items-center gap-2 rounded-[3px] border px-2.5 py-1.5 transition focus-ring ${live ? "border-live/40 bg-live/10 hover:bg-live/20" : "border-white/10 bg-white/[0.04] hover:border-gold-500/50"}`}
                 >
-                  {match.competition ? <span className="hidden max-w-24 truncate text-[10px] font-semibold text-white/45 md:block">{match.competition}</span> : null}
+                  {match.competition ? <span dir="auto" className="hidden max-w-24 truncate text-[10px] font-semibold text-white/45 md:block">{match.competition}</span> : null}
                   <ProviderCrest name={match.homeName} logoUrl={match.homeLogoUrl} size={20} />
-                  <span className="max-w-[96px] truncate text-[11px] font-semibold">{match.homeName}</span>
-                  <span className={`num min-w-[48px] text-center text-[13px] font-extrabold ${live ? "text-white" : "text-white/85"}`} dir="ltr">
-                    {isPreview ? "معاينة" : hasScore ? `${match.homeScore}–${match.awayScore}` : clockText(match.kickoff)}
-                  </span>
-                  <span className="max-w-[96px] truncate text-[11px] font-semibold">{match.awayName}</span>
+                  <span dir="auto" className="max-w-[96px] truncate text-[11px] font-semibold" title={match.homeName}>{match.homeName}</span>
+                  {/* Home name comes first (right side in RTL), so the home score
+                      must too — no dir="ltr" around the pair. */}
+                  {isPreview ? (
+                    <span className="num min-w-[48px] text-center text-[13px] font-extrabold text-white/85">معاينة</span>
+                  ) : hasScore ? (
+                    <ScorePair home={match.homeScore} away={match.awayScore} separator="–" separatorClassName="text-white/45" className={`min-w-[48px] justify-center text-[13px] font-extrabold ${live ? "text-white" : "text-white/85"}`} />
+                  ) : (
+                    <span className="num min-w-[48px] text-center text-[13px] font-extrabold text-white/85" dir="ltr">{clockText(match.kickoff)}</span>
+                  )}
+                  <span dir="auto" className="max-w-[96px] truncate text-[11px] font-semibold" title={match.awayName}>{match.awayName}</span>
                   <ProviderCrest name={match.awayName} logoUrl={match.awayLogoUrl} size={20} />
                   <span className={`num text-[10px] font-bold ${live ? "text-live" : "text-white/45"}`} dir="ltr">
                     {isPreview ? "تجريبي" : live ? match.clock ?? "مباشر" : finished ? "انتهت" : ""}
@@ -102,13 +111,19 @@ export default function ScoreRail() {
         ) : (
           <div className="flex min-w-0 flex-1 items-center justify-between gap-3 py-1 text-[12px] text-white/65">
             <p role="status">
-              {failed || data?.mode === "unavailable"
-                ? "تعذر تحديث النتائج الآن. نعيد المحاولة تلقائيًا."
-                : "لا توجد مباراة جارية الآن."}
+              {/* Before the first answer arrives we know nothing: never claim
+                  "no match in progress" (the server-rendered HTML used to say
+                  exactly that on every page, on top of /live and the homepage,
+                  while matches were being played). */}
+              {data === null && !failed
+                ? "جارٍ تحميل المباريات الجارية…"
+                : failed || data?.mode === "unavailable"
+                  ? "تعذر تحديث النتائج الآن. نعيد المحاولة تلقائيًا."
+                  : "لا توجد مباراة جارية الآن."}
               {data?.mode === "empty" ? " لا توجد مباريات قادمة اليوم من المصدر." : null}
             </p>
-            <Link href={data?.mode === "empty" ? "/fixtures" : "/matches?date=today"} className="inline-flex min-h-11 shrink-0 items-center rounded-[3px] px-2 py-2 font-bold text-gold-400 hover:text-white focus-ring">
-              {data?.mode === "empty" ? "المباريات القادمة ←" : "مباريات اليوم ←"}
+            <Link href={data?.mode === "empty" ? "/fixtures" : data === null ? "/live" : "/matches?date=today"} className="inline-flex min-h-11 shrink-0 items-center rounded-[3px] px-2 py-2 font-bold text-gold-400 hover:text-white focus-ring">
+              {data?.mode === "empty" ? "المباريات القادمة ←" : data === null ? "المباريات المباشرة ←" : "مباريات اليوم ←"}
             </Link>
           </div>
         )}

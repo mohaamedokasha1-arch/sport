@@ -137,7 +137,10 @@ export function createSdl(env: SdlEnv = {}, opts: SdlOptions = {}): { sdl: Sport
         live_matches: { raw: 45, canonical: 50, staleGrace: 120 },
         match_detail: { raw: 45, canonical: 50, staleGrace: 300 },
         match_events: { raw: 45, canonical: 50, staleGrace: 120 },
-        fixtures: { raw: 60, canonical: 120, staleGrace: 3600 },
+        // Same lifetimes as live_matches: both are views of ONE upstream feed
+        // (the adapter shares the response), so a page that reads both sees
+        // one snapshot instead of two caches up to two minutes apart.
+        fixtures: { raw: 45, canonical: 50, staleGrace: 3600 },
         standings: { raw: 300, canonical: 600, staleGrace: 7200 },
         top_scorers: { raw: 600, canonical: 1800, staleGrace: 86400 },
         player_stats: { raw: 600, canonical: 1800, staleGrace: 86400 },

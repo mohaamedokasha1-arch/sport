@@ -233,3 +233,87 @@ test("self-identification: src=nemo-sports is sent on every request", async () =
   await adapter(impl).getLiveMatches({ sport: "football" });
   assert.equal(seen?.searchParams.get("src"), "nemo-sports");
 });
+
+/* ── 2026-10-11 production regression: status_text carries the real state ── */
+
+test("mapStatus: period labels are not minutes ('1st half' was rendered as 1')", () => {
+  assert.deepEqual(mapStatus("live", "1st half"), { status: "live", minute: null });
+  assert.deepEqual(mapStatus("live", "2nd half"), { status: "live", minute: null });
+  // basketball / tennis / cricket period labels
+  assert.deepEqual(mapStatus("live", "2nd quarter"), { status: "live", minute: null });
+  assert.deepEqual(mapStatus("live", "3rd set"), { status: "live", minute: null });
+  assert.deepEqual(mapStatus("live", "1st innings"), { status: "live", minute: null });
+  // real clocks still parse
+  assert.deepEqual(mapStatus("live", "61'"), { status: "live", minute: 61 });
+  assert.deepEqual(mapStatus("live", "45+2'"), { status: "live", minute: 45 });
+  assert.deepEqual(mapStatus("live", "90'+3"), { status: "live", minute: 90 });
+});
+
+test("mapStatus: a live match at 'Half time' is a half-time break, not a generic live match", () => {
+  assert.deepEqual(mapStatus("live", "Half time"), { status: "halftime", minute: null });
+  assert.deepEqual(mapStatus("live", "HT"), { status: "halftime", minute: null });
+  assert.equal(mapStatus("live", "Halftime").status, "halftime");
+  assert.equal(mapStatus("live", "Extra time").status, "extra_time");
+  assert.equal(mapStatus("live", "Penalties").status, "penalty_shootout");
+  assert.equal(mapStatus("extra_time_halftime", "").status, "extra_time_halftime");
+});
+
+test("mapStatus: 'upcoming' + 'Postponed' / 'Cancelled' is not an upcoming fixture", () => {
+  assert.deepEqual(mapStatus("upcoming", "Postponed"), { status: "postponed", minute: null });
+  assert.deepEqual(mapStatus("upcoming", "Cancelled"), { status: "cancelled", minute: null });
+  assert.equal(mapStatus("upcoming", "Abandoned").status, "abandoned");
+  assert.equal(mapStatus("upcoming", "Interrupted").status, "suspended");
+  // an explicit not-started status never becomes live because of decoration
+  assert.equal(mapStatus("upcoming", "1st leg").status, "scheduled");
+  assert.equal(mapStatus("upcoming", "Delayed").status, "scheduled");
+  assert.equal(mapStatus("finished", "AET").status, "finished");
+});
+
+test("production feed 2026-10-11: live view keeps half-time matches, drops the postponed one, invents no minute", async () => {
+  const t = stubTransport({ "matches?football:50": fx("feed-2026-10-11.json") });
+  const a = new SportScoreAdapter({ baseUrl: "https://sportscore.com/api/widget", fetchImpl: t.impl, retries: 0 });
+  const live = await a.getLiveMatches({ sport: "football" });
+  assert.equal(live.ok, true);
+  if (!live.ok) return;
+  const ids = live.data.map((f) => f.providerId).sort();
+  assert.deepEqual(ids, [
+    "atletico-saltillo-vs-vaqueros-reynosa",
+    "la-tribu-de-cd-juarez-vs-fc-santiago",
+    "rebels-fc-vs-meg",
+    "river-plate-vs-estudiantes-rio-cuarto",
+    "sao-paulo-vs-vitoria-ba",
+  ]);
+  const byId = new Map(live.data.map((f) => [f.providerId, f]));
+  assert.equal(byId.get("sao-paulo-vs-vitoria-ba")!.status, "halftime");
+  assert.equal(byId.get("sao-paulo-vs-vitoria-ba")!.minute, null);
+  assert.equal(byId.get("la-tribu-de-cd-juarez-vs-fc-santiago")!.minute, null, "'1st half' is not minute 1");
+  assert.equal(byId.get("rebels-fc-vs-meg")!.minute, 90);
+
+  const all = await a.getFixtures({ sport: "football" });
+  assert.equal(all.ok, true);
+  if (!all.ok) return;
+  const postponed = all.data.find((f) => f.providerId === "pembroke-hamilton-club-vs-devonshire-cougars");
+  assert.equal(postponed?.status, "postponed");
+  assert.equal(t.hits(), 1, "the live view and the fixtures view share one upstream snapshot");
+});
+
+test("feed snapshot sharing can be disabled (feedTtlMs: 0) and never caches failures", async () => {
+  const t = stubTransport({ "matches?football:50": fx("feed-2026-10-11.json") });
+  const a = new SportScoreAdapter({ baseUrl: "https://sportscore.com/api/widget", fetchImpl: t.impl, retries: 0, feedTtlMs: 0 });
+  await a.getLiveMatches({ sport: "football" });
+  await a.getFixtures({ sport: "football" });
+  assert.equal(t.hits(), 2);
+
+  const failing = stubTransport({}, { failWith: new Error("network down") });
+  const b = new SportScoreAdapter({ baseUrl: "https://sportscore.com/api/widget", fetchImpl: failing.impl, retries: 0 });
+  assert.equal((await b.getLiveMatches({ sport: "football" })).ok, false);
+  assert.equal((await b.getLiveMatches({ sport: "football" })).ok, false);
+  assert.equal(failing.hits(), 2, "a failure is retried on the next call, not replayed from memory");
+});
+
+test("matchSlugFromUrl: the new permalink format with a trailing id keeps the provider slug", () => {
+  assert.equal(matchSlugFromUrl("/football/match/sao-paulo-vs-vitoria-ba/k82rekhg0vyzrep/"), "sao-paulo-vs-vitoria-ba");
+  assert.equal(matchSlugFromUrl("/football/match/atletico-saltillo-vs-vaqueros-reynosa/1l4rjnhnydpxm7v/"), "atletico-saltillo-vs-vaqueros-reynosa");
+  assert.equal(matchSlugFromUrl("/basketball/match/miami-heat-vs-minnesota-timberwolves/"), "miami-heat-vs-minnesota-timberwolves");
+  assert.equal(matchSlugFromUrl("/football/standings/x/"), null);
+});

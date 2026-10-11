@@ -22,17 +22,28 @@ export const FRESHNESS_GRACE_FACTOR = 2;
 
 export type SourceFreshness = "disabled" | "never" | "failing" | "stale" | "fresh";
 
-/** Maximum age (minutes) of the last successful fetch before it counts as stale. */
-export function allowedAgeMinutes(source: Pick<RSSSource, "refreshInterval">): number {
+/**
+ * Maximum age (minutes) of the last successful fetch before it counts as stale.
+ *
+ * `schedulerMinutes` is the cadence at which ingestion actually runs
+ * (lib/news/schedule.ts). When given, a source cannot be expected to refresh
+ * faster than that: the threshold is GRACE × max(source interval, scheduler
+ * interval). Without it (unit tests, legacy callers) the source's own interval
+ * is used, exactly as before.
+ */
+export function allowedAgeMinutes(source: Pick<RSSSource, "refreshInterval">, schedulerMinutes?: number): number {
+  const scheduler = Number.isFinite(schedulerMinutes) && (schedulerMinutes as number) > 0 ? (schedulerMinutes as number) : 0;
+  const own = Number.isFinite(source.refreshInterval) && source.refreshInterval > 0 ? source.refreshInterval : 0;
   // A missing or invalid interval falls back to the baseline itself, not to a
   // doubled baseline: unknown cadence must not silently relax the rule.
-  if (!Number.isFinite(source.refreshInterval) || source.refreshInterval <= 0) return FRESHNESS_FLOOR_MIN;
-  return Math.max(FRESHNESS_FLOOR_MIN, source.refreshInterval * FRESHNESS_GRACE_FACTOR);
+  if (!own && !scheduler) return FRESHNESS_FLOOR_MIN;
+  return Math.max(FRESHNESS_FLOOR_MIN, Math.max(own, scheduler) * FRESHNESS_GRACE_FACTOR);
 }
 
 export function sourceFreshness(
   source: Pick<RSSSource, "enabled" | "refreshInterval" | "lastSuccessfulFetch" | "consecutiveFailures">,
   now = Date.now(),
+  schedulerMinutes?: number,
 ): SourceFreshness {
   if (!source.enabled) return "disabled";
   if (!source.lastSuccessfulFetch) return "never";
@@ -42,5 +53,5 @@ export function sourceFreshness(
   // when its last success is still within the allowed age.
   if (source.consecutiveFailures > 0) return "failing";
   const ageMin = (now - at) / 60000;
-  return ageMin > allowedAgeMinutes(source) ? "stale" : "fresh";
+  return ageMin > allowedAgeMinutes(source, schedulerMinutes) ? "stale" : "fresh";
 }

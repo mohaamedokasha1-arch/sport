@@ -9,11 +9,12 @@ import NewsCard from "@/components/news/NewsCard";
 import CompetitionCard from "@/components/competition/CompetitionCard";
 import Trending from "@/components/home/Trending";
 import SectionHead from "@/components/ui/SectionHead";
-import { fixturesForCairoDate, cachePolicyFor, liveMatches as sdlLive, fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { fixturesForCairoDate, cachePolicyFor, fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { siteDay, siteDateKey } from "@/lib/tz";
-import { isLiveStatus } from "@/lib/match-state";
+import { isFinishedStatus, matchStateOf } from "@/lib/match-state";
+import { SPORT_NAME_AR, liveBoard, reconcileResult } from "@/lib/live-board";
 import {
   articles,
   competitions,
@@ -36,32 +37,42 @@ export const revalidate = 60;
 
 export default async function HomePage() {
   const now = Date.now();
-  const [liveResult, fixtureResult, scorerResult, todayResult] = await Promise.all([
-    sdlLive("football"),
+  // The live section reads the site-wide live board (every public sport) — the
+  // same data /live, /matches and the score rail count. It used to read the
+  // football live feed only, which is why the homepage could say "0 live"
+  // while /matches?date=today counted 24 (all sports).
+  const [board, fixtureResult, scorerResult, todayResult] = await Promise.all([
+    liveBoard(undefined, now),
     sdlFixtures({ sport: "football" }),
     footballTopScorers("english-premier-league"),
     fixturesForCairoDate({ sport: "football", date: siteDateKey(now) }),
   ]);
 
-  const liveData = liveResult.ok && liveResult.source === "provider" ? liveResult : null;
   const fixtureData = fixtureResult.ok && fixtureResult.source === "provider" ? fixtureResult : null;
   const scorerData = scorerResult.ok && scorerResult.source.provider !== "demo" ? scorerResult : null;
-  const realMode = Boolean(liveData || fixtureData || scorerData);
-  const realLive = liveData ? liveData.data.filter((fixture) => hasMatchIdentity(fixture) && isLiveStatus(fixture.status)).slice(0, 6) : [];
+  const realMode = Boolean(board.ok || fixtureData || scorerData);
+  const realLive = board.live.slice(0, 6);
+  const liveBreakdown = board.sports
+    .filter((sport) => (board.bySport[sport] ?? 0) > 0)
+    .map((sport) => `${SPORT_NAME_AR[sport] ?? sport} ${board.bySport[sport]}`)
+    .join(" · ");
+  const failedLive = board.failedSports.map((sport) => SPORT_NAME_AR[sport] ?? sport);
 
   const todayKey = siteDay(now);
   const tomorrowKey = todayKey + 86_400_000;
-  const providerFixtures = fixtureData ? fixtureData.data.filter(hasMatchIdentity) : [];
-  const todayFixtures = (todayResult.ok && todayResult.source === "provider" ? todayResult.data.filter(hasMatchIdentity) : [])
+  // Football sections, reconciled with the same board so a match never shows
+  // "live" here and something else on /live.
+  const providerFixtures = fixtureData ? reconcileResult(fixtureData, board.boards, now).filter(hasMatchIdentity) : [];
+  const todayFixtures = (todayResult.ok && todayResult.source === "provider" ? reconcileResult(todayResult, board.boards, now).filter(hasMatchIdentity) : [])
     .filter((fixture) => siteDay(fixture.scheduledAt) === todayKey)
-    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
-    .slice(0, 12);
+    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const todayShown = todayFixtures.slice(0, 12);
   const tomorrowFixtures = providerFixtures
-    .filter((fixture) => fixture.status === "scheduled" && siteDay(fixture.scheduledAt) === tomorrowKey)
+    .filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt, now) === "upcoming" && siteDay(fixture.scheduledAt) === tomorrowKey)
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
     .slice(0, 9);
   const latestResults = providerFixtures
-    .filter((fixture) => fixture.status === "finished")
+    .filter((fixture) => isFinishedStatus(fixture.status))
     .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
     .slice(0, 6);
 
@@ -72,7 +83,7 @@ export default async function HomePage() {
     return (
       <div className="mx-auto max-w-[1280px] space-y-10 px-4 py-6">
         <header className="border-b-2 border-line pb-4">
-          <p className="eyebrow mb-1">كرة القدم · بيانات من المصادر المتاحة</p>
+          <p className="eyebrow mb-1">بيانات من المصادر المتاحة</p>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">نتائج ومواعيد المباريات</h1>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <p className="max-w-3xl text-[13px] leading-6 text-muted">نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط. قد تختلف التغطية حسب المصدر والبطولة.</p>
@@ -80,30 +91,50 @@ export default async function HomePage() {
           </div>
           {fixtureData ? (
             <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} degraded={fixtureData.degraded} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} />
-          ) : liveData ? (
-            <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} degraded={liveData.degraded} fetchedAt={liveData.fetchedAt} />
+          ) : board.ok ? (
+            <DataSourceNote className="mt-3" provider={board.providers[0] ?? "admin"} fromCache={board.fromCache} stale={board.stale} degraded={board.degraded} fetchedAt={board.fetchedAt ?? undefined} />
           ) : null}
         </header>
 
         <section aria-label="المباريات المباشرة">
-          <SectionHead eyebrow="الآن" title="مباشر الآن" href="/live" linkLabel="كل المباريات المباشرة" />
+          <SectionHead eyebrow="الآن · كل الرياضات" title={board.ok ? `مباشر الآن (${board.total})` : "مباشر الآن"} href="/live" linkLabel="كل المباريات المباشرة" />
+          {board.ok && board.total > 0 ? (
+            <p className="-mt-2 mb-3 text-[12px] text-muted">
+              <span className="num font-bold text-live">{board.total}</span> مباراة جارية الآن في كل الرياضات المتاحة{liveBreakdown ? ` (${liveBreakdown})` : ""}
+              {board.total > realLive.length ? <> · نعرض أول <span className="num">{realLive.length}</span> — <Link href="/live" className="font-bold text-gold-600 dark:text-gold-400">عرض الكل</Link></> : null}
+              {failedLive.length > 0 ? <span className="text-warn-600 dark:text-warn-400"> · تعذّر التحقق من: {failedLive.join("، ")}</span> : null}
+            </p>
+          ) : null}
           {realLive.length > 0 ? (
             <>
               <ProviderMatchList fixtures={realLive} />
-              {liveData ? <DataSourceNote className="mt-3" provider={liveData.provider} fromCache={liveData.fromCache} stale={liveData.stale} fetchedAt={liveData.fetchedAt} /> : null}
+              <DataSourceNote className="mt-3" provider={board.providers[0] ?? "admin"} fromCache={board.fromCache} stale={board.stale} degraded={board.degraded} fetchedAt={board.fetchedAt ?? undefined} />
             </>
-          ) : liveData ? (
-            <div className="card px-4 py-5 text-center text-[13px] text-muted">لا توجد مباريات مباشرة في آخر تحديث للمصدر. <Link href="/fixtures" className="font-bold text-gold-600 dark:text-gold-400">راجع المواعيد القادمة</Link>.</div>
+          ) : board.ok ? (
+            <div className="card px-4 py-5 text-center text-[13px] text-muted">
+              لا توجد مباريات مباشرة في آخر تحديث للمصدر{failedLive.length > 0 ? ` (تعذّر التحقق من: ${failedLive.join("، ")})` : ""}. <Link href="/fixtures" className="font-bold text-gold-600 dark:text-gold-400">راجع المواعيد القادمة</Link>.
+            </div>
           ) : (
             <DataUnavailable title="تعذّر التحقق من المباريات المباشرة" message="لم تتوفر استجابة مؤكدة من مصدر النتائج المباشرة. لا نعرض نتيجة تقديرية." actionHref="/live" actionLabel="إعادة المحاولة في صفحة المباشر" />
           )}
         </section>
 
         <section>
-          <SectionHead eyebrow="اليوم" title="مباريات اليوم" href="/matches?date=today" linkLabel="كل مباريات اليوم" />
+          <SectionHead
+            eyebrow="اليوم · كرة القدم"
+            title={todayFixtures.length > 0 ? `مباريات اليوم (${todayFixtures.length})` : "مباريات اليوم"}
+            href="/matches?date=today&sport=football"
+            linkLabel="كل مباريات كرة القدم اليوم"
+          />
           {todayFixtures.length > 0 ? (
             <>
-              <ProviderMatchList fixtures={todayFixtures} />
+              {todayFixtures.length > todayShown.length ? (
+                <p className="-mt-2 mb-3 text-[12px] text-muted">
+                  نعرض أول <span className="num">{todayShown.length}</span> من <span className="num">{todayFixtures.length}</span> مباراة كرة قدم اليوم ·{" "}
+                  <Link href="/matches?date=today" className="font-bold text-gold-600 dark:text-gold-400">مباريات اليوم في كل الرياضات</Link>
+                </p>
+              ) : null}
+              <ProviderMatchList fixtures={todayShown} />
               {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : (
@@ -123,7 +154,7 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <SectionHead eyebrow="غدًا" title="مباريات الغد" href="/fixtures" linkLabel="كل المواعيد القادمة" />
+          <SectionHead eyebrow="غدًا · كرة القدم" title="مباريات الغد" href="/matches?date=tomorrow&sport=football" linkLabel="كل مواعيد الغد" />
           {tomorrowFixtures.length > 0 ? (
             <>
               <ProviderMatchList fixtures={tomorrowFixtures} />
@@ -135,7 +166,7 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <SectionHead eyebrow="النتائج" title="أحدث النتائج" href="/results" linkLabel="كل النتائج" />
+          <SectionHead eyebrow="النتائج · كرة القدم" title="أحدث النتائج" href="/results" linkLabel="كل النتائج" />
           {latestResults.length > 0 ? (
             <>
               <ProviderMatchList fixtures={latestResults} />

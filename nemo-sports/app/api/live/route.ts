@@ -3,10 +3,11 @@ import { getLiveStates, type LiveState } from "@/lib/live";
 import { allMatches } from "@/lib/data";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { demoContentVisible } from "@/lib/site";
-import { fixtures, liveMatches } from "@/lib/sdl-gateway";
+import { fixtures } from "@/lib/sdl-gateway";
 import { siteDay } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
-import { isLiveStatus } from "@/lib/match-state";
+import { isLiveStatus, matchStateOf } from "@/lib/match-state";
+import { liveBoard, reconcileResult } from "@/lib/live-board";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -109,38 +110,39 @@ function demoRail(now: number): RailFixture[] {
     });
 }
 
-async function realRail(now: number): Promise<{ matches: RailFixture[]; mode: "live" | "upcoming" | "empty" | "unavailable"; updatedAt: string }> {
-  const [liveResult, fixtureResult] = await Promise.all([liveMatches("football"), fixtures({ sport: "football" })]);
-  const liveData = liveResult.ok && liveResult.source === "provider" ? liveResult.data.filter(validFixture) : [];
-  const allFixtures = fixtureResult.ok && fixtureResult.source === "provider" ? fixtureResult.data.filter(validFixture) : [];
-  const isDataAvailable = (liveResult.ok && liveResult.source === "provider") || (fixtureResult.ok && fixtureResult.source === "provider");
-
-  const liveById = new Map<string, NormalizedFixture>();
-  for (const fixture of [...liveData, ...allFixtures]) {
-    if (isLiveStatus(fixture.status) && fixture.providerId && !liveById.has(fixture.providerId)) liveById.set(fixture.providerId, fixture);
-  }
-  const live = [...liveById.values()];
+/**
+ * The rail reads the SAME live board as /live and the homepage (every public
+ * sport, football first). It used to ask the football live feed only, so it
+ * said «لا توجد مباراة جارية الآن» while basketball/tennis matches were live.
+ */
+async function realRail(now: number): Promise<{ matches: RailFixture[]; mode: "live" | "upcoming" | "empty" | "unavailable"; updatedAt: string; liveTotal: number }> {
+  const board = await liveBoard(undefined, now);
+  const live = board.live.filter(validFixture);
   if (live.length > 0) {
-    const fetchedAt = liveResult.ok && liveResult.source === "provider"
-      ? liveResult.fetchedAt
-      : fixtureResult.ok && fixtureResult.source === "provider"
-        ? fixtureResult.fetchedAt
-        : new Date(now).toISOString();
-    return { matches: live.slice(0, 8).map(railFixture), mode: "live", updatedAt: fetchedAt };
+    return { matches: live.slice(0, 8).map(railFixture), mode: "live", updatedAt: board.fetchedAt ?? new Date(now).toISOString(), liveTotal: board.total };
   }
 
+  // Nothing in play: today's next football kickoffs (football is the site's
+  // primary sport), reconciled with the board so a stale "scheduled" never
+  // shows up as upcoming.
+  const fixtureResult = await fixtures({ sport: "football" });
+  const allFixtures = fixtureResult.ok && fixtureResult.source === "provider"
+    ? reconcileResult(fixtureResult, board.boards, now).filter(validFixture)
+    : [];
   const upcoming = allFixtures
-    .filter((fixture) => fixture.status === "scheduled" && +new Date(fixture.scheduledAt) > now && siteDay(fixture.scheduledAt) === siteDay(now))
+    .filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt, now) === "upcoming" && +new Date(fixture.scheduledAt) > now && siteDay(fixture.scheduledAt) === siteDay(now))
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
     .slice(0, 4);
   if (upcoming.length > 0) {
-    return { matches: upcoming.map(railFixture), mode: "upcoming", updatedAt: fixtureResult.ok ? fixtureResult.fetchedAt : new Date(now).toISOString() };
+    return { matches: upcoming.map(railFixture), mode: "upcoming", updatedAt: fixtureResult.ok ? fixtureResult.fetchedAt : new Date(now).toISOString(), liveTotal: 0 };
   }
 
+  const isDataAvailable = board.ok || (fixtureResult.ok && fixtureResult.source === "provider");
   return {
     matches: [],
     mode: isDataAvailable ? "empty" : "unavailable",
     updatedAt: new Date(now).toISOString(),
+    liveTotal: 0,
   };
 }
 
@@ -172,13 +174,15 @@ export async function GET(req: Request) {
     return NextResponse.json(demoStates(ids), { headers: { "cache-control": "no-store" } });
   }
 
-  const result = await liveMatches("football");
-  if (!result.ok || result.source !== "provider") {
+  // Same board as every other live surface — every public sport, so a
+  // basketball/tennis/cricket match page also receives live updates.
+  const board = await liveBoard(undefined, now);
+  if (!board.ok) {
     return NextResponse.json({}, { headers: { "cache-control": "no-store" } });
   }
 
   const data: Record<string, ProviderLiveState> = {};
-  for (const fixture of result.data.filter(validFixture)) {
+  for (const fixture of board.live.filter(validFixture)) {
     const mappedStatus: LiveState["status"] = ["halftime", "extra_time_halftime"].includes(fixture.status) ? "HT"
       : ["live", "extra_time", "penalty_shootout"].includes(fixture.status) ? "LIVE"
         : ["finished", "walkover", "awarded"].includes(fixture.status) ? "FINISHED"
@@ -202,10 +206,10 @@ export async function GET(req: Request) {
       // previous snapshot. Null is explicit rather than a false empty/unchanged claim.
       events: null,
       changed: null,
-      updatedAt: result.fetchedAt,
+      updatedAt: board.fetchedAt ?? new Date(now).toISOString(),
     };
   }
   return NextResponse.json(ids?.length ? Object.fromEntries(ids.filter((id) => id in data).map((id) => [id, data[id]])) : data, {
-    headers: { "cache-control": result.stale ? "no-store" : "public, max-age=5, stale-while-revalidate=30" },
+    headers: { "cache-control": board.stale ? "no-store" : "public, max-age=5, stale-while-revalidate=30" },
   });
 }

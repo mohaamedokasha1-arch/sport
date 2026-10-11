@@ -1,237 +1,257 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
-import { liveMatches as sdlLiveMatches } from "@/lib/sdl-gateway";
 import DataSourceNote from "@/components/data/DataSourceNote";
-import { listAdminMatches, type AdminMatch } from "@/lib/admin-matches";
-import { listMatchStreams, streamForMatch, type MatchStreamSource } from "@/lib/match-streams";
+import { listAdminMatches, adminMatchToFixture, type AdminMatch } from "@/lib/admin-matches";
+import type { MatchStreamSource } from "@/lib/match-streams";
 import LiveStreams from "@/components/public/LiveStreams";
 import LiveMatchCard, { type LiveCardData } from "@/components/live/LiveMatchCard";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
+import { LIVE_SPORT_SLUGS, SPORT_NAME_AR, liveBoard, liveScope, scopeLabelAr } from "@/lib/live-board";
+import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
+import { PUBLIC_SPORTS } from "@/lib/core-data";
+import type { NormalizedFixture } from "@/packages/sdl/src";
 
 export const metadata: Metadata = {
   title: "البث المباشر ومواعيد المباريات",
-  description: "تابع البث المباشر ونتائج ومواعيد مباريات اليوم من مصادر البيانات الرسمية المعتمدة بتوقيت مكة والقاهرة.",
+  description: "تابع المباريات الجارية الآن في كل الرياضات المتاحة، والبث الرسمي المرخّص عند توفره، بتوقيت مكة والقاهرة.",
   alternates: { canonical: "/live" },
 };
 
 export const revalidate = 30;
 
-export default async function LivePage() {
-  const [sdlRes, adminMatchesAll, publicStreams] = await Promise.all([
-    sdlLiveMatches("football").catch(() => null),
+function cardFromFixture(f: NormalizedFixture, stream: MatchStreamSource | null, mixedSports: boolean): LiveCardData {
+  return {
+    id: f.providerId,
+    slug: f.providerId,
+    homeName: f.homeName || f.homeProviderId || "—",
+    awayName: f.awayName || f.awayProviderId || "—",
+    homeLogo: f.homeLogoUrl,
+    awayLogo: f.awayLogoUrl,
+    competitionName: f.competitionName || "",
+    scheduledAt: f.scheduledAt,
+    status: f.status,
+    sport: f.sport,
+    sportLabel: mixedSports ? SPORT_NAME_AR[f.sport] ?? null : null,
+    homeScore: f.homeScore,
+    awayScore: f.awayScore,
+    minute: f.minute,
+    stream,
+  };
+}
+
+export default async function LivePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  const requestedSport = typeof sp.sport === "string" ? sp.sport : "";
+  const scope = liveScope(requestedSport);
+  const scopeLabel = scopeLabelAr(scope);
+  const now = Date.now();
+
+  // ONE live board for every public sport (chip counts need all of them); the
+  // page then shows the requested scope. The homepage, /matches, the score
+  // rail and /api/v1/live read the same board.
+  const [board, adminMatchesAll, judged] = await Promise.all([
+    liveBoard(LIVE_SPORT_SLUGS, now),
     listAdminMatches().catch(() => [] as AdminMatch[]),
-    listMatchStreams(false).catch(() => [] as MatchStreamSource[]),
+    judgedStreams(24, now).catch(() => [] as PublicStreamCard[]),
   ]);
 
-  const realData = sdlRes && sdlRes.ok && sdlRes.source === "provider" ? sdlRes : null;
-  const publishedAdmin = adminMatchesAll.filter((m) => m.isPublished);
-  /**
-   * The newest editorial touch among the published manual matches, if any.
-   * Used as the provenance timestamp only when the live source did not answer —
-   * it is a real recorded update time, never the page's render time.
-   */
-  const lastEditorialUpdate = publishedAdmin
-    .map((m) => m.updatedAt ?? "")
-    .filter(Boolean)
-    .sort()
-    .pop();
-
-  // Build unified cards from both real SDL live data and published admin fixtures
-  const seenSlugs = new Set<string>();
-  const cardItems: LiveCardData[] = [];
-
-  // 1. Process provider live matches if any
-  if (realData && realData.data.length > 0) {
-    for (const f of realData.data) {
-      const slug = f.providerId;
-      seenSlugs.add(slug);
-      const stream = await streamForMatch({ slug, home: f.homeName, away: f.awayName }).catch(() => null);
-      cardItems.push({
-        id: slug,
-        slug,
-        homeName: f.homeName || f.homeProviderId || "—",
-        awayName: f.awayName || f.awayProviderId || "—",
-        homeLogo: f.homeLogoUrl,
-        awayLogo: f.awayLogoUrl,
-        competitionName: f.competitionName || "كرة قدم",
-        scheduledAt: f.scheduledAt,
-        status: f.status,
-        homeScore: f.homeScore,
-        awayScore: f.awayScore,
-        minute: f.minute,
-        stream,
-      });
-    }
+  const streamBySlug = new Map<string, MatchStreamSource>();
+  for (const card of judged) {
+    const slug = card.stream.matchSlug || card.stream.slugs[0];
+    if (slug && !streamBySlug.has(slug)) streamBySlug.set(slug, card.stream);
   }
+  const playableStreams = judged.filter((card) => card.verdict.playable && scope.includes(card.fixture?.sport ?? "football"));
+  const streamsLiveNow = playableStreams.filter((card) => card.verdict.activeNow).length;
+  const streamsSoon = playableStreams.length - streamsLiveNow;
 
-  // 2. Process published admin matches (5 verified matches + any others)
-  for (const m of publishedAdmin) {
-    if (seenSlugs.has(m.slug)) continue;
-    seenSlugs.add(m.slug);
-    const stream = await streamForMatch({ slug: m.slug, home: m.homeName, away: m.awayName }).catch(() => null);
-    cardItems.push({
-      id: m.id,
-      slug: m.slug,
-      homeName: m.homeName,
-      awayName: m.awayName,
-      homeLogo: m.homeLogo,
-      awayLogo: m.awayLogo,
-      competitionName: m.competitionName,
-      competitionSlug: m.competitionSlug,
-      scheduledAt: m.scheduledAt,
-      status: m.status === "upcoming" ? "scheduled" : m.status,
-      homeScore: m.homeScore,
-      awayScore: m.awayScore,
-      stream,
+  const mixed = scope.length > 1;
+  const scopeBoards = board.boards.filter((b) => scope.includes(b.sport));
+  const scopeAnswered = scopeBoards.some((b) => b.ok);
+  const scopeFailed = scopeBoards.filter((b) => !b.ok).map((b) => SPORT_NAME_AR[b.sport] ?? b.sport);
+  const liveFixtures = board.live.filter((f) => scope.includes(f.sport));
+  const liveSlugs = new Set(liveFixtures.map((f) => f.providerId));
+  const liveItems = liveFixtures.map((f) => cardFromFixture(f, streamBySlug.get(f.providerId) ?? null, mixed));
+
+  // Editorial (admin) matches that are not in play: upcoming / finished /
+  // interrupted / unconfirmed sections. Live editorial matches already come
+  // through the board.
+  const publishedAdmin = adminMatchesAll.filter((m) => m.isPublished && scope.includes(m.sport || "football"));
+  const lastEditorialUpdate = publishedAdmin.map((m) => m.updatedAt ?? "").filter(Boolean).sort().pop();
+  const editorialItems: LiveCardData[] = publishedAdmin
+    .filter((m) => !liveSlugs.has(m.slug))
+    .map((m) => {
+      const f = adminMatchToFixture(m);
+      return { ...cardFromFixture(f, streamBySlug.get(m.slug) ?? null, mixed), id: m.id, slug: m.slug, competitionSlug: m.competitionSlug };
     });
-  }
+  // An operator-entered "live" match the board does not carry (e.g. during a
+  // provider outage) is still an editorial claim the page must show.
+  for (const item of editorialItems) if (matchStateOf(item.status, item.scheduledAt, now) === "live") liveItems.push(item);
+  const otherItems = editorialItems.filter((item) => matchStateOf(item.status, item.scheduledAt, now) !== "live");
 
-  // Split through the site-wide state rule (lib/match-state.ts) so this page
-  // cannot disagree with /matches, /fixtures or the stream panel about the same
-  // match. The previous version had two holes a visitor could see:
-  //   · postponed / cancelled / suspended / abandoned matches were listed under
-  //     «المباريات المكتملة مؤخرًا» — a false claim about a match that never
-  //     finished — and were simultaneously excluded from the upcoming section,
-  //     so they had nowhere honest to appear.
-  //   · a match still stored as `scheduled` whose kickoff had passed matched no
-  //     section at all, and because `cardItems` was not empty the "no matches"
-  //     fallback did not fire either: the page rendered a header, an empty
-  //     live notice and nothing else, while /matches still listed those matches.
-  // Every card is now placed in exactly one section, and no card is dropped.
-  const stateOf = (item: LiveCardData) => matchStateOf(item.status, item.scheduledAt);
-  const liveItems = cardItems.filter((item) => stateOf(item) === "live");
-  const finishedItems = cardItems.filter((item) => stateOf(item) === "finished");
-  const interruptedItems = cardItems.filter((item) =>
-    ["postponed", "cancelled", "suspended", "abandoned"].includes(stateOf(item))
-  );
-  const unconfirmedItems = cardItems.filter((item) => stateOf(item) === "unconfirmed");
-  const upcomingItems = cardItems
+  const stateOf = (item: LiveCardData) => matchStateOf(item.status, item.scheduledAt, now);
+  const finishedItems = otherItems.filter((item) => stateOf(item) === "finished");
+  const interruptedItems = otherItems.filter((item) => ["postponed", "cancelled", "suspended", "abandoned"].includes(stateOf(item)));
+  const unconfirmedItems = otherItems.filter((item) => stateOf(item) === "unconfirmed");
+  const upcomingItems = otherItems
     .filter((item) => stateOf(item) === "upcoming")
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const nothingAtAll = liveItems.length + otherItems.length === 0;
+
+  const chip = (href: string, label: string, count: number | null, active: boolean, failed = false) => (
+    <Link
+      key={href}
+      href={href}
+      aria-current={active ? "page" : undefined}
+      title={failed ? "تعذّر التحقق من هذه الرياضة في آخر محاولة" : undefined}
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
+        active ? "bg-navy-850 text-white" : "border border-line bg-surface text-muted hover:border-gold-500"
+      }`}
+    >
+      {label} <span className="num opacity-70">({failed ? "—" : count ?? 0})</span>
+    </Link>
+  );
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
-      {/* Top Header */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-4">
+      <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-4">
         <div>
           <p className="eyebrow mb-1">مباشر الآن — مركز المباريات</p>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">البث المباشر والمباريات</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">البث المباشر والمباريات</h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <p className="text-[12px] text-muted">
-            <span className="num font-bold text-gold-500">{publicStreams.length}</span> بث متاح
+            <span className="num font-bold text-live">{liveItems.length}</span> جارية الآن · {scopeLabel}
             {" · "}
-            <span className="num font-bold text-live">{liveItems.length}</span> جارية الآن
+            <span className="num font-bold text-gold-500">{streamsLiveNow}</span> بث مباشر
+            {streamsSoon > 0 ? (
+              <>
+                {" "}
+                (+<span className="num font-bold">{streamsSoon}</span> قريبًا)
+              </>
+            ) : null}
           </p>
           <LiveAutoRefresh intervalSeconds={60} />
         </div>
       </header>
 
-      {/* Featured stream players if any streams are published */}
-      <LiveStreams />
+      <nav aria-label="تصفية حسب الرياضة" className="mb-6 flex flex-wrap gap-2">
+        {chip("/live", "كل الرياضات", board.total, scope.length === LIVE_SPORT_SLUGS.length, !board.complete && board.total === 0)}
+        {PUBLIC_SPORTS.map((s) => {
+          const b = board.boards.find((x) => x.sport === s.slug);
+          return chip(`/live?sport=${s.slug}`, `${s.icon} ${s.name}`, board.bySport[s.slug] ?? 0, scope.length === 1 && scope[0] === s.slug, !b?.ok);
+        })}
+      </nav>
+
+      {/* Playable broadcasts only (live, or inside their window) */}
+      <LiveStreams cards={playableStreams} />
 
       {/* Live matches section */}
       {liveItems.length > 0 ? (
         <section aria-label="المباريات الجارية الآن" className="mb-10">
-          <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
             <h2 className="flex items-center gap-2 text-base font-extrabold text-live">
               <span className="live-dot !bg-live-red" aria-hidden />
-              <span>مباشر الآن ({liveItems.length})</span>
+              <span>
+                مباشر الآن ({liveItems.length}) · {scopeLabel}
+              </span>
             </h2>
+            {scopeFailed.length > 0 ? (
+              <p role="status" className="text-[11px] font-bold text-warn-600 dark:text-warn-400">
+                تعذّر التحقق من: {scopeFailed.join("، ")} — العدد لا يشملها.
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {liveItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} />
+              <LiveMatchCard key={match.id} match={match} now={now} />
             ))}
           </div>
         </section>
-      ) : (
+      ) : scopeAnswered ? (
         <div className="mb-8 rounded-[6px] border border-line bg-navy-850/40 p-4 text-center">
-          <p className="text-[13px] font-bold text-muted">لا توجد مباريات مباشرة الآن</p>
+          <p className="text-[13px] font-bold text-muted">لا توجد مباريات مباشرة الآن في {scopeLabel} وفق آخر تحديث للمصدر</p>
           <p className="mt-1 text-[11px] text-muted">
-            ستظهر المباريات الجارية تلقائيًا هنا مع انطلاق صافرة البداية. يمكنك متابعة مواعيد مباريات اليوم والقادمة أدناه.
+            {scopeFailed.length > 0 ? `تعذّر التحقق من: ${scopeFailed.join("، ")}. ` : ""}
+            تظهر المباريات الجارية هنا تلقائيًا مع انطلاقها.{" "}
+            <Link href="/matches?date=today" className="font-bold text-gold-600 dark:text-gold-400">مباريات اليوم</Link>
           </p>
         </div>
+      ) : (
+        <DataUnavailable
+          title="تعذّر التحقق من المباريات المباشرة الآن"
+          message="لم يُرجع مصدر النتائج المباشرة استجابة صالحة في آخر محاولة. هذا لا يعني عدم وجود مباريات جارية، ولا نعرض نتائج تقديرية."
+          actionHref="/matches?date=today"
+          actionLabel="مباريات اليوم"
+        />
       )}
 
-      {/* Upcoming / Scheduled Matches */}
       {upcomingItems.length > 0 ? (
         <section aria-label="المباريات القادمة" className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-ink">
-              مباريات اليوم والقادمة ({upcomingItems.length})
-            </h2>
+            <h2 className="text-base font-extrabold text-ink">مباريات تحريرية قادمة ({upcomingItems.length})</h2>
             <span className="text-[12px] text-muted">التوقيت معتمد بتوقيت مكة المكرمة والقاهرة</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {upcomingItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} />
+              <LiveMatchCard key={match.id} match={match} now={now} />
             ))}
           </div>
         </section>
       ) : null}
 
-      {/* Finished Matches (if any) */}
       {finishedItems.length > 0 ? (
         <section aria-label="المباريات المنتهية" className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">
-              المباريات المكتملة مؤخرًا ({finishedItems.length})
-            </h2>
+            <h2 className="text-base font-extrabold text-muted">المباريات المكتملة مؤخرًا ({finishedItems.length})</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {finishedItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} />
+              <LiveMatchCard key={match.id} match={match} now={now} />
             ))}
           </div>
         </section>
       ) : null}
 
-      {/* Postponed / cancelled / suspended — their own honest section. These used
-          to be filed under "recently completed", which told visitors a match
-          that never finished had finished. */}
       {interruptedItems.length > 0 ? (
         <section aria-label="مباريات مؤجلة أو ملغاة" className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">
-              مباريات مؤجَّلة أو ملغاة ({interruptedItems.length})
-            </h2>
+            <h2 className="text-base font-extrabold text-muted">مباريات مؤجَّلة أو ملغاة ({interruptedItems.length})</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {interruptedItems.map((match) => (
               <div key={match.id}>
-                <LiveMatchCard match={match} />
-                <p className="mt-1 text-[11px] font-bold text-muted">
-                  {MATCH_STATE_LABEL_AR[matchStateOf(match.status, match.scheduledAt)]}
-                </p>
+                <LiveMatchCard match={match} now={now} />
+                <p className="mt-1 text-[11px] font-bold text-muted">{MATCH_STATE_LABEL_AR[stateOf(match)]}</p>
               </div>
             ))}
           </div>
         </section>
       ) : null}
 
-      {/* Kickoff day passed and the stored status was never refreshed. The match
-          is neither upcoming nor finished as far as we can verify, so it is
-          labelled as such rather than silently dropped from the page. */}
+      {/* Kickoff day passed and the stored status was never refreshed. Neither
+          upcoming nor finished as far as we can verify — labelled as such, and
+          their broadcasts are never offered as playable. */}
       {unconfirmedItems.length > 0 ? (
         <section aria-label="مباريات حالتها غير مؤكدة" className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">
-              مباريات حالتها غير مؤكدة ({unconfirmedItems.length})
-            </h2>
+            <h2 className="text-base font-extrabold text-muted">مباريات حالتها غير مؤكدة ({unconfirmedItems.length})</h2>
           </div>
           <p className="mb-3 text-[12px] leading-6 text-muted">{UNCONFIRMED_NOTE_AR}</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unconfirmedItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} />
+              <LiveMatchCard key={match.id} match={match} now={now} />
             ))}
           </div>
         </section>
       ) : null}
 
-      {/* Fallback when no matches at all */}
-      {cardItems.length === 0 ? (
+      {nothingAtAll && scopeAnswered ? (
         <DataUnavailable
           title="لا توجد مباريات مسجلة حاليًا"
           message="سيتم تحديث جدول المباريات والبث فور ورود التحديثات الرسمية."
@@ -242,15 +262,13 @@ export default async function LivePage() {
 
       <DataSourceNote
         className="mt-6 border-t border-line pt-4"
-        provider={realData?.provider ?? "admin"}
-        fromCache={realData?.fromCache ?? false}
-        stale={realData?.stale ?? false}
-        degraded={realData?.degraded ?? !realData}
-        // Never invent an update time. When the live source answered we show its
-        // own timestamp; when it did not, the note says so instead of printing
-        // the render time and implying a successful refresh that never happened
-        // (the same convention /news already follows).
-        fetchedAt={realData?.fetchedAt ?? lastEditorialUpdate}
+        provider={board.providers[0] ?? "admin"}
+        fromCache={board.fromCache}
+        stale={board.stale}
+        degraded={board.degraded || !board.ok}
+        // Never invent an update time: the oldest live snapshot used, or the
+        // newest editorial touch when no live source answered.
+        fetchedAt={board.fetchedAt ?? lastEditorialUpdate}
       />
     </div>
   );

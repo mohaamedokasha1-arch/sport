@@ -79,6 +79,10 @@ CREATE TABLE IF NOT EXISTS news_fetch_log (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_fetch_log_day ON news_fetch_log(created_at DESC);
+ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS moderation_reason TEXT;
+ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ;
+ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS moderated_by TEXT;
+ALTER TABLE news_articles ADD COLUMN IF NOT EXISTS previous_status TEXT;
 `;
 
 /* ── memory fallback ─────────────────────────────────────────── */
@@ -179,6 +183,10 @@ function articleFromRow(r: ArticleRow): NewsArticle {
     sourceBadge: str(r.source_badge) || "📰",
     createdAt: iso(r.created_at) ?? now,
     updatedAt: iso(r.updated_at) ?? now,
+    moderationReason: (r.moderation_reason as string) ?? null,
+    moderatedAt: iso(r.moderated_at),
+    moderatedBy: (r.moderated_by as string) ?? null,
+    previousStatus: (r.previous_status as NewsArticle["status"]) ?? null,
   };
 }
 
@@ -543,14 +551,16 @@ export async function insertArticle(a: NewsArticle): Promise<void> {
       await db.run(
         `INSERT INTO news_articles (id, title, source_url, canonical_url, source_name, source_domain,
           publication_date, fetched_date, description, category, secondary_categories, category_confidence,
-          related_entities, rss_source_id, fingerprint, is_duplicate, duplicate_of, quality_score, status, source_badge)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          related_entities, rss_source_id, fingerprint, is_duplicate, duplicate_of, quality_score, status, source_badge,
+          moderation_reason, moderated_at, moderated_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          ON CONFLICT (canonical_url) DO NOTHING`,
         [
           a.id, a.title, a.sourceUrl, a.canonicalUrl, a.sourceName, a.sourceDomain,
           a.publicationDate, a.fetchedDate, a.description, a.category, a.secondaryCategories,
           a.categoryConfidence, JSON.stringify(a.relatedEntities), a.rssSourceId, a.fingerprint,
           a.isDuplicate, a.duplicateOf ?? null, a.qualityScore, a.status, a.sourceBadge,
+          a.moderationReason ?? null, a.moderatedAt ?? null, a.moderatedBy ?? null,
         ],
       );
       return;
@@ -637,6 +647,36 @@ export async function setArticleStatus(id: string, status: NewsArticle["status"]
   const a = memArticles.get(id);
   if (!a) return false;
   memArticles.set(id, { ...a, status, updatedAt: new Date().toISOString() });
+  return true;
+}
+
+/**
+ * Quarantine ONE published article: status → hidden, with provenance (reason,
+ * moderator, time, previous status). The record, its source, dates and
+ * category are untouched and nothing is deleted. Returns false when the
+ * article is missing or not currently published (idempotent re-runs).
+ */
+export async function quarantineArticle(id: string, info: { reason: string; by: string }): Promise<boolean> {
+  const db = await pg();
+  if (!db) await persistOrThrow(null, async () => {});
+  if (db) {
+    try {
+      const rows = await db.select<{ id: string }>(
+        `UPDATE news_articles SET previous_status = status, status = 'hidden', moderation_reason = $2,
+           moderated_at = now(), moderated_by = $3, updated_at = now()
+         WHERE id = $1 AND status = 'published' RETURNING id`,
+        [id, info.reason.slice(0, 200), info.by.slice(0, 120)],
+      );
+      return rows.length > 0;
+    } catch {
+      throw new StoreWriteError(STORE_WRITE_FAILED_AR);
+    }
+  }
+  seedMemory();
+  const a = memArticles.get(id);
+  if (!a || a.status !== "published") return false;
+  const t = new Date().toISOString();
+  memArticles.set(id, { ...a, previousStatus: a.status, status: "hidden", moderationReason: info.reason, moderatedAt: t, moderatedBy: info.by, updatedAt: t });
   return true;
 }
 

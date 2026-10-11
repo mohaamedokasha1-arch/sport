@@ -8,17 +8,17 @@ import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
-import { inactiveStreamNote, streamForMatch, streamPhase } from "@/lib/match-streams";
+import { broadcastFor, streamForMatch } from "@/lib/match-streams";
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
 import { SITE_TZ, siteDay } from "@/lib/tz";
-import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
+import { matchStateOf, MATCH_STATE_LABEL_AR, unconfirmedNoteAr } from "@/lib/match-state";
 import { decodeSlug } from "@/lib/slug";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { competitionByPath } from "@/lib/competition-catalog";
 import { getAdminMatchBySlug, adminMatchToFixture } from "@/lib/admin-matches";
-import { isPubliclyVisible } from "@/lib/match-streams";
 import ProviderCrest from "@/components/ui/ProviderCrest";
+import ScorePair from "@/components/ui/ScorePair";
 import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, sportForMatchId, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
@@ -359,6 +359,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
       // this read only decides whether the "corrected by admin" badge shows.
       getOverride(slug),
     ]);
+    const broadcast = broadcastFor(stream, { status: f.status, scheduledAt: f.scheduledAt, sport: f.sport });
     const events: NormalizedEvent[] = eventsRes.ok ? eventsRes.data.filter((event) => event.providerMatchId === f!.providerId).sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999) || (a.additionalMinute ?? 0) - (b.additionalMinute ?? 0)) : [];
     const lineups: NormalizedLineup[] = lineupsRes.ok ? lineupsRes.data : [];
     const rawStats: NormalizedStat[] = statsRes.ok ? statsRes.data : [];
@@ -467,13 +468,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </div>
               <div className="flex flex-col items-center gap-1">
                 {played ? (
-                  <span className="num text-4xl font-extrabold tabular-nums">
-                    {f.homeScore} : {f.awayScore}
-                  </span>
+                  <ScorePair home={f.homeScore} away={f.awayScore} className="text-4xl font-extrabold" />
                 ) : (
                   <span className="num text-2xl font-extrabold text-muted">— : —</span>
                 )}
-                <span className={`text-[12px] font-extrabold ${live ? "text-live-red" : "text-muted"}`}>
+                <span className={`text-[12px] font-extrabold ${live ? "text-live-red" : "text-muted"}`} dir={/^\d+'$/.test(clockOf(f)) ? "ltr" : undefined}>
                   {clockOf(f)}
                 </span>
                 {ht ? (
@@ -501,7 +500,7 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
             </p>
             {matchState === "unconfirmed" ? (
               <p className="mt-2 rounded-[3px] bg-warn-500/10 px-3 py-2 text-center text-[11px] font-semibold leading-5 text-warn-700 dark:text-warn-400">
-                {UNCONFIRMED_NOTE_AR}
+                {unconfirmedNoteAr(f.status)}
               </p>
             ) : null}
             {override ? (
@@ -515,17 +514,22 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={matchPath(slug)} />
-            {matchState === "upcoming" && !stale && <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>}
-            <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
+            {matchState === "upcoming" && !stale ? (
+              <>
+                <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>
+                <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
+              </>
+            ) : null}
           </div>
-          {/* live stream — dedicated stream section */}
-          {stream && isPubliclyVisible(stream) ? (
+          {/* live stream — judged by the broadcast lifecycle (approval + rights
+              evidence + match state + window), never by the stream record alone */}
+          {broadcast && broadcast.publicVisible && stream ? (
             <MatchStreamPlayer
               stream={stream}
-              phase={streamPhase(f.status, f.scheduledAt)}
+              phase={broadcast.state === "live" ? "live" : broadcast.state === "standby" ? "upcoming" : "inactive"}
               home={home}
               away={away}
-              inactiveNote={inactiveStreamNote(f.status)}
+              inactiveNote={broadcast.noticeAr}
             />
           ) : (
             <section id="live-stream" className="mt-8">

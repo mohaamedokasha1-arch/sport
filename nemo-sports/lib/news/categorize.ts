@@ -7,6 +7,7 @@
  */
 
 import { normalizeSearchText } from "@/lib/search-text";
+import { withoutNonSportEntities } from "@/lib/news/relevance";
 
 export interface NewsCategory {
   name: string;
@@ -39,10 +40,17 @@ export const CATEGORIES: NewsCategory[] = [
   { name: "Players", nameAr: "اللاعبون", keywords: ["player", "footballer", "athlete", "star", "legend", "لاعب"], minConfidence: 60, color: "#8BC34A", icon: "👤" },
   { name: "Basketball", nameAr: "كرة السلة", keywords: ["basketball", "nba", "dunk", "hoop", "كرة السلة"], minConfidence: 35, color: "#FF6F00", icon: "🏀" },
   { name: "Tennis", nameAr: "التنس", keywords: ["tennis", "wimbledon", "atp", "wta", "التنس"], minConfidence: 35, color: "#00897B", icon: "🎾" },
-  { name: "Handball", nameAr: "كرة اليد", keywords: ["handball", "ehf", "كرة اليد"], minConfidence: 35, color: "#E53935", icon: "🤾" },
+  { name: "Handball", nameAr: "كرة اليد", keywords: ["handball", "ehf", "ihf", "كرة اليد"], minConfidence: 35, color: "#E53935", icon: "🤾" },
   { name: "Volleyball", nameAr: "الكرة الطائرة", keywords: ["volleyball", "fivb", "الكرة الطائرة"], minConfidence: 35, color: "#FFB300", icon: "🏐" },
   { name: "Boxing", nameAr: "الملاكمة", keywords: ["boxing", "boxer", "knockout", "الملاكمة", "wbc", "wba"], minConfidence: 35, color: "#D32F2F", icon: "🥊" },
 ];
+
+/** Categories that can fire on a club name alone. */
+const CLUB_NAME_CATEGORIES = new Set(["Egyptian Football"]);
+/** Sports other than football that share club names. */
+const OTHER_SPORT_CATEGORIES = new Set(["Handball", "Basketball", "Volleyball", "Tennis", "Boxing"]);
+/** Words that make a club story specifically a football story (normalized text). */
+const FOOTBALL_SPECIFIC = /(?:football|soccer|كره القدم|الدوري المصري|egyptian premier league|premier league|caf champions|دوري ابطال افريقيا|\bgoalkeeper\b|\bstriker\b|حارس المرمي)/u;
 
 export const FALLBACK_CATEGORY = "Sports";
 export const FALLBACK_CATEGORY_AR = "رياضة";
@@ -86,7 +94,10 @@ export function categorizeArticle(title: string, description: string): CategoryR
   // Pure matches/keywords ratios under-fire because lists mix Arabic and
   // English terms that never co-occur in one article — verified against
   // real-world headlines in scripts/verify-news.ts.
-  const text = normalizeSearchText(`${title} ${description}`);
+  // Namesake companies ("Al Ahly Sabbour", "Al Ahly Bank") are removed first:
+  // they used to score as the football club and file property stories under
+  // «الكرة المصرية».
+  const text = withoutNonSportEntities(`${title} ${description}`);
   const scores: { cat: NewsCategory; confidence: number }[] = CATEGORIES.map((cat) => {
     let score = 0;
     for (const kw of cat.keywords) {
@@ -107,7 +118,16 @@ export function categorizeArticle(title: string, description: string): CategoryR
   const qualifying = scores
     .filter((s) => s.confidence >= s.cat.minConfidence)
     .sort((a, b) => b.confidence - a.confidence);
-  const best = qualifying[0];
+  let best = qualifying[0];
+  // Club names are multi-sport (Al Ahly and Zamalek field handball, basketball
+  // and volleyball teams): when another sport qualifies and nothing in the
+  // text is specifically about football, the sport wins over a club-name-only
+  // football category. ("Veszprém dominate Al Ahly … - IHF" was filed under
+  // «الكرة المصرية».)
+  if (best && CLUB_NAME_CATEGORIES.has(best.cat.name) && !FOOTBALL_SPECIFIC.test(text)) {
+    const otherSport = qualifying.find((q) => OTHER_SPORT_CATEGORIES.has(q.cat.name));
+    if (otherSport) best = otherSport;
+  }
   const topOverall = Math.max(0, ...scores.map((s) => s.confidence));
 
   if (best) {

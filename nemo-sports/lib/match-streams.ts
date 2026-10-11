@@ -44,7 +44,14 @@ import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { validateBroadcastLink, type StreamDomainPolicy, type StreamPolicyOptions } from "@/lib/broadcasts";
 
-import { siteDay } from "@/lib/tz";
+import { matchStateOf } from "@/lib/match-state";
+import {
+  broadcastStateOf,
+  hasRightsEvidence,
+  type BroadcastMatchFacts,
+  type BroadcastStreamFacts,
+  type BroadcastVerdict,
+} from "@/lib/broadcast-state";
 
 export type MatchStreamPhase = "live" | "upcoming" | "inactive";
 
@@ -89,6 +96,13 @@ export interface MatchStreamSource {
   competitionName: string;
   kickoffAt: string | null;
   publishedAt: string | null;
+  /* ── rights evidence (migration 0004) — required before a stream can be public ── */
+  /** Who holds the broadcast rights (e.g. "beIN SPORTS MENA"). */
+  rightsHolder: string;
+  /** Licence/agreement reference or official URL proving the right to show it. */
+  rightsEvidence: string;
+  /** When an editor last checked the evidence. */
+  rightsCheckedAt: string | null;
 }
 
 /* ── name normalization (Arabic + Latin aliases must compare equal) ── */
@@ -193,6 +207,9 @@ ALTER TABLE match_streams ADD COLUMN IF NOT EXISTS kickoff_at TIMESTAMPTZ;
 ALTER TABLE match_streams ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_match_streams_status ON match_streams(status);
 CREATE INDEX IF NOT EXISTS idx_match_streams_match_slug ON match_streams(match_slug);
+ALTER TABLE match_streams ADD COLUMN IF NOT EXISTS rights_holder TEXT NOT NULL DEFAULT '';
+ALTER TABLE match_streams ADD COLUMN IF NOT EXISTS rights_evidence TEXT NOT NULL DEFAULT '';
+ALTER TABLE match_streams ADD COLUMN IF NOT EXISTS rights_checked_at TIMESTAMPTZ;
 `;
 
 let mem: MatchStreamSource[] | null = null;
@@ -206,12 +223,22 @@ function loadDiskStreams(): MatchStreamSource[] {
     if (fs.existsSync(STREAMS_FILE)) {
       const raw = fs.readFileSync(STREAMS_FILE, "utf-8");
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.map(withRightsDefaults);
     }
   } catch {
     // fall through
   }
   return seed();
+}
+
+/** Records written before migration 0004 carry no rights fields: they read as "no evidence". */
+function withRightsDefaults(s: MatchStreamSource): MatchStreamSource {
+  return {
+    ...s,
+    rightsHolder: typeof s.rightsHolder === "string" ? s.rightsHolder : "",
+    rightsEvidence: typeof s.rightsEvidence === "string" ? s.rightsEvidence : "",
+    rightsCheckedAt: typeof s.rightsCheckedAt === "string" ? s.rightsCheckedAt : null,
+  };
 }
 
 function saveDiskStreams(list: MatchStreamSource[]): void {
@@ -300,12 +327,41 @@ function fromRow(r: Row): MatchStreamSource {
     competitionName: String(r.competition_name ?? ""),
     kickoffAt: isoOrNull(r.kickoff_at),
     publishedAt: isoOrNull(r.published_at),
+    rightsHolder: String(r.rights_holder ?? ""),
+    rightsEvidence: String(r.rights_evidence ?? ""),
+    rightsCheckedAt: isoOrNull(r.rights_checked_at),
   };
 }
 
-/** A stream is publicly visible only when enabled, in a public status, and its URL still passes validation. */
+/**
+ * A stream record is approved for the public only when it is enabled, in a
+ * public status, its URL still passes validation AND it carries rights
+ * evidence (holder + licence reference). Approval is about the STREAM; whether
+ * it may play right now also depends on the match — see broadcastFor().
+ */
 export function isPubliclyVisible(s: MatchStreamSource): boolean {
-  return s.enabled && PUBLIC_STATUSES.has(s.status) && isDisplayableEmbedUrl(s.embedUrl);
+  return s.enabled && PUBLIC_STATUSES.has(s.status) && isDisplayableEmbedUrl(s.embedUrl) && hasRightsEvidence(s);
+}
+
+/** Facts lib/broadcast-state.ts needs about one stream record. */
+export function streamFacts(s: MatchStreamSource): BroadcastStreamFacts {
+  return {
+    status: s.status,
+    enabled: s.enabled,
+    rightsHolder: s.rightsHolder,
+    rightsEvidence: s.rightsEvidence,
+    displayable: isDisplayableEmbedUrl(s.embedUrl),
+    kickoffAt: s.kickoffAt,
+  };
+}
+
+/** The broadcast verdict for one stream and its (optional) match. */
+export function broadcastFor(
+  stream: MatchStreamSource | null | undefined,
+  match: BroadcastMatchFacts | null | undefined,
+  now: number = Date.now(),
+): BroadcastVerdict | null {
+  return stream ? broadcastStateOf(streamFacts(stream), match, now) : null;
 }
 
 /* ── reads ─────────────────────────────────────────────────────────── */
@@ -380,71 +436,44 @@ export async function streamForMatch(key: {
   return null;
 }
 
-/* ── status → phase (shared by every match page surface) ───────────── */
-
-const LIVE_STATUSES = new Set([
-  // SDL / provider
-  "live",
-  "halftime",
-  "extra_time",
-  "extra_time_halftime",
-  "penalty_shootout",
-  // demo dataset (lib/data.ts)
-  "ht",
-]);
-
-const INACTIVE_STATUSES = new Set([
-  // SDL / provider
-  "finished",
-  "postponed",
-  "cancelled",
-  "suspended",
-  "abandoned",
-  "walkover",
-  "awarded",
-  // demo dataset (lib/data.ts) uses the same lowercase forms
-]);
+/* ── status → phase (legacy helpers, now thin wrappers over lib/match-state) ── */
 
 /**
- * "live"      → the player renders with a LIVE badge.
- * "upcoming"  → the match hasn't started; a registered link still renders
- *               (the requirement: show the player when the stream link exists).
- * "inactive"  → finished/cancelled/…: NEVER an active live player — a
- *               static notice is shown instead.
+ * "live"      → the match is in play.
+ * "upcoming"  → the match has not started.
+ * "inactive"  → anything else (finished, interrupted, or unconfirmed).
+ *
+ * Kept for callers that only need the coarse phase. It used to carry its own
+ * copy of the live-status list; it now resolves through matchStateOf() so it
+ * cannot disagree with the fixture lists. Whether a stream may PLAY is decided
+ * by broadcastFor() (approval + rights evidence + match + broadcast window).
  */
 export function streamPhase(
   status: string | null | undefined,
   scheduledAt?: string | null,
   now: string | number | Date = Date.now(),
 ): MatchStreamPhase {
-  const s = String(status ?? "").trim().toLowerCase();
-  if (LIVE_STATUSES.has(s)) return "live";
-  if (INACTIVE_STATUSES.has(s)) return "inactive";
-  if (scheduledAt) {
-    const kickoff = new Date(scheduledAt);
-    if (Number.isFinite(+kickoff) && siteDay(kickoff) < siteDay(now)) return "inactive";
-  }
-  return "upcoming";
+  const state = matchStateOf(status, scheduledAt ?? null, now);
+  if (state === "live") return "live";
+  if (state === "upcoming") return "upcoming";
+  return "inactive";
 }
 
-/** Arabic notice shown instead of the player once the match is not live anymore. */
-export function inactiveStreamNote(status: string | null | undefined): string {
-  switch (String(status ?? "").trim().toLowerCase()) {
-    case "postponed":
-      return "تأجّلت المباراة — لا يوجد بث مباشر حاليًا.";
-    case "cancelled":
-      return "أُلغيت المباراة — لا يوجد بث مباشر.";
-    case "suspended":
-      return "المباراة موقوفة — لا يوجد بث مباشر حاليًا.";
-    case "abandoned":
-      return "توقّفت المباراة — لم يعد البث المباشر نشطًا.";
-    case "walkover":
-    case "awarded":
-      return "انتهت المباراة بقرار رسمي — لم يعد البث المباشر نشطًا.";
-    case "finished":
-    default:
-      return "انتهت المباراة — لم يعد البث المباشر نشطًا.";
-  }
+/**
+ * Arabic notice shown instead of the player once a stream is not playable.
+ * It says «انتهت المباراة» ONLY when the fixture data says the match finished;
+ * a stored "scheduled" whose day passed (unconfirmed) used to fall through to
+ * that finished-match wording.
+ */
+export function inactiveStreamNote(status: string | null | undefined, scheduledAt?: string | null): string {
+  const verdict = broadcastStateOf(
+    { status: "published", enabled: true, rightsHolder: "x", rightsEvidence: "x", displayable: true },
+    { status, scheduledAt: scheduledAt ?? null },
+  );
+  if (verdict && verdict.state === "expired") return verdict.noticeAr;
+  const state = matchStateOf(status, scheduledAt ?? null);
+  if (state === "finished") return "انتهت المباراة — انتهى البث المباشر.";
+  return "انتهت نافذة البث المقررة لهذه المباراة، وحالة المباراة غير مؤكدة من المصدر — لا نعرض البث كمصدر نشط.";
 }
 
 /* ── writes: the extension point for the admin panel / data source ── */
@@ -475,6 +504,9 @@ function baseEntry(input: {
   kickoffAt: string | null;
   publishedAt: string | null;
   createdAt?: string;
+  rightsHolder?: string;
+  rightsEvidence?: string;
+  rightsCheckedAt?: string | null;
 }): MatchStreamSource {
   return {
     id: input.id,
@@ -494,18 +526,22 @@ function baseEntry(input: {
     competitionName: input.competitionName,
     kickoffAt: input.kickoffAt,
     publishedAt: input.publishedAt,
+    rightsHolder: input.rightsHolder ?? "",
+    rightsEvidence: input.rightsEvidence ?? "",
+    rightsCheckedAt: input.rightsCheckedAt ?? null,
   };
 }
 
 const COLUMNS = `id, label, embed_url, slugs, home_aliases, away_aliases, enabled,
   stream_type, status, match_slug, home_name, away_name, competition_name, kickoff_at, published_at,
-  created_at, updated_at`;
+  created_at, updated_at, rights_holder, rights_evidence, rights_checked_at`;
 
 function valuesOf(s: MatchStreamSource): unknown[] {
   return [
     s.id, s.label, s.embedUrl, s.slugs, s.homeAliases, s.awayAliases, s.enabled,
     s.streamType, s.status, s.matchSlug, s.homeName, s.awayName, s.competitionName,
     s.kickoffAt, s.publishedAt, s.createdAt, s.updatedAt,
+    s.rightsHolder ?? "", s.rightsEvidence ?? "", s.rightsCheckedAt ?? null,
   ];
 }
 
@@ -522,11 +558,13 @@ async function persistUpsert(entry: MatchStreamSource, previous: MatchStreamSour
         return d.run(
           `UPDATE match_streams SET label=$2, embed_url=$3, slugs=$4, home_aliases=$5, away_aliases=$6,
              enabled=$7, stream_type=$8, status=$9, match_slug=$10, home_name=$11, away_name=$12,
-             competition_name=$13, kickoff_at=$14, published_at=$15, updated_at=now() WHERE id=$1`,
+             competition_name=$13, kickoff_at=$14, published_at=$15, rights_holder=$16, rights_evidence=$17,
+             rights_checked_at=$18, updated_at=now() WHERE id=$1`,
           [
             entry.id, entry.label, entry.embedUrl, entry.slugs, entry.homeAliases, entry.awayAliases,
             entry.enabled, entry.streamType, entry.status, entry.matchSlug, entry.homeName, entry.awayName,
             entry.competitionName, entry.kickoffAt, entry.publishedAt,
+            entry.rightsHolder ?? "", entry.rightsEvidence ?? "", entry.rightsCheckedAt ?? null,
           ],
         );
       }
@@ -607,6 +645,20 @@ export interface LiveStreamInput {
   embedUrl: string;
   label?: string;
   status?: LiveStreamStatus;
+  /** Rights holder for THIS broadcast (required before it can be public). */
+  rightsHolder?: string;
+  /** Licence/agreement reference or official URL (required before it can be public). */
+  rightsEvidence?: string;
+}
+
+/** Validate an operator-entered rights reference: free text, or an https URL. */
+export function validateRightsEvidence(raw: string): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  if (value.length > 500) return "مرجع الحقوق أطول من 500 حرف";
+  if (/[<>]/.test(value)) return "مرجع الحقوق يحتوي على رموز غير مسموحة";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^https:\/\//i.test(value)) return "رابط مرجع الحقوق يجب أن يبدأ بـ https://";
+  return null;
 }
 
 function cleanUrl(v: unknown): string {
@@ -644,6 +696,11 @@ export async function createLiveStream(
     ? input.status
     : "draft";
 
+  const rightsHolder = cleanText(input.rightsHolder, 160);
+  const rightsEvidence = String(input.rightsEvidence ?? "").trim().slice(0, 500);
+  const rightsError = validateRightsEvidence(rightsEvidence);
+  if (rightsError) return { ok: false, error: rightsError };
+
   const t = now();
   const id = `ls_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const entry = baseEntry({
@@ -663,6 +720,9 @@ export async function createLiveStream(
     kickoffAt: input.kickoffAt && Number.isFinite(+new Date(input.kickoffAt)) ? new Date(input.kickoffAt).toISOString() : null,
     publishedAt: status === "published" || status === "live" ? t : null,
     createdAt: t,
+    rightsHolder,
+    rightsEvidence,
+    rightsCheckedAt: rightsHolder && rightsEvidence ? t : null,
   });
 
   const saveError = await persistUpsert(entry, null);
@@ -699,8 +759,17 @@ export async function updateLiveStream(
       ? patch.streamType
       : previous.streamType;
 
+  const rightsHolder = patch.rightsHolder !== undefined ? cleanText(patch.rightsHolder, 160) : previous.rightsHolder ?? "";
+  const rightsEvidence = patch.rightsEvidence !== undefined ? String(patch.rightsEvidence ?? "").trim().slice(0, 500) : previous.rightsEvidence ?? "";
+  const rightsError = validateRightsEvidence(rightsEvidence);
+  if (rightsError) return { ok: false, error: rightsError };
+  const rightsChanged = rightsHolder !== (previous.rightsHolder ?? "") || rightsEvidence !== (previous.rightsEvidence ?? "");
+
   const entry: MatchStreamSource = {
     ...previous,
+    rightsHolder,
+    rightsEvidence,
+    rightsCheckedAt: rightsHolder && rightsEvidence ? (rightsChanged ? now() : previous.rightsCheckedAt ?? now()) : null,
     label: patch.label !== undefined ? cleanText(patch.label, 160) || previous.label : previous.label,
     embedUrl,
     slugs: matchSlug ? [matchSlug] : previous.slugs,

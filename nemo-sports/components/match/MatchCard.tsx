@@ -1,5 +1,6 @@
 "use client";
 
+import ScorePair from "@/components/ui/ScorePair";
 import Link from "next/link";
 import Crest from "@/components/ui/Crest";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -57,14 +58,7 @@ function GridCard({ match: m }: { match: Match }) {
         <TeamCell slug={m.home} align="start" />
         <div className="flex min-w-[74px] flex-col items-center">
           {isDone || isLive ? (
-            <span
-              className={`num text-2xl font-extrabold leading-none ${
-                isLive ? "text-ink" : "text-ink"
-              }`}
-              dir="ltr"
-            >
-              {hs} – {as}
-            </span>
+            <ScorePair home={hs} away={as} separator="–" className="text-2xl font-extrabold leading-none text-ink" />
           ) : (
             <span className="num text-xl font-bold leading-none text-ink" dir="ltr">
               {timeOf(m.kickoff)}
@@ -133,9 +127,7 @@ function RowCard({ match: m }: { match: Match }) {
 
       <span className="order-last flex items-center justify-center gap-2 sm:order-none">
         {isDone || isLive ? (
-          <span className="num text-lg font-extrabold" dir="ltr">
-            {hs} – {as}
-          </span>
+          <ScorePair home={hs} away={as} separator="–" className="text-lg font-extrabold" />
         ) : (
           <span className="num text-base font-bold text-muted" dir="ltr">
             {timeOf(m.kickoff)}
@@ -198,9 +190,7 @@ function FeatureCard({ match: m }: { match: Match }) {
 
         <div className="flex flex-col items-center px-2">
           {isDone || isLive ? (
-            <span className="num text-4xl font-extrabold leading-none" dir="ltr">
-              {hs}<span className="mx-1.5 text-gold-500">–</span>{as}
-            </span>
+            <ScorePair home={hs} away={as} separator="–" separatorClassName="text-gold-500" className="text-4xl font-extrabold leading-none" />
           ) : (
             <span className="font-display text-3xl font-bold tracking-wide text-gold-400">VS</span>
           )}

@@ -55,6 +55,7 @@ export default function DataSourceNote({
   fetchedAt,
   ttlSeconds,
   className = "",
+  subject,
 }: {
   provider: string;
   fromCache?: boolean;
@@ -67,12 +68,15 @@ export default function DataSourceNote({
   fetchedAt?: string;
   ttlSeconds?: number;
   className?: string;
+  /** What this line describes when a page shows several datasets ("المباريات"). */
+  subject?: string;
 }) {
   const origin = originLabel(provider, fromCache, ttlSeconds);
   return (
     <div className={`flex flex-wrap items-center gap-2 text-[10.5px] text-muted ${className}`}>
       <span>
-        المصدر: <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
+        {subject ? `مصدر ${subject}: ` : "المصدر: "}
+        <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
         {` · ${origin}`}
         {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : " · لا يوجد وقت تحديث ناجح مسجّل"}
       </span>

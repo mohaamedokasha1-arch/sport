@@ -21,7 +21,8 @@ async function main() {
     const match = await createAdminMatch({ slug, sport: "football", competitionSlug: "qa-competition", competitionName: "QA competition", homeName: "QA Nemo A", awayName: "QA Nemo B", date: "2030-01-01", time: "20:00", status: "upcoming", isPublished: true }, "qa-only");
     assert.equal(match.ok, true, match.ok ? "" : match.error);
     const correction = await upsertOverride(slug, { note: "QA durable correction" }); assert.equal(correction.ok, true);
-    const stream = await createLiveStream({ matchSlug: slug, homeName: "QA Nemo A", awayName: "QA Nemo B", embedUrl: "https://www.youtube.com/embed/qa-only", status: "published" });
+    // Rights evidence is required for a public stream (lib/broadcast-state.ts); QA values only.
+    const stream = await createLiveStream({ matchSlug: slug, homeName: "QA Nemo A", awayName: "QA Nemo B", embedUrl: "https://www.youtube.com/embed/qa-only", status: "published", rightsHolder: "QA rights holder (test only)", rightsEvidence: "QA-LICENCE-REF-TEST-ONLY" });
     assert.equal(stream.ok, true);
     const broadcast = await createBroadcaster({ competitionId: "qa-competition", competitionName: "QA competition", broadcasterName: "QA guide", broadcastWebsite: "https://www.beinsports.com", verificationSource: "QA test record — not a rights claim", requiresSubscription: true });
     assert.equal(broadcast.ok, true); if (broadcast.ok) await setBroadcasterStatus(broadcast.entry.id, "approved");

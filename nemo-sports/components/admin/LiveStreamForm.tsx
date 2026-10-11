@@ -125,6 +125,31 @@ export default function LiveStreamForm({
         <input name="label" defaultValue={editing?.label ?? defaultLabel} maxLength={160} className={inputCls} placeholder="مثال: البث المباشر — القناة الرسمية" />
       </Field>
 
+      {/* Rights evidence — required before the stream can be public. Approval
+          (the status) and evidence are recorded independently of the match. */}
+      <Field label="الجهة صاحبة حقوق البث (مطلوب للنشر)">
+        <input
+          name="rightsHolder"
+          defaultValue={editing?.rightsHolder ?? ""}
+          maxLength={160}
+          className={inputCls}
+          placeholder="مثال: beIN SPORTS MENA"
+        />
+      </Field>
+      <Field label="مرجع الترخيص أو رابط رسمي يثبت الحق (مطلوب للنشر)">
+        <input
+          name="rightsEvidence"
+          defaultValue={editing?.rightsEvidence ?? ""}
+          maxLength={500}
+          className={inputCls}
+          placeholder="رقم العقد / رابط https لصفحة الناقل الرسمية"
+        />
+      </Field>
+      <p className="text-[10.5px] leading-relaxed text-white/45 sm:col-span-2">
+        لا يظهر أي بث للزوار قبل تسجيل صاحب الحقوق ومرجع الترخيص. حالة «منشور/مجدول/مباشر» موافقة على البث فقط؛ أما
+        تشغيله فيتبع حالة المباراة من المصدر: لا يُعرض قابلًا للتشغيل بعد انتهاء المباراة أو انقضاء نافذتها.
+      </p>
+
       <div className="sm:col-span-2">
         <Field label="رابط الـEmbed (https فقط)">
           <textarea

@@ -24,7 +24,7 @@ import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
 import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
-import { isLiveStatus } from "@/lib/match-state";
+import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 
 /**
  * Find a provider team row by looking it up in the league tables.
@@ -493,9 +493,11 @@ async function RealTeamView(props: {
     (f) => f.homeProviderId === props.slug || f.awayProviderId === props.slug,
   );
   const live = mine.filter((fixture) => isLiveStatus(fixture.status)).sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
-  const upcoming = mine.filter((fixture) => fixture.status === "scheduled").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  // Shared state rule: a "scheduled" whose kickoff day passed is unconfirmed —
+  // listed with the special cases, never as upcoming and never as played.
+  const upcoming = mine.filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt) === "upcoming").sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
   const played = mine.filter((fixture) => FINAL_STATUSES.has(fixture.status)).sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt));
-  const special = mine.filter((fixture) => !isLiveStatus(fixture.status) && fixture.status !== "scheduled" && !FINAL_STATUSES.has(fixture.status));
+  const special = mine.filter((fixture) => !isLiveStatus(fixture.status) && !FINAL_STATUSES.has(fixture.status) && matchStateOf(fixture.status, fixture.scheduledAt) !== "upcoming");
 
   const r = row as NormalizedStandingRow | null;
 

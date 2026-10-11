@@ -1,30 +1,38 @@
-import { validateMatchQuery } from "@/lib/match-query";
+import { ALL_SPORTS, validateMatchQuery } from "@/lib/match-query";
 import { NextResponse } from "next/server";
-import { liveMatches } from "@/lib/sdl-gateway";
+import { LIVE_SPORT_SLUGS, liveBoard } from "@/lib/live-board";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * GET /api/v1/live?sport=football
- * ────────────────────────────────
- * In-play matches straight from the Sports Data Layer. The response never
- * contains a provider payload: everything is canonical, and `meta` states
- * where the data came from so the client can degrade honestly.
+ * GET /api/v1/live?sport=football        (default — unchanged for API clients)
+ * GET /api/v1/live?sport=all             (every public sport — the /live scope)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * In-play matches from the site-wide live board (lib/live-board.ts), i.e. the
+ * same reconciled data the homepage, /live and /matches count. `meta.scope`
+ * states exactly which sports the count covers, so a client comparing this
+ * endpoint with a page can compare like with like.
  */
 export async function GET(req: Request) {
-  const error = validateMatchQuery(new URL(req.url).searchParams);
+  const params = new URL(req.url).searchParams;
+  const error = validateMatchQuery(params);
   if (error) return NextResponse.json({ ok: false, error: { code: "invalid_input", message: error }, data: [] }, { status: 400 });
-  const sport = new URL(req.url).searchParams.get("sport") ?? "football";
-  const result = await liveMatches(sport);
+  const sport = params.get("sport") ?? "football";
+  const scope = sport === ALL_SPORTS ? [...LIVE_SPORT_SLUGS] : [sport];
+  const board = await liveBoard(scope);
 
-  if (!result.ok) {
+  if (!board.ok) {
     return NextResponse.json(
       {
         ok: false,
-        error: { code: result.error.kind, message: result.error.message, dataType: result.error.dataType },
+        error: {
+          code: "all_providers_failed",
+          message: "No live source answered for the requested scope",
+          dataType: "live_matches",
+        },
         data: [],
-        meta: { sport, attempts: result.error.attempts },
+        meta: { sport, scope, failedSports: board.failedSports },
       },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
@@ -33,18 +41,23 @@ export async function GET(req: Request) {
   return NextResponse.json(
     {
       ok: true,
-      data: result.data,
+      data: board.live,
       meta: {
         sport,
-        count: result.data.length,
-        provider: result.provider,
-        source: result.source,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        degraded: result.degraded,
-        fetchedAt: result.fetchedAt,
+        scope,
+        count: board.total,
+        bySport: board.bySport,
+        complete: board.complete,
+        failedSports: board.failedSports,
+        provider: board.providers.length === 1 ? board.providers[0] : board.providers.length ? "mixed" : null,
+        providers: board.providers,
+        source: "provider",
+        stale: board.stale,
+        degraded: board.degraded,
+        // Oldest snapshot used — the honest "data as of" for the whole answer.
+        fetchedAt: board.fetchedAt,
       },
     },
-    { headers: { "cache-control": result.stale ? "no-store" : "public, max-age=5, stale-while-revalidate=30" } },
+    { headers: { "cache-control": board.stale || !board.complete ? "no-store" : "public, max-age=5, stale-while-revalidate=30" } },
   );
 }

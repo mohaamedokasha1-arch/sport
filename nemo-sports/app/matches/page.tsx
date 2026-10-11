@@ -9,10 +9,11 @@ import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import { filterMatches, matchCounts } from "@/lib/filters";
 import { competitions, PUBLIC_SPORTS, sports } from "@/lib/core-data";
-import { fixtures as sdlFixtures, fixturesForCairoDate, liveMatches as sdlLive } from "@/lib/sdl-gateway";
+import { fixtures as sdlFixtures, fixturesForCairoDate } from "@/lib/sdl-gateway";
 import { applyDemoOverrides } from "@/lib/match-overrides";
 import { demoContentVisible } from "@/lib/site";
-import { filterProviderMatches, providerMatchCounts, sortProviderMatches } from "@/lib/provider-match-filter";
+import { dateScopeIncludesToday, filterProviderMatches, providerMatchCounts, sortProviderMatches } from "@/lib/provider-match-filter";
+import { liveBoard, reconcileResult, scopeLabelAr, SPORT_NAME_AR } from "@/lib/live-board";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
 import { siteDay, siteDateKey, isDateKey, shiftDateKey } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
@@ -46,33 +47,44 @@ export default async function MatchesPage({
   const requestedSports = query.sport ? [query.sport] : PUBLIC_SPORTS.map((sport) => sport.slug);
   const requestedDate = isDateKey(query.date) ? query.date : ["today", "yesterday", "tomorrow"].includes(query.date)
     ? shiftDateKey(siteDateKey(), query.date === "yesterday" ? -1 : query.date === "tomorrow" ? 1 : 0) : null;
-  const feedResults = isSupportedSport
-    ? await Promise.all(requestedSports.map((sport) => requestedDate ? fixturesForCairoDate({ sport, date: requestedDate }) : sdlFixtures({ sport })))
-    : [];
-  const liveResults = isSupportedSport && query.status === "live"
-    ? await Promise.all(requestedSports.map((sport) => sdlLive(sport)))
-    : [];
+  const now = Date.now();
+  // Whenever the date scope covers today, statuses come from the site-wide live
+  // board (lib/live-board.ts): the SAME data the homepage, /live and the score
+  // rail count, so «مباشر» here equals /live for the same sport scope.
+  const withLiveBoard = isSupportedSport && (dateScopeIncludesToday(requestedDate ?? query.date, now) || query.status === "live");
+  const [feedResults, board] = await Promise.all([
+    isSupportedSport
+      ? Promise.all(requestedSports.map((sport) => requestedDate ? fixturesForCairoDate({ sport, date: requestedDate }) : sdlFixtures({ sport })))
+      : Promise.resolve([]),
+    withLiveBoard ? liveBoard(requestedSports, now) : Promise.resolve(null),
+  ]);
 
-  const successfulFeeds = [...feedResults, ...liveResults].filter((result) => result.ok && result.source === "provider");
+  const successfulFeeds = feedResults.filter((result) => result.ok && result.source === "provider");
   const byId = new Map<string, NormalizedFixture>();
   for (const result of successfulFeeds) {
     if (!result.ok) continue;
-    for (const fixture of result.data) {
+    const list = board ? reconcileResult(result, board.boards, now) : result.data;
+    for (const fixture of list) {
       if (fixture.providerId && hasMatchIdentity(fixture)) byId.set(fixture.providerId, fixture);
     }
   }
+  // Matches in play that the dated feed did not carry (e.g. a 23:30 kickoff
+  // still running after midnight) are part of today.
+  if (board) for (const fixture of board.live) if (!byId.has(fixture.providerId)) byId.set(fixture.providerId, fixture);
+  const liveFailed = board ? board.failedSports.map((sport) => SPORT_NAME_AR[sport] ?? sport) : [];
 
-  if (successfulFeeds.length > 0) {
+  if (successfulFeeds.length > 0 || board?.ok) {
     const fixtures = [...byId.values()];
-    const filtered = sortProviderMatches(filterProviderMatches(fixtures, query));
-    const counts = providerMatchCounts(fixtures, query);
+    const filtered = sortProviderMatches(filterProviderMatches(fixtures, query, now), now);
+    const counts = providerMatchCounts(fixtures, query, now);
     const optionMap = new Map<string, { id: string; name: string; sport: string }>();
     for (const fixture of fixtures) {
       if (!fixture.competitionProviderId && !fixture.competitionName) continue;
       const id = fixture.competitionProviderId || fixture.competitionName || "";
       optionMap.set(id, { id, name: fixture.competitionName || id, sport: fixture.sport });
     }
-    const activeResult = successfulFeeds[0];
+    const activeResult = successfulFeeds[0] ?? null;
+    const scopeLabel = scopeLabelAr(requestedSports);
 
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
@@ -88,7 +100,7 @@ export default async function MatchesPage({
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <p className="text-[12px] text-muted">
-              <span className="num font-bold">{filtered.length}</span> مباراة مطابقة · توقيت القاهرة
+              <span className="num font-bold">{filtered.length}</span> مباراة مطابقة · {scopeLabel} · توقيت القاهرة
             </p>
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
@@ -109,6 +121,7 @@ export default async function MatchesPage({
         </Suspense>
 
         {successfulFeeds.some((r) => r.ok && (r.stale || r.degraded)) && <p role="status" className="mt-4 text-sm text-muted">بعض البيانات قديمة أو التغطية غير مكتملة. لا تعتبر هذه القائمة جدولًا كاملًا.</p>}
+        {liveFailed.length > 0 && <p role="status" className="mt-2 text-sm text-warn-600 dark:text-warn-400">تعذّر التحقق من الحالة المباشرة لـ: {liveFailed.join("، ")}.</p>}
         <div className="mt-5">
           {filtered.length > 0 ? (
             <ProviderMatchList fixtures={filtered} view={query.view} />
@@ -123,8 +136,10 @@ export default async function MatchesPage({
             />
           )}
         </div>
-        {activeResult.ok ? (
+        {activeResult?.ok ? (
           <DataSourceNote className="mt-6" provider={activeResult.provider} fromCache={activeResult.fromCache} stale={activeResult.stale} fetchedAt={activeResult.fetchedAt} />
+        ) : board?.ok ? (
+          <DataSourceNote className="mt-6" provider={board.providers[0] ?? "admin"} fromCache={board.fromCache} stale={board.stale} degraded={board.degraded} fetchedAt={board.fetchedAt ?? undefined} />
         ) : null}
       </div>
     );
