@@ -24,6 +24,11 @@ jobs:
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # Empty-data configuration for EVERY step. The build prerenders pages:
+      # with the keyless SportScore provider enabled, a runner with internet
+      # access bakes real provider data into static HTML during `next build`,
+      # and `next start` then serves that data. Pin it for the whole job.
+      NEMO_SPORTSCORE_ENABLED: "0"
     defaults:
       run:
         working-directory: nemo-sports
