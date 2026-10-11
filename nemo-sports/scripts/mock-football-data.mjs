@@ -27,6 +27,25 @@ const fixtures = join(here, "..", "packages", "sdl", "test", "fixtures", "footba
 const load = (name) => JSON.parse(readFileSync(join(fixtures, name), "utf8"));
 
 const PORT = Number(process.env.PORT ?? 4321);
+
+/**
+ * [code, name, area name, area code, type] — mirrors FOOTBALL_DATA_COMPETITIONS
+ * in the adapter. Synthetic mock data (see the `/competitions` handler).
+ */
+const CATALOG_CODES = [
+  ["PL", "Premier League", "England", "ENG", "LEAGUE"],
+  ["PD", "Primera Division", "Spain", "ESP", "LEAGUE"],
+  ["SA", "Serie A", "Italy", "ITA", "LEAGUE"],
+  ["BL1", "Bundesliga", "Germany", "GER", "LEAGUE"],
+  ["FL1", "Ligue 1", "France", "FRA", "LEAGUE"],
+  ["CL", "UEFA Champions League", "Europe", "EUR", "CUP"],
+  ["DED", "Eredivisie", "Netherlands", "NED", "LEAGUE"],
+  ["PPL", "Primeira Liga", "Portugal", "POR", "LEAGUE"],
+  ["ELC", "Championship", "England", "ENG", "LEAGUE"],
+  ["BSA", "Campeonato Brasileiro Série A", "Brazil", "BRA", "LEAGUE"],
+  ["WC", "FIFA World Cup", "World", "INT", "CUP"],
+  ["EC", "European Championship", "Europe", "EUR", "CUP"],
+];
 const ROUTES = {
   standings: load("standings.json"),
   scorers: load("scorers.json"),
@@ -115,7 +134,23 @@ const server = createServer((req, res) => {
   }
 
   if (path.startsWith("/matches")) return json(200, ROUTES.matches);
-  if (path === "/competitions") return json(200, { count: 12, competitions: [{ code: "PL" }, { code: "PD" }] });
+  /* `GET /competitions` — the catalog endpoint. SYNTHETIC: these rows are built
+   * from the repo's own documented free-tier code list (FOOTBALL_DATA_COMPETITIONS
+   * in packages/sdl/src/adapters/football-data.ts), not from a captured provider
+   * response, and they exist so FootballDataAdapter.getCompetitions() can be
+   * exercised offline. The previous two-row stub had no `name`, which the real
+   * adapter correctly rejects — it proved nothing about the mapping. */
+  if (path === "/competitions") {
+    const competitions = CATALOG_CODES.map(([code, name, areaName, areaCode, type]) => ({
+      id: 2000 + CATALOG_CODES.findIndex((c) => c[0] === code),
+      code,
+      name,
+      type,
+      emblem: null,
+      area: { name: areaName, code: areaCode },
+    }));
+    return json(200, { count: competitions.length, competitions });
+  }
   if (/^\/competitions\/[A-Z0-9]+$/.test(path)) {
     return json(200, { id: 2021, name: "Premier League", code: path.split("/").pop(), type: "LEAGUE", emblem: null, area: { name: "England", code: "ENG" } });
   }

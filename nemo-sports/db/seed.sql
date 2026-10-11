@@ -54,6 +54,14 @@ INSERT INTO provider_priority (sport, competition, data_type, provider, role) VA
   ('football','*','player_stats',       'api_football','secondary'),
   ('football','*','competition',        'sportmonks',  'primary'),
   ('football','*','competition',        'football_data','fallback'),
+  -- Competition CATALOG discovery (data_type 'competitions', plural). Only two
+  -- providers on this stack expose a documented listing endpoint. SportScore,
+  -- the primary live source, has none at all, so it is absent here on purpose:
+  -- an absent rule is honest, a rule that returns [] would look like "the
+  -- provider dropped every league" after a failed sync.
+  ('football','*','competitions',       'football_data','primary'),
+  ('*','*','competitions',              'thesportsdb', 'primary'),
+  ('football','*','competitions',       'thesportsdb', 'secondary'),
   ('football','*','competition_seasons','sportmonks',  'primary'),
   ('football','*','venue',              'api_football','primary'),
   ('football','*','venue',              'thesportsdb', 'secondary'),

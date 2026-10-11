@@ -24,6 +24,7 @@ export type DataType =
   | "player"
   | "player_stats"
   | "competition"
+  | "competitions"
   | "competition_seasons"
   | "standings"
   | "top_scorers"
@@ -201,6 +202,49 @@ export type NormalizedCompetition = {
   logoUrl: string | null;
 };
 
+/**
+ * One row of a provider's competition *catalog*.
+ *
+ * This is deliberately NOT the same thing as `NormalizedCompetition`: a catalog
+ * row is a promise that a competition EXISTS in a provider's index. It says
+ * nothing about whether that provider serves fixtures, live scores, standings
+ * or squads for it. Conflating the two is how a platform ends up publishing a
+ * league page that can never render data, so every capability is a separate,
+ * explicitly-unknown-by-default flag and only the sync layer is allowed to set
+ * one after it has actually seen a non-empty response.
+ */
+export type NormalizedCatalogCompetition = NormalizedCompetition & {
+  /** Provider's own sport vocabulary, lowercased (e.g. "soccer", "basketball"). */
+  sport: string | null;
+  /**
+   * Capabilities the provider *advertises for this competition*. Everything
+   * starts `null` (= unknown, not "no"). A `true` must come from a verified
+   * response; a `false` from a verified refusal.
+   */
+  capabilities: CompetitionCapabilities;
+};
+
+/** Per-competition capability flags. `null` = never verified either way. */
+export type CompetitionCapabilities = {
+  listed: boolean;
+  fixtures: boolean | null;
+  live: boolean | null;
+  results: boolean | null;
+  standings: boolean | null;
+  teams: boolean | null;
+  players: boolean | null;
+};
+
+export const emptyCapabilities = (listed = true): CompetitionCapabilities => ({
+  listed,
+  fixtures: null,
+  live: null,
+  results: null,
+  standings: null,
+  teams: null,
+  players: null,
+});
+
 export type NormalizedSeason = {
   providerId: string;
   competitionProviderId: string;
@@ -281,6 +325,14 @@ export interface SportsDataProvider {
   getPlayer(input: { providerPlayerId: string }): Promise<ProviderResult<NormalizedPlayer>>;
   getPlayerStats(input: { providerPlayerId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedPlayerStats>>;
   getCompetition(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedCompetition>>;
+  /**
+   * Enumerate the provider's competition catalog. Providers without a
+   * documented listing endpoint return `not_supported` — that is a fact about
+   * the provider, never an empty list (an empty catalog and an unsupported
+   * catalog must stay distinguishable, or a failed sync looks like "the
+   * provider dropped every league").
+   */
+  getCompetitions(input: { sport?: string; country?: string }): Promise<ProviderResult<NormalizedCatalogCompetition[]>>;
   getCompetitionSeasons(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedSeason[]>>;
   getStandings(input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedStandingRow[]>>;
   getTopScorers(input: { providerCompetitionId: string; season?: string; sport?: string }): Promise<ProviderResult<NormalizedTopScorer[]>>;
@@ -317,6 +369,7 @@ export const DATA_TYPES: DataType[] = [
   "player",
   "player_stats",
   "competition",
+  "competitions",
   "competition_seasons",
   "standings",
   "top_scorers",

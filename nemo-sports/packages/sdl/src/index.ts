@@ -21,13 +21,15 @@ export type {
   NormalizedPlayer,
   NormalizedPlayerStats,
   NormalizedCompetition,
+  NormalizedCatalogCompetition,
+  CompetitionCapabilities,
   NormalizedSeason,
   NormalizedStandingRow,
   NormalizedTopScorer,
   NormalizedVenue,
   ProviderHealth,
 } from "./provider";
-export { notSupported } from "./provider";
+export { notSupported, emptyCapabilities } from "./provider";
 
 export { SdlCache, MemoryStore, type KvStore, type CacheStats } from "./cache";
 export { RateLimiter, RequestCoalescer, type RateLimitConfig, type RateLimitVerdict, type WindowUsage } from "./rate-limit";

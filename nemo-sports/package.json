@@ -6,7 +6,7 @@
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
-    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run stream-policy:test && npm run news:classify:test && npm run consistency:test && npm run scenarios:test",
+    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run competitions:test && npm run stream-policy:test && npm run news:classify:test && npm run consistency:test && npm run scenarios:test",
     "smoke": "node scripts/smoke.mjs",
     "scenarios:test": "tsx scripts/verify-all-scenarios.ts",
     "sdl:typecheck": "tsc -p packages/sdl/tsconfig.json --noEmit",
@@ -31,7 +31,8 @@
     "verify:live": "node scripts/verify-live-consistency.mjs",
     "verify:news-ingestion": "node scripts/verify-news-ingestion.mjs",
     "replay:today": "node scripts/replay-sportscore-today.mjs",
-    "mock:news": "node scripts/mock-news-feeds.mjs"
+    "mock:news": "node scripts/mock-news-feeds.mjs",
+    "competitions:test": "tsx --test scripts/verify-competition-sync.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -4,6 +4,7 @@ import { liveMatches, fixtures, dataServable, hasMatchIdentity } from "@/lib/sdl
 import { listAdminTeams } from "@/lib/admin-teams";
 import { listAdminPlayers } from "@/lib/admin-players";
 import { listAdminCompetitions } from "@/lib/admin-competitions";
+import { canonicalCompetitions } from "@/lib/competition-catalog";
 import { listManualNews } from "@/lib/manual-news";
 import { matchUrl } from "@/lib/match-links";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
@@ -89,6 +90,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const n of news) entries.push({ url: `${SITE_URL}/news/${n.slug}`, lastModified: new Date(n.updatedAt), changeFrequency: "weekly", priority: 0.6 });
   } catch {
     // never fail the sitemap because of admin content
+  }
+
+  // Canonical provider-backed competition pages (/competitions/premier-league,
+  // /competitions/egyptian-league, …).
+  //
+  // These were missing entirely: the sitemap listed the /competitions index and
+  // any competition an operator had created by hand, but never the catalog the
+  // site is actually built around — pages that return 200, carry their own
+  // canonical tag, distinct Arabic title/description and real standings and
+  // fixtures. Advertising the index while hiding every entry under it is a
+  // crawl-depth problem, not a content one.
+  //
+  // Still gated on `indexable`: these pages render provider data, so listing
+  // them while the provider is down would advertise URLs that currently say
+  // "البيانات غير متوفرة". They are also de-duplicated against the admin slugs
+  // already pushed above, so an operator-curated page can never appear twice.
+  if (indexable) {
+    const seen = new Set(entries.map((e) => e.url));
+    for (const competition of canonicalCompetitions) {
+      const url = `${SITE_URL}/competitions/${encodeURIComponent(competition.canonicalSlug)}`;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      entries.push({ url, changeFrequency: "daily", priority: 0.8 });
+    }
+
+    /* Deliberately NOT listed: competitions discovered by lib/competition-sync.
+       A catalog row carries a provider id, not a public route — pushing
+       `/competitions/{providerId}` here would advertise URLs that 404 unless
+       someone had already mapped that id onto a real page. Emitting a dead link
+       into a sitemap is worse than omitting the page, so discovery stays
+       sitemap-ineligible until an operator maps it to a resolvable competition
+       (canonical catalog or a published admin competition), both of which are
+       already listed above. */
   }
 
   // Real match pages (provider slugs) for every sport the site links to

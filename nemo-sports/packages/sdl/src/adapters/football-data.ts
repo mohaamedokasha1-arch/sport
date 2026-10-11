@@ -39,7 +39,7 @@
  */
 
 import { parseMinute, str, toInt, toIso, withDefaults, type HttpOptions } from "./base";
-import { notSupported, type DataType, type NormalizedCompetition, type NormalizedFixture, type NormalizedStandingRow, type NormalizedTeam, type NormalizedTopScorer, type ProviderError, type ProviderHealth, type ProviderResult } from "../provider";
+import { emptyCapabilities, notSupported, type DataType, type NormalizedCatalogCompetition, type NormalizedCompetition, type NormalizedFixture, type NormalizedStandingRow, type NormalizedTeam, type NormalizedTopScorer, type ProviderError, type ProviderHealth, type ProviderResult } from "../provider";
 
 export const FOOTBALL_DATA_BASE_URL = "https://api.football-data.org/v4";
 
@@ -276,7 +276,7 @@ const parseForm = (raw: string | null | undefined): ("W" | "D" | "L")[] =>
 const utcDay = (offsetDays = 0): string => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 
 export class FootballDataAdapter extends withDefaults("football_data") {
-  readonly capabilities: DataType[] = ["fixtures", "live_matches", "match_detail", "results", "standings", "top_scorers", "competition", "team", "health"];
+  readonly capabilities: DataType[] = ["fixtures", "live_matches", "match_detail", "results", "standings", "top_scorers", "competition", "competitions", "team", "health"];
   readonly supportedSports: string[] = ["football"];
 
   private apiKey: string;
@@ -471,6 +471,48 @@ export class FootballDataAdapter extends withDefaults("football_data") {
       requestKey: res.requestKey,
       fromCache: false,
     };
+  }
+
+  /**
+   * `GET /v4/competitions` — the documented catalog endpoint. On the free plan
+   * it returns exactly the competitions the key can see, which is the honest
+   * upper bound of what this provider may ever serve: a competition NOT in this
+   * list is one we must not advertise a page for.
+   *
+   * Every capability flag leaves here as `null` (unknown). The listing proves
+   * the competition exists and nothing more; the sync layer fills the flags in
+   * after it has actually seen a standings/fixtures response.
+   */
+  override async getCompetitions(input: { sport?: string; country?: string } = {}): Promise<ProviderResult<NormalizedCatalogCompetition[]>> {
+    // Football-Data.org is football-only; asking it for another sport is a
+    // caller error, not an empty catalog.
+    if (input.sport && input.sport !== "football") {
+      return { ok: true, data: [], provider: this.name, fetchedAt: new Date().toISOString(), requestKey: this.key("competitions", input), fromCache: false };
+    }
+    const res = await this.getJson<{ count?: number; competitions?: (FdCompetitionRef & { area?: FdArea | null })[] | null }>("competitions", {});
+    if (!res.ok) return res;
+    const rows = res.data.competitions ?? [];
+    const country = str(input.country);
+    const data: NormalizedCatalogCompetition[] = [];
+    for (const c of rows) {
+      const code = str(c.code);
+      const name = str(c.name);
+      if (!code || !name) continue; // an unnamed/unkeyed row cannot be mapped safely
+      const areaName = str(c.area?.name);
+      if (country && areaName && areaName.toLowerCase() !== country.toLowerCase()) continue;
+      data.push({
+        providerId: code,
+        name,
+        shortName: code,
+        countryCode: str(c.area?.code),
+        countryName: areaName,
+        type: str(c.type)?.toLowerCase() ?? null,
+        logoUrl: str(c.emblem),
+        sport: "football",
+        capabilities: emptyCapabilities(true),
+      });
+    }
+    return { ok: true, data, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }
 
   override async getTeam(input: { providerTeamId: string }): Promise<ProviderResult<NormalizedTeam>> {

@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/fetch-news",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/sync-competitions",
+      "schedule": "45 3 * * 1"
     }
   ]
 }
