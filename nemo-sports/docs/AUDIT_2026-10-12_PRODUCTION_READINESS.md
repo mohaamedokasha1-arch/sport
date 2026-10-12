@@ -50,7 +50,7 @@ consistency and security headers — not that real matches, scores or times are 
 - Action: obtain written permission from the Egyptian Pro League before enabling scraping; do not infer coverage.
 
 ### F5 — Scheduled news ingestion depends on environment variables (source + earlier production observation)
-- Evidence: `app/api/cron/fetch-news/route.ts` returns 503 `not_configured` when neither `NEMO_INGEST_TOKEN` nor `CRON_SECRET` is set (verified locally in smoke: "503 not_configured (must refuse anonymous)"). `docs/…` and `AUDIT_REPORT_2026-10-12.md` (prior session) record that production returned this 503 on 2026-10-11.
+- Evidence: `app/api/cron/fetch-news/route.ts` returns 503 `not_configured` when neither `NEMO_INGEST_TOKEN` nor `CRON_SECRET` is set (verified locally in smoke: "503 not_configured (must refuse anonymous)"). the earlier root-level report `AUDIT_REPORT_2026-10-12.md` (prior session) records that production returned this 503 when it was checked (its evidence dates from 2026-10-11).
 - Label: **Confirmed by source code and local smoke**; production state **Suspected — needs production access** (not re-checked today).
 - Action (owner): set `CRON_SECRET` in Vercel for Production. Do not paste it into chat or commit it.
 
@@ -83,7 +83,7 @@ No change to the broadcast engine, stream player, stream database, approval work
 
 ## 3. Tests actually run (local)
 
-- `npm run check` → exit 0 (typecheck; sdl 101 tests; repairs; admin 43/43; news; news quality; news cycle; links; seo; search; freshness; sports; competitions; stream policy; classify; consistency; scenarios; pipeline config; pipeline 35/35; standings-guard 3/3).
+- `npm run check` → exit 0 (typecheck; sdl suite (all subtests pass, 0 failures); repairs; admin 43/43; news; news quality; news cycle; links; seo; search; freshness; sports; competitions; stream policy; classify; consistency; scenarios; pipeline config; pipeline 35/35; standings-guard 3/3).
 - `npm run build` → exit 0.
 - `npm run smoke` (BASE=http://127.0.0.1:3000, empty-data mode) → ALL GREEN, 37 routes.
 - Not run: browser/mobile screenshots (no browser tool available in this sandbox), Lighthouse/Core Web Vitals (needs a reachable deployment), admin UI render behind login (no admin credentials used).
