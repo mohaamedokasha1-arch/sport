@@ -114,6 +114,9 @@ export default async function AdminSettings({
         </Panel>
 
         <Panel title="SEO الأساسي">
+          <p className="mb-3 text-[11px] leading-relaxed text-warn">
+            تُحفظ هذه القيم في الإعدادات، لكن توليد Metadata العامة لا يقرأ قسم SEO منها حاليًا؛ حفظها لا يغيّر عنوان أو وصف الصفحات بعد.
+          </p>
           <div className="space-y-3">
             <Field label="الوصف الافتراضي (meta description)"><textarea name="metaDescription" rows={3} defaultValue={s.seo.metaDescription} maxLength={400} className={inputCls} /></Field>
             <Field label="الكلمات المفتاحية"><input name="keywords" defaultValue={s.seo.keywords} maxLength={400} className={inputCls} /></Field>

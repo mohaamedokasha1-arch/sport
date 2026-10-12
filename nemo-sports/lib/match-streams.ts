@@ -242,7 +242,11 @@ function withRightsDefaults(s: MatchStreamSource): MatchStreamSource {
 }
 
 function saveDiskStreams(list: MatchStreamSource[]): void {
-  if (process.env.NEMO_TEST_MEMORY_ONLY === "1" || process.env.NODE_ENV === "production") return;
+  if (
+    process.env.NEMO_TEST_MEMORY_ONLY === "1" ||
+    process.env.NEMO_TEST_NO_DISK_WRITES === "1" ||
+    process.env.NODE_ENV === "production"
+  ) return;
   try {
     const dir = path.dirname(STREAMS_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

@@ -41,6 +41,7 @@ const pages = [
   "/privacy",
   "/terms",
   "/copyright",
+  "/admin/login",
   "/sitemap.xml",
   "/robots.txt",
   "/icon.svg",
@@ -53,17 +54,24 @@ const pages = [
  */
 const adminRoutes = [
   "/admin",
-  "/admin/articles",
-  "/admin/news",
-  "/admin/live-matches",
-  "/admin/upcoming-matches",
-  "/admin/matches",
-  "/admin/competitions",
-  "/admin/broadcast",
-  "/admin/users",
+  "/admin/activity",
   "/admin/ads",
+  "/admin/articles",
+  "/admin/broadcast",
+  "/admin/competitions",
+  "/admin/live",
+  "/admin/live-matches",
+  "/admin/matches",
+  "/admin/news",
+  "/admin/news/manual",
+  "/admin/players",
   "/admin/providers",
   "/admin/seo",
+  "/admin/settings",
+  "/admin/standings",
+  "/admin/teams",
+  "/admin/upcoming-matches",
+  "/admin/users",
 ];
 
 /** Set this to exercise the authorized path as well as the denial path. */
@@ -169,23 +177,23 @@ async function main() {
   for (const p of details) await check(p);
 
   // API contracts.
-  // Content mode: the demo dataset renders in development/preview only. In
-  // production without real provider data every sports-data surface is
-  // intentionally EMPTY (honest "unavailable" states, §Instruction 12), so
-  // the demo-dependent assertions below run only when demo content is on.
+  // Content mode is determined from the API metadata, not a generic homepage
+  // sentence: an editorial-only fallback is real editorial data, but it is not
+  // evidence that an upstream sports provider is currently answering.
   const homeHtml = await (await fetch(`${BASE}/`)).text();
-  /* Three legitimate content modes:
-     - real:      SDL provider data rendered (marker from the real-variant home)
-     - demo:      demo dataset (development/preview only)
-     - prod-empty: production without provider data → honest empty states    */
-  const realMode = homeHtml.includes("نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط");
-  const emptyMode = homeHtml.includes("بيانات المباريات غير متاحة مؤقتًا");
-  const demoOn = !realMode && !emptyMode;
-  const modeName = realMode ? "REAL provider data" : demoOn ? "demo content visible (dev/demo)" : "production (no fabricated data)";
-  console.log(`  · content mode → ${modeName}`);
   const fixtureMeta = await (await fetch(`${BASE}/api/v1/matches`)).json();
   const editorialOnly = fixtureMeta.meta?.provider === "admin";
-  if (realMode) {
+  const realMode = fixtureMeta.ok === true && fixtureMeta.meta?.source === "provider" && !editorialOnly;
+  const demoOn = fixtureMeta.ok === true && fixtureMeta.meta?.source === "demo";
+  const modeName = realMode
+    ? "REAL provider data"
+    : demoOn
+      ? "demo content visible (dev/demo)"
+      : editorialOnly
+        ? "editorial-only fallback (no live provider confirmation)"
+        : "production (no real provider data)";
+  console.log(`  · content mode → ${modeName}`);
+  if (realMode || editorialOnly) {
     const powered = editorialOnly ? homeHtml.includes("الإدارة") || homeHtml.includes("تحريري") : /SportScore|Football-Data|API.Football|Sportmonks|Sportradar|TheSportsDB/.test(homeHtml);
     console.log(`  ${powered ? "✓" : "✗"} home → attribution reflects available source`);
     if (!powered) failures++;
@@ -365,7 +373,7 @@ async function main() {
   }
 
   const home = await (await fetch(`${BASE}/`)).text();
-  const homeTokens = realMode
+  const homeTokens = realMode || editorialOnly
     ? ["مباشر الآن", "مباريات اليوم", "نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط", 'dir="rtl"', "NEMO"]
     : demoOn
       ? ["مباشر الآن", "المباريات القادمة", "بيانات توضيحية للتطوير فقط", "البطولات", 'dir="rtl"', "NEMO"]

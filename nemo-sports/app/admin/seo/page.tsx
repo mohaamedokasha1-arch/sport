@@ -1,76 +1,67 @@
-import { AdminHead, Btn, Panel, Table, Pill, Field, inputCls } from "@/components/admin/ui";
-import { allMatches, articles, competitions, players, teams } from "@/lib/data";
-import { SITE_URL, demoContentVisible } from "@/lib/site";
+import Link from "next/link";
+import { AdminHead, NotConnected, Panel, Pill, Table } from "@/components/admin/ui";
+import { SITE_URL } from "@/lib/site";
 import { requirePermission } from "@/lib/admin-session";
 
-/** Mirrors app/robots.ts — the URLs are derived, never hardcoded. */
+/** Mirrors the rules and same-origin URLs emitted by app/robots.ts. */
 const robotsTxt = `User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /account
 Disallow: /api/
 
+Host: ${SITE_URL}
 Sitemap: ${SITE_URL}/sitemap.xml`;
 
 export default async function AdminSeo() {
   await requirePermission("settings");
-  const showDemo = demoContentVisible();
-  // Only pages that actually exist and carry indexable content are counted —
-  // matching what app/sitemap.ts emits for the current content mode.
-  const urlCount =
-    8 /* static informational pages */ +
-    (showDemo ? 10 + allMatches.length + competitions.length + teams.length + players.length + articles.length : 0);
 
   return (
     <div>
       <AdminHead
         title="SEO ومصادر البيانات"
         subtitle="Meta tags · Structured Data · Sitemap · Robots · المراقبة"
-        action={<Btn>إعادة بناء Sitemap</Btn>}
+        action={
+          <Link
+            href="/sitemap.xml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-[3px] bg-gold-500 px-3.5 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400"
+          >
+            عرض Sitemap
+          </Link>
+        }
       />
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { k: "روابط في Sitemap", v: urlCount },
-          { k: "صفحات مباريات", v: allMatches.length },
-          { k: "صفحات فرق", v: teams.length },
-          { k: "مقالات", v: articles.length },
-        ].map((x) => (
-          <div key={x.k} className="rounded-[6px] border border-navy-800 bg-navy-900 p-4">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">{x.k}</p>
-            <p className="num mt-1 text-2xl font-extrabold">{x.v}</p>
-          </div>
-        ))}
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-2">
+        <Panel title="Sitemap" aside={<Pill tone="idle">يُولّد عند الطلب</Pill>}>
+          <p className="text-[12px] leading-relaxed text-white/60">
+            يُبنى الملف من المسارات الثابتة والمحتوى المنشور ومباريات المصادر المتاحة. لا تحسب هذه اللوحة المجموعة نفسها، لذلك لا تعرض رقمًا تقريبيًا قد يختلف عن الملف الفعلي.
+          </p>
+          <Link
+            href="/sitemap.xml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block text-[11px] font-bold text-gold-400 hover:underline"
+          >
+            فتح sitemap.xml ←
+          </Link>
+        </Panel>
+
         <Panel title="Meta tags العامة">
-          <div className="space-y-3">
-            <Field label="Site Title">
-              <input className={inputCls} defaultValue="نيمو سبورتس | نتائج مباشرة، أخبار وإحصائيات لـ 8 رياضات" />
-            </Field>
-            <Field label="Site Description">
-              <textarea
-                rows={3}
-                className={inputCls}
-                defaultValue="منصة رياضية شاملة: نتائج ومباريات مباشرة، أخبار موثوقة، ترتيب البطولات، إحصائيات الفرق واللاعبين، وروابط بث رسمية مرخّصة فقط."
-              />
-            </Field>
-            <Field label="OG Image">
-              <div className="grid h-20 place-items-center rounded-[3px] border border-dashed border-navy-700 text-[11px] text-white/40">
-                1200×630 — اسحب صورة أو اضغط للرفع
-              </div>
-            </Field>
-            <Btn>حفظ</Btn>
-          </div>
+          <NotConnected
+            title="التحرير غير متاح من هذه الصفحة"
+            message="الحقول التي كانت تظهر هنا لم تكن تحفظ التغييرات. تُعرّف Metadata العامة حاليًا في app/layout.tsx؛ لن نعرض نموذجًا يوحي بأن التعديلات ستُطبّق."
+            requires="ربط إعدادات SEO بتوليد Metadata قبل إتاحة التحرير"
+          />
         </Panel>
 
         <Panel title="Structured Data">
           <ul className="space-y-2 text-[12px]">
             {[
               { t: "Organization + WebSite", d: "في layout العام مع SearchAction", on: true },
-              { t: "SportsEvent", d: "في كل صفحة مباراة (الفريقان، الموعد، الملعب، الحالة)", on: true },
-              { t: "NewsArticle", d: "في كل صفحة خبر (الكاتب، التاريخ، القسم)", on: true },
+              { t: "SportsEvent", d: "في صفحة المباراة (بيانات الحدث المتاحة)", on: true },
+              { t: "NewsArticle", d: "في صفحة الخبر (المصدر والتاريخ والقسم)", on: true },
               { t: "BreadcrumbList", d: "مسار التنقل في صفحات الفرق والبطولات", on: false },
               { t: "ItemList (Standings)", d: "جداول الترتيب", on: false },
             ].map((x) => (
@@ -79,7 +70,7 @@ export default async function AdminSeo() {
                   <span className="block text-[12px] font-bold">{x.t}</span>
                   <span className="block text-[11px] text-white/50">{x.d}</span>
                 </span>
-                <Pill tone={x.on ? "ok" : "idle"}>{x.on ? "مفعّل" : "مخطط"}</Pill>
+                <Pill tone={x.on ? "ok" : "idle"}>{x.on ? "مفعّل" : "غير موجود"}</Pill>
               </li>
             ))}
           </ul>
@@ -89,49 +80,38 @@ export default async function AdminSeo() {
           <pre dir="ltr" className="num overflow-x-auto rounded-[3px] border border-navy-800 bg-navy-950 p-3 text-[11px] leading-relaxed text-white/70">
 {robotsTxt}
           </pre>
-          <div className="mt-3 flex gap-2">
-            <Btn tone="ghost">تعديل</Btn>
-            <Btn tone="ghost">تنزيل sitemap.xml</Btn>
-          </div>
+          <Link
+            href="/robots.txt"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block text-[11px] font-bold text-gold-400 hover:underline"
+          >
+            عرض robots.txt ←
+          </Link>
         </Panel>
 
-        <Panel title="Core Web Vitals — الأهداف">
+        <Panel title="أهداف الأداء (لا توجد قياسات فعلية)">
           <Table
-            head={["المقياس", "الهدف", "الحالي (تقديري)", "الحالة"]}
+            head={["المقياس", "الهدف", "القياس الحالي", "الحالة"]}
             rows={[
-              ["LCP", "< 2.5s", "1.9s", <Pill key="1" tone="ok">جيد</Pill>],
-              ["CLS", "< 0.1", "0.04", <Pill key="2" tone="ok">جيد</Pill>],
-              ["INP", "< 200ms", "140ms", <Pill key="3" tone="ok">جيد</Pill>],
-              ["TTI", "< 3.8s", "3.1s", <Pill key="4" tone="ok">جيد</Pill>],
-              ["حجم CSS", "< 60KB", "54KB", <Pill key="5" tone="ok">جيد</Pill>],
+              ["LCP", "< 2.5s", "غير مقاس", <Pill key="lcp" tone="idle">غير متاح</Pill>],
+              ["CLS", "< 0.1", "غير مقاس", <Pill key="cls" tone="idle">غير متاح</Pill>],
+              ["INP", "< 200ms", "غير مقاس", <Pill key="inp" tone="idle">غير متاح</Pill>],
+              ["TTI", "< 3.8s", "غير مقاس", <Pill key="tti" tone="idle">غير متاح</Pill>],
+              ["حجم CSS", "< 60KB", "غير مقاس", <Pill key="css" tone="idle">غير متاح</Pill>],
             ]}
           />
           <p className="mt-3 text-[11px] leading-relaxed text-white/45">
-            الأرقام تقديرية من نسخة التطوير. القياس الحقيقي يتم عبر Lighthouse على نسخة
-            الإنتاج بعد تفعيل CDN وضغط الصور WebP.
+            الأهداف ليست نتائج قياس. لا توجد حاليًا أداة RUM أو تقرير Lighthouse متصل بهذه اللوحة؛ لا تُعرض قيم أداء فعلية.
           </p>
         </Panel>
-      </div>
 
-      <div className="mt-5">
         <Panel title="المراقبة والنسخ الاحتياطية">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { k: "Uptime (30 يوم)", v: "99.97%", tone: "ok" as const },
-              { k: "آخر نسخة احتياطية", v: "اليوم 03:00", tone: "ok" as const },
-              { k: "أخطاء 5xx (24 ساعة)", v: "3", tone: "warn" as const },
-              { k: "متوسط استجابة API", v: "18ms", tone: "ok" as const },
-            ].map((x) => (
-              <div key={x.k} className="rounded-[3px] border border-navy-800 p-3">
-                <p className="text-[10px] text-white/40">{x.k}</p>
-                <p className="num mt-1 text-lg font-extrabold">{x.v}</p>
-                <Pill tone={x.tone}>{x.tone === "ok" ? "سليم" : "متابعة"}</Pill>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-white/45">
-            نسخ يومية تُخزَّن في موقع منفصل، مع اختبار استعادة شهري والاحتفاظ بـ 30 يومًا.
-          </p>
+          <NotConnected
+            title="لا يوجد مصدر قياس موصول"
+            message="لا تتوفر قراءة فعلية لـ uptime أو أخطاء 5xx أو زمن استجابة API أو سجل النسخ الاحتياطية؛ لا يمكن تأكيد حالتها من هذه اللوحة."
+            requires="مصدر مراقبة وسجل نسخ احتياطي قابل للتحقق"
+          />
         </Panel>
       </div>
     </div>
