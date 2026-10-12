@@ -11,8 +11,10 @@
  *     so consumers never handle missing keys.
  */
 
+import type { Metadata } from "next";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
+import { SITE_URL } from "@/lib/site";
 
 export interface SiteSettings {
   siteName: string;
@@ -285,5 +287,75 @@ export async function updateSiteSettings(
     }
   }
 
+  // A saved setting must be visible on the public pages immediately, in this
+  // process at least — otherwise the admin would see a stale <title> and
+  // conclude the panel does nothing (it used to: nothing read these values).
+  invalidateSiteSettingsMemo();
+
   return { ok: true, settings: next };
+}
+
+/* ── public SEO surface (settings drive the real pages, not just the panel) ── */
+
+/**
+ * Metadata is read on every rendered page, so it goes through a short memo
+ * instead of a query per request. A write invalidates it immediately, and
+ * revalidatePath() on the public routes makes other replicas converge; 20s is
+ * the worst case for a route nobody touched.
+ */
+const SETTINGS_MEMO_MS = 20_000;
+let settingsMemo: { at: number; value: SiteSettings } | null = null;
+
+/** Drop the memo (used by writes and by tests). */
+export function invalidateSiteSettingsMemo(): void {
+  settingsMemo = null;
+}
+
+export async function getSiteSettingsCached(): Promise<SiteSettings> {
+  const now = Date.now();
+  if (settingsMemo && now - settingsMemo.at < SETTINGS_MEMO_MS) return settingsMemo.value;
+  const value = await getSiteSettings();
+  settingsMemo = { at: now, value };
+  return value;
+}
+
+/** The brand as the operator set it — Arabic name first, never a hardcoded literal. */
+export function publicTitleBrand(s: SiteSettings): string {
+  return s.siteNameAr.trim() || s.siteName.trim() || "NEMO Sports";
+}
+
+/**
+ * The root metadata block. Everything here comes from `site_settings`, so what
+ * /admin/settings and /admin/seo save is what crawlers receive. Defaults in
+ * DEFAULT_SETTINGS reproduce the previous hardcoded values exactly, so wiring
+ * this in changes nothing until an operator edits a field.
+ */
+export function publicBaseMetadata(s: SiteSettings): Metadata {
+  const brand = publicTitleBrand(s);
+  const title = `${brand} | نتائج ومواعيد المباريات`;
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: { default: title, template: `%s | ${brand}` },
+    description: s.seo.metaDescription,
+    keywords: s.seo.keywords
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean),
+    openGraph: {
+      title,
+      description: s.seo.metaDescription,
+      siteName: s.siteName.trim() || brand,
+      locale: "ar_AR",
+      type: "website",
+    },
+  };
+}
+
+/** Brand fields for the layout's Organization / WebSite structured data. */
+export function siteBranding(s: SiteSettings): { name: string; alternateName: string; description: string } {
+  return {
+    name: s.siteName.trim() || publicTitleBrand(s),
+    alternateName: publicTitleBrand(s),
+    description: s.seo.metaDescription,
+  };
 }

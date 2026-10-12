@@ -18,10 +18,12 @@ import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
 import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
+import { resolveMatchSlug } from "@/lib/match-links";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
 import { isLiveStatus } from "@/lib/match-state";
+import { fixtureHasIdentity } from "@/lib/match-identity";
 
 export type DataSource = "provider" | "demo";
 
@@ -69,10 +71,13 @@ export function isPermanentFailure(error: SdlFailure): boolean {
  * space of indexable empty pages — a crawl trap. Anything failing this check
  * is a 404, not a thin page.
  */
+// The rule itself is a pure module (lib/match-identity.ts) so lists, the match
+// page, the live board, the sitemap and the API cannot drift apart — and so it
+// is unit-testable without a database.
+export { isPlaceholderIdentity } from "@/lib/match-identity";
+
 export function hasMatchIdentity(fixture: NormalizedFixture): boolean {
-  const home = fixture.homeName ?? fixture.homeProviderId;
-  const away = fixture.awayName ?? fixture.awayProviderId;
-  return Boolean(home) && Boolean(away) && Boolean(fixture.scheduledAt);
+  return fixtureHasIdentity(fixture);
 }
 /** "admin" = operator-entered matches (lib/admin-matches.ts), never provider data. */
 export type GatewayProvider = ProviderName | "admin";
@@ -439,6 +444,12 @@ export async function competition(sport: string, providerCompetitionId: string):
  */
 export type DirectoryTeam = {
   providerId: string;
+  /**
+   * The provider's URL-safe team slug when it publishes one. `/teams` links
+   * through lib/team-lookup.ts so the directory and the competition pages emit
+   * the SAME href the team page can resolve.
+   */
+  providerSlug?: string | null;
   name: string;
   shortName: string | null;
   logoUrl: string | null;
@@ -465,6 +476,7 @@ export async function teamsDirectory(sport: string, competitionIds: string[]): P
       if (!id || byId.has(id)) continue;
       byId.set(id, {
         providerId: id,
+        providerSlug: row.teamProviderSlug ?? null,
         name: row.teamName ?? row.teamShortName ?? id,
         shortName: row.teamShortName ?? null,
         logoUrl: row.teamLogoUrl ?? null,
@@ -637,4 +649,21 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
   const same = valid.filter((r) => r.provider === first.provider);
   const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
   return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt };
+}
+
+/**
+ * The canonical slug of the match an inbound (partner/bookmark) URL means,
+ * or null when the current data cannot answer that unambiguously.
+ * See resolveMatchSlug() in lib/match-links.ts for the rule.
+ */
+export async function resolveInboundMatchSlug(slug: string): Promise<string | null> {
+  const wanted = String(slug ?? "").trim();
+  if (!wanted) return null;
+  for (const sport of ["football", ...PUBLIC_SPORTS.map((s) => s.slug).filter((s) => s !== "football")]) {
+    const res = await fixtures({ sport });
+    if (!res.ok) continue;
+    const hit = resolveMatchSlug(wanted, res.data.filter((f) => hasMatchIdentity(f)));
+    if (hit?.providerId) return hit.providerId;
+  }
+  return null;
 }

@@ -14,6 +14,7 @@ import { footballMatches, footballStandings, footballTopScorers, type FootballDa
 import { demoContentVisible } from "@/lib/site";
 import { hasMatchIdentity, supportsPlayerStats } from "@/lib/sdl-gateway";
 import { competitionByPath } from "@/lib/competition-catalog";
+import { teamHref, teamLinkSlug } from "@/lib/team-lookup";
 import type { NormalizedFixture, NormalizedStandingRow, NormalizedTopScorer } from "@/packages/sdl/src";
 import {
   articles,
@@ -51,11 +52,28 @@ async function competitionMetadataBody({
   const providerCompetition = competitionByPath(slug);
   if (providerCompetition) {
     const title = `${providerCompetition.nameAr} | الترتيب والمباريات`;
+    // Thin-page rule (§9): this URL is indexable only while the provider
+    // actually answers for THIS competition. The site-wide rule in
+    // lib/sdl-gateway.ts (dataServable) already noindexes everything when no
+    // provider answers at all; it cannot see the case where the provider is
+    // healthy but one registered competition has no table and no fixtures —
+    // which would otherwise publish an indexable page of two "unavailable"
+    // notices that competes with the pages carrying real content. The same
+    // reads the body performs are cached, so this costs nothing extra, and the
+    // page becomes indexable again on its own as soon as data arrives.
+    const id = providerCompetition.slug ?? providerCompetition.code;
+    const [table, matches] = await Promise.all([
+      footballStandings(id),
+      footballMatches({ competitionId: id }),
+    ]);
+    const hasData =
+      (table.ok && (table.data?.length ?? 0) > 0) || (matches.ok && (matches.data?.length ?? 0) > 0);
     return {
       title,
       description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`,
       // Canonical is always the registered path, never the alias the visitor used.
       alternates: { canonical: `/competitions/${providerCompetition.canonicalSlug}` },
+      ...(hasData ? {} : { robots: { index: false, follow: true } }),
     };
   }
   const c = demoContentVisible() ? competitions.find((x) => x.slug === slug) : undefined;
@@ -326,10 +344,21 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                   <tbody>{groupRows.map((row) => (
                     <tr key={`${row.position}-${row.teamProviderId}`} className="border-b border-line/60 last:border-0">
                       <td className="num px-2 py-2 font-extrabold text-muted">{row.position}</td>
-                      <td className="px-2 py-2 font-bold"><Link href={`/teams/${encodeURIComponent(row.teamProviderId)}`} className="flex min-h-8 items-center gap-2 hover:text-gold-600 dark:hover:text-gold-400">
-                        {row.teamLogoUrl ? <img src={row.teamLogoUrl} alt="" width={20} height={20} loading="lazy" className="h-5 w-5 shrink-0 object-contain" /> : null}
-                        <span className="truncate">{row.teamName ?? row.teamShortName ?? row.teamProviderId}</span>
-                      </Link></td>
+                      <td className="px-2 py-2 font-bold">{(() => {
+                        const href = teamHref(row);
+                        const label = row.teamName ?? row.teamShortName ?? row.teamProviderId;
+                        const crest = row.teamLogoUrl ? <img src={row.teamLogoUrl} alt="" width={20} height={20} loading="lazy" className="h-5 w-5 shrink-0 object-contain" /> : null;
+                        // A link is emitted only when it resolves; an unnamed
+                        // row stays plain text instead of a guaranteed 404.
+                        return href ? (
+                          <Link href={href} className="flex min-h-8 items-center gap-2 hover:text-gold-600 dark:hover:text-gold-400">
+                            {crest}
+                            <span className="truncate">{label}</span>
+                          </Link>
+                        ) : (
+                          <span className="flex min-h-8 items-center gap-2"><span className="truncate">{label}</span></span>
+                        );
+                      })()}</td>
                       <td className="num px-2 py-2 text-center">{row.played}</td><td className="num px-2 py-2 text-center">{row.won}</td>
                       <td className="num px-2 py-2 text-center">{row.drawn}</td><td className="num px-2 py-2 text-center">{row.lost}</td>
                       <td className="num px-2 py-2 text-center text-muted">{row.goalsFor}:{row.goalsAgainst}</td><td className="num px-2 py-2 text-center font-extrabold">{row.points}</td>
@@ -376,7 +405,17 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                   ) : (
                     <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name || "اسم اللاعب غير متاح"}</span>
                   )}
-                  <span className="hidden shrink-0 text-[11px] text-muted sm:block">{scorer.teamName ?? ""}</span>
+                  {(() => {
+                    const teamLabel = scorer.teamName ?? "";
+                    const href = teamLinkSlug(scorer) ? teamHref(scorer) : null;
+                    return teamLabel ? (
+                      href ? (
+                        <Link href={href} className="hidden shrink-0 text-[11px] text-muted hover:text-gold-600 sm:block dark:hover:text-gold-400">{teamLabel}</Link>
+                      ) : (
+                        <span className="hidden shrink-0 text-[11px] text-muted sm:block">{teamLabel}</span>
+                      )
+                    ) : null;
+                  })()}
                   {scorerData ? <span className="num text-[11px] text-muted">{scorer.appearances ?? "—"} مباراة</span> : null}
                 </div>
               );

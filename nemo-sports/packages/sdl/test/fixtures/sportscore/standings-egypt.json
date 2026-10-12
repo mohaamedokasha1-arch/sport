@@ -1,0 +1,76 @@
+{
+  "sport": "football",
+  "competition": "Egyptian Premier League",
+  "competition_logo": "https://img.thesports.com/football/competition/c840aa9f8b4c65b1441bb36459a40642.png",
+  "competition_slug": "egyptian-premier-league",
+  "tables": [
+    {
+      "group": "",
+      "rows": [
+        {
+          "pos": 1,
+          "team": "Al Ahly FC",
+          "team_logo": "https://img.thesports.com/football/team/e40a14044c93d0e5e2f9d558aa1640fa.png",
+          "team_slug": "al-ahly-fc",
+          "team_url": "/football/team/al-ahly-fc/",
+          "p": 6,
+          "w": 5,
+          "d": 1,
+          "l": 0,
+          "gf": 11,
+          "ga": 3,
+          "gd": 8,
+          "pts": 16,
+          "promo_color": "#ffff00",
+          "promo_name": "Title Play-offs"
+        },
+        {
+          "pos": 2,
+          "team": "Pyramids FC",
+          "team_logo": "https://img.thesports.com/football/team/0c750c05518db78eeabc97fb11574fed.png",
+          "team_slug": "pyramids-fc",
+          "team_url": "/football/team/pyramids-fc/",
+          "p": 5,
+          "w": 5,
+          "d": 0,
+          "l": 0,
+          "gf": 9,
+          "ga": 1,
+          "gd": 8,
+          "pts": 15,
+          "promo_color": "#ffff00",
+          "promo_name": "Title Play-offs"
+        },
+        {
+          "pos": 13,
+          "team": "Bank El Ahly",
+          "team_logo": "https://img.thesports.com/football/team/31f3149a6e207008059cd6bb40a4a423.png",
+          "p": 5,
+          "w": 2,
+          "d": 0,
+          "l": 3,
+          "gf": 4,
+          "ga": 7,
+          "gd": -3,
+          "pts": 6,
+          "promo_color": "#ff9999",
+          "promo_name": "Relegation Play-offs"
+        },
+        {
+          "pos": 20,
+          "team": "Ghazl El Mahallah",
+          "team_logo": "blob:http://evil.invalid/x.png",
+          "p": 5,
+          "w": 0,
+          "d": 1,
+          "l": 4,
+          "gf": 1,
+          "ga": 9,
+          "gd": -8,
+          "pts": 1,
+          "promo_name": null
+        }
+      ]
+    }
+  ]
+}

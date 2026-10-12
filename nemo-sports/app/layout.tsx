@@ -9,38 +9,22 @@ import { demoContentVisible } from "@/lib/site";
 import { SITE_NAME, SITE_NAME_AR, SITE_URL, absoluteUrl } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 
-const baseMetadata: Metadata = {
-  // Single source of truth for every absolute SEO URL (canonical, OG, Twitter,
-  // sitemap). Previously hardcoded to "https://nemo.sports" — a domain that is
-  // not connected to this deployment, which caused the Search Console error
-  // "URL غير مسموح به" for every URL submitted via the sitemap.
-  metadataBase: new URL(SITE_URL),
-  title: {
-    default: "نيمو سبورتس | نتائج ومواعيد المباريات",
-    template: "%s | نيمو سبورتس",
-  },
-  description:
-    "مواعيد ونتائج المباريات من مصادر البيانات المتاحة، مع توضيح حالة التحديث وعدم عرض بيانات غير مؤكدة.",
-  keywords: ["نتائج المباريات", "مباريات اليوم", "جدول المباريات", "نتائج كرة القدم"],
-  openGraph: {
-    title: "نيمو سبورتس | نتائج ومواعيد المباريات",
-    description: "تابع مواعيد ونتائج المباريات من مصادر البيانات المتاحة.",
-    siteName: "NEMO Sports",
-    locale: "ar_AR",
-    type: "website",
-  },
-};
+import {
+  getSiteSettingsCached,
+  publicBaseMetadata,
+  siteBranding,
+  type SiteSettings,
+} from "@/lib/site-settings";
 
 /**
- * §Instruction 6 — a build running on demo data must not be indexable.
- *
- * `generateMetadata` is evaluated when the page is rendered (at build time for
- * pre-rendered routes), so the decision matches the deployment: add provider
- * keys and rebuild, and the site becomes indexable without touching metadata.
+ * The public metadata block is composed from `site_settings`
+ * (lib/site-settings.ts) — the operator's saved values are what crawlers
+ * receive. The defaults there reproduce the strings this file used to hardcode,
+ * so nothing changes until /admin/settings is edited.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const robots = await robotsForDataSource();
-  return { ...baseMetadata, robots };
+  const [robots, settings] = await Promise.all([robotsForDataSource(), getSiteSettingsCached()]);
+  return { ...publicBaseMetadata(settings), robots };
 }
 
 export const viewport: Viewport = {
@@ -54,30 +38,37 @@ export const viewport: Viewport = {
 
 const themeInit = `try{var t=localStorage.getItem('nemo-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark')}catch(e){}`;
 
-const organizationLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: SITE_NAME,
-  alternateName: SITE_NAME_AR,
-  url: SITE_URL,
-  slogan: "نتائج ومواعيد المباريات",
-  description: "منصة لعرض مواعيد ونتائج المباريات من مصادر البيانات المتاحة.",
-};
+function organizationLd(brand: ReturnType<typeof siteBranding>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: brand.name,
+    alternateName: brand.alternateName,
+    url: SITE_URL,
+    slogan: "نتائج ومواعيد المباريات",
+    description: brand.description,
+  };
+}
 
-const websiteLd = {
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  name: SITE_NAME,
-  url: SITE_URL,
-  inLanguage: "ar",
-  potentialAction: {
-    "@type": "SearchAction",
-    target: absoluteUrl("/search?q={search_term_string}"),
-    "query-input": "required name=search_term_string",
-  },
-};
+function websiteLd(brand: ReturnType<typeof siteBranding>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: brand.name,
+    url: SITE_URL,
+    inLanguage: "ar",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: absoluteUrl("/search?q={search_term_string}"),
+      "query-input": "required name=search_term_string",
+    },
+  };
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Same memo as generateMetadata(), so this is one read per 20s process-wide.
+  const settings: SiteSettings = await getSiteSettingsCached();
+  const brand = siteBranding(settings);
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
@@ -86,11 +77,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationLd(brand)) }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteLd(brand)) }}
         />
       </head>
       <body className="min-h-screen bg-bg text-ink antialiased">

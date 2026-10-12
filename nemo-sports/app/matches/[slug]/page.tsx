@@ -2,7 +2,7 @@ import ShareMatch from "@/components/match/ShareMatch";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
 import DataSourceNote from "@/components/data/DataSourceNote";
@@ -19,7 +19,7 @@ import { competitionByPath } from "@/lib/competition-catalog";
 import { getAdminMatchBySlug, adminMatchToFixture } from "@/lib/admin-matches";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
-import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, sportForMatchId, PERMANENT_FAILURE_KINDS, hasMatchIdentity } from "@/lib/sdl-gateway";
+import { matchDetail as sdlMatchDetail, matchEvents, matchLineups, matchStats, sportForMatchId, PERMANENT_FAILURE_KINDS, hasMatchIdentity, resolveInboundMatchSlug } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
@@ -655,13 +655,23 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
     );
   }
 
-  /* ══ 2) development/demo fallback ══════════════════════════════════════ */
+  /* ══ 2) an inbound link that means a match we DO have ═══════════════════
+     The match gate and shared links address a tie by their own spelling of the
+     two clubs; NEMO pages are addressed by the provider's permalink slug. A
+     live match linked from the gate answered 404 here while that page showed
+     its score — a broken integration, not a missing fixture. Forward only when
+     the current data contains exactly one tie between those two clubs.
+  */
+  const alias = await resolveInboundMatchSlug(slug);
+  if (alias) redirect(matchPath(alias));
+
+  /* ══ 3) development/demo fallback ══════════════════════════════════════ */
   if (demoContentVisible()) {
     const match = matchBySlug(slug);
     if (match) return <DemoMatchView slug={slug} />;
   }
 
-  /* ══ 3) honest 404 — real pages come from real provider IDs only ══════ */
+  /* ══ 4) honest 404 — real pages come from real provider IDs only ════════ */
   notFound();
 }
 

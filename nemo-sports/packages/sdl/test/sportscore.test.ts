@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SportScoreAdapter, competitionSlug, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
+import { SportScoreAdapter, competitionSlug, entitySlugFromUrl, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
 
 // compiled tests run from dist-test/test/ — fixtures live in test/fixtures/
 const here = join(__dirname, "../../test");
@@ -176,6 +176,56 @@ test("getStandings: real UCL rows → normalized (points, status)", async () => 
   assert.equal(res.data[0].status, "Qualified");
   const second = res.data.find((r) => r.position === 2);
   assert.equal(second?.goalsFor, 5);
+});
+
+/* ── standings identity: what a team LINK is built from ─────────────────────
+ * Captured live from `standings/?sport=football&slug=egyptian-premier-league`
+ * on 2026-10-12. The row ships four identity fields (`team`, `team_slug`,
+ * `team_url`, `team_logo`); the adapter used to read only `team`, so NEMO built
+ * `/teams/Al%20Ahly%20FC` from a display name, no crest was rendered, and the
+ * Egyptian clubs linked to 404s on a page that displayed their real table. */
+const egyptStandings = () => {
+  const t = stubTransport({ "standings?football:egyptian-premier-league": fx("standings-egypt.json") });
+  return adapter(t.impl).getStandings({ providerCompetitionId: "egyptian-premier-league", sport: "football" });
+};
+
+test("getStandings: canonical entity id stays the provider name (no new/duplicate entities)", async () => {
+  const res = await egyptStandings();
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.equal(res.data.length, 4);
+  assert.equal(res.data[0].teamProviderId, "Al Ahly FC");
+  assert.equal(res.data[0].teamName, "Al Ahly FC");
+  assert.equal(res.data[0].position, 1);
+  assert.equal(res.data[0].points, 16);
+});
+
+test("getStandings: team_slug becomes the linkable id; team_logo the crest", async () => {
+  const res = await egyptStandings();
+  if (!res.ok) return assert.fail("standings should resolve");
+  assert.equal(res.data[0].teamProviderSlug, "al-ahly-fc");
+  assert.equal(res.data[1].teamProviderSlug, "pyramids-fc");
+  assert.equal(res.data[0].teamLogoUrl, "https://img.thesports.com/football/team/e40a14044c93d0e5e2f9d558aa1640fa.png");
+});
+
+test("getStandings: missing slug/logo degrade to 'no slug' and 'no logo', never junk", async () => {
+  const res = await egyptStandings();
+  if (!res.ok) return assert.fail("standings should resolve");
+  const bank = res.data.find((r) => r.teamProviderId === "Bank El Ahly");
+  assert.ok(bank, "row without team_slug/team_url is still a standing");
+  assert.equal(bank?.teamProviderSlug, null);
+  // `blob:` is not an embeddable image; it must never reach an <img src>.
+  const ghazl = res.data.find((r) => r.position === 20);
+  assert.equal(ghazl?.teamLogoUrl, null);
+  assert.equal(ghazl?.status, null);
+});
+
+test("entitySlugFromUrl: reads the id out of the provider permalink only", () => {
+  assert.equal(entitySlugFromUrl("/football/team/al-ahly-fc/"), "al-ahly-fc");
+  assert.equal(entitySlugFromUrl("/football/competition/uefa-champions-league/"), "uefa-champions-league");
+  assert.equal(entitySlugFromUrl("/football/match/al-ahly-fc-vs-zamalek-sc/abc123/"), null);
+  assert.equal(entitySlugFromUrl(""), null);
+  assert.equal(entitySlugFromUrl(null), null);
 });
 
 test("getStandings: provider error body ('No current season') → typed not_found", async () => {

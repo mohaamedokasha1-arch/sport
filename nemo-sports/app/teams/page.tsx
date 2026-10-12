@@ -7,6 +7,7 @@ import SectionHead from "@/components/ui/SectionHead";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { competitions, sports, teams } from "@/lib/core-data";
 import { footballDataCompetitions } from "@/lib/football-data";
+import { coveredFootballCompetitionIds, teamHref } from "@/lib/team-lookup";
 import { teamsDirectory, type DirectoryTeam } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { AdminTeamsSection } from "@/components/public/AdminPublished";
@@ -40,14 +41,16 @@ async function TeamsPageBody() {
    * carries a real team identity (provider id, name, short name, crest), so
    * the tables are a legitimate directory of the teams that actually exist in
    * the competitions we cover. See teamsDirectory() in lib/sdl-gateway.ts. */
-  const majors = footballDataCompetitions(true);
-  const real = await teamsDirectory(
-    "football",
-    majors.map((c) => c.slug ?? c.code),
-  );
+  // The directory must list every club the site's pages link to, so it is built
+  // from the same covered catalogue the competition pages and /teams/[slug]
+  // use — previously the featured Football-Data list only, which left every
+  // Egyptian club out while their real table was on the site.
+  const ids = coveredFootballCompetitionIds();
+  const real = await teamsDirectory("football", ids);
 
   if (real.ok && real.source === "provider" && real.data.length > 0) {
     const groups = groupByCompetition(real.data);
+    const majors = footballDataCompetitions(false);
     const nameOf = (id: string) => majors.find((c) => (c.slug ?? c.code) === id)?.nameAr ?? id;
 
     return (
@@ -83,7 +86,7 @@ async function TeamsPageBody() {
                 {list.map((t) => (
                   <li key={t.providerId}>
                     <Link
-                      href={`/teams/${t.providerId}`}
+                      href={teamHref({ teamProviderSlug: t.providerSlug, teamProviderId: t.providerId }) ?? `/teams/${encodeURIComponent(t.providerId)}`}
                       className="card flex items-center gap-3 p-3 transition hover:-translate-y-0.5 hover:border-gold-500/50"
                     >
                       {t.logoUrl ? (

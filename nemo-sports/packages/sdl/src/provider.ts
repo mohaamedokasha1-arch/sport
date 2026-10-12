@@ -271,11 +271,24 @@ export type NormalizedStandingRow = {
   teamName?: string | null;
   teamShortName?: string | null;
   teamLogoUrl?: string | null;
+  /**
+   * The provider's own URL-safe team identifier, when it publishes one
+   * (SportScore returns `team_slug`/`team_url` next to the display name in the
+   * same row). It is a LINKING id, not a canonical entity id — `teamProviderId`
+   * stays the provider's stable entity key so canonical resolution and dedup
+   * never change shape. Without it every team link was built from a display
+   * name (`/teams/Al Ahly FC`) that the team page could not resolve, so the
+   * standings of any competition outside the Football-Data featured list —
+   * the Egyptian league included — linked to a 404.
+   */
+  teamProviderSlug?: string | null;
 };
 
 export type NormalizedTopScorer = {
   playerProviderId: string;
   teamProviderId: string | null;
+  /** Provider URL-safe club slug — see NormalizedStandingRow.teamProviderSlug. */
+  teamProviderSlug?: string | null;
   goals: number;
   appearances: number | null;
   penalties: number | null;

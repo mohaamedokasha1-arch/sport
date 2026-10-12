@@ -15,12 +15,14 @@ import {
   updateSource,
 } from "@/lib/news/store";
 import { runSource, ingestAllSources } from "@/lib/news/pipeline";
+import { moderatePublished } from "@/lib/news/moderation";
 import { sourceFreshness } from "@/lib/news/freshness";
 import { schedulerCadence } from "@/lib/news/schedule";
 import { NEWS_CRON_DESCRIPTION_AR } from "@/lib/news/sources";
 import { logActivity } from "@/lib/activity";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { relative } from "@/lib/format";
+import type { ArticleStatus } from "@/lib/news/types";
 import { requirePermission } from "@/lib/admin-session";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +121,33 @@ async function publishArticleAction(form: FormData): Promise<void> {
   revalidatePath("/admin/activity");
 }
 
+/**
+ * Re-apply the current relevance rules to what is ALREADY published.
+ * The ingestion gate only protects new items, and the automatic pass runs at
+ * the end of an authorised scheduled job — so on a deployment where that job is
+ * not authorised yet, records ingested before the rules existed stay on the
+ * public feed forever (production still showed a stadium page and a bare
+ * «News - IHF» section title). This is the operator's way to run the same pass
+ * now. It quarantines (status → hidden, reason and previous status recorded);
+ * it never deletes.
+ */
+async function runModerationAction(form: FormData): Promise<void> {
+  "use server";
+  await requirePermission("news");
+  const apply = form.get("apply") === "1";
+  const plan = await moderatePublished({ apply, by: "admin:panel", limit: 500 });
+  if (apply) {
+    invalidateSearchIndex();
+    revalidatePath("/news");
+  }
+  await logActivity({
+    action: apply ? "news.moderation.apply" : "news.moderation.plan",
+    after: { scanned: plan.scanned, quarantine: plan.quarantine.length, review: plan.review.length, applied: plan.applied },
+  });
+  revalidatePath("/admin/news");
+  revalidatePath("/admin/activity");
+}
+
 async function removeArticleAction(form: FormData): Promise<void> {
   "use server";
   await requirePermission("news");
@@ -136,6 +165,14 @@ async function removeArticleAction(form: FormData): Promise<void> {
 const inputCls =
   "w-full rounded-[3px] border border-navy-700 bg-navy-950 px-3 py-2 text-[12px] text-white placeholder:text-white/30 focus:border-gold-500 focus:outline-none";
 
+const STATUS_LABEL_AR: Record<ArticleStatus, string> = {
+  published: "منشور",
+  hidden: "مخفي / معزول",
+  archived: "مؤرشف",
+};
+
+const ARTICLE_STATUSES: readonly ArticleStatus[] = ["published", "hidden", "archived"];
+
 const btnGhost =
   "rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400";
 
@@ -147,13 +184,22 @@ export default async function AdminNews({
   await requirePermission("news");
   const sp = await searchParams;
   const catFilter = typeof sp.category === "string" ? sp.category : "";
+  // Quarantined and review items are only reachable if they can be listed on
+  // their own — «الإشراف» below would otherwise show the newest 30 of a mixed
+  // heap, where a hidden row is indistinguishable from an unmoderated one.
+  const statusFilter = (ARTICLE_STATUSES as readonly string[]).includes(String(sp.status ?? "")) ? (sp.status as ArticleStatus) : null;
 
   const [sources, backend, stats, log, feed] = await Promise.all([
     listSources(),
     newsBackend(),
     fetchStats(7),
     recentFetchLog(12),
-    listArticles({ limit: 30, includeNonPublished: true, ...(catFilter ? { category: catFilter } : {}) }),
+    listArticles({
+      limit: 30,
+      includeNonPublished: true,
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(catFilter ? { category: catFilter } : {}),
+    }),
   ]);
 
   const enabled = sources.filter((s) => s.enabled);
@@ -368,16 +414,34 @@ export default async function AdminNews({
         <Panel
           title={`الإشراف على المقالات (أحدث ${feed.items.length})`}
           aside={
-            <span className="flex gap-1.5">
+            <span className="flex flex-wrap gap-1.5">
               <a href="/admin/news" className={btnGhost}>الكل</a>
+              {ARTICLE_STATUSES.map((status) => (
+                <a key={status} href={`/admin/news?status=${encodeURIComponent(status)}`} className={btnGhost}>
+                  {STATUS_LABEL_AR[status] ?? status}
+                </a>
+              ))}
               {categories.slice(0, 6).map((c) => (
-                <a key={c} href={`/admin/news?category=${encodeURIComponent(c)}`} className={btnGhost}>
+                <a key={c} href={`/admin/news?category=${encodeURIComponent(c)}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}`} className={btnGhost}>
                   {c}
                 </a>
               ))}
             </span>
           }
         >
+          <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-navy-800 pb-3 text-[11px] text-white/55">
+            <span>
+              إعادة فحص المقالات المنشورة بقواعد الصلة الحالية: تُعزل المخالفات (سبب + حالة سابقة، بلا حذف).
+            </span>
+            <form action={runModerationAction} className="flex gap-1.5">
+              <input type="hidden" name="apply" value="0" />
+              <button type="submit" className={btnGhost}>معاينة</button>
+            </form>
+            <form action={runModerationAction} className="flex gap-1.5">
+              <input type="hidden" name="apply" value="1" />
+              <button type="submit" className={btnGhost}>تطبيق العزل</button>
+            </form>
+          </div>
           {feed.items.length === 0 ? (
             <p className="text-[12px] text-white/50">
               لا توجد مقالات بعد. اضغط «جلب الكل الآن» أو انتظر مهمة الـCron المجدولة.

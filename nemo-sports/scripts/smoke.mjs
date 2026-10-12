@@ -470,7 +470,19 @@ async function main() {
      crawlers as indexable content. */
   if (!listsDataSections) {
     const emptyButIndexable = [];
-    for (const p of ["/live", "/matches", "/standings", "/teams", "/players", "/news"]) {
+    // Registered competition pages are the case the site-wide rule cannot see:
+    // provider healthy, one competition with nothing to show (§9 thin pages).
+    let competitionPaths = [];
+    try {
+      const comps = await (await fetch(`${BASE}/api/v1/competitions`)).json();
+      competitionPaths = (comps.items ?? comps.competitions ?? [])
+        .slice(0, 4)
+        .map((c) => `/competitions/${encodeURIComponent(c.slug ?? c.canonicalSlug ?? "")}`)
+        .filter((p) => !p.endsWith("/competitions/"));
+    } catch {
+      competitionPaths = [];
+    }
+    for (const p of ["/live", "/matches", "/standings", "/teams", "/players", "/news", ...competitionPaths]) {
       const html = await (await fetch(`${BASE}${p}`)).text();
       const isNoindex = /<meta name="robots" content="noindex/.test(html);
       const empty = html.includes("Data temporarily unavailable") || html.includes("غير متوفر");
