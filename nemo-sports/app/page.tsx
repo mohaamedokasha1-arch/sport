@@ -78,6 +78,11 @@ export default async function HomePage() {
 
   const cacheTtl = fixtureData ? (await cachePolicyFor("fixtures")).canonical : undefined;
   const demoMode = !realMode && demoContentVisible();
+  // The football feed is a capped sample (≈50 matches, no date filter). When its newest
+  // kickoff is well behind "now", today's empty list reflects the sample, not the calendar.
+  const feedLatestMs = fixtureData ? Math.max(...fixtureData.data.map((f) => +new Date(f.scheduledAt)).filter(Number.isFinite), Number.NEGATIVE_INFINITY) : Number.NEGATIVE_INFINITY;
+  const feedIsSampleBehindNow = Number.isFinite(feedLatestMs) && feedLatestMs < now - 2 * 3_600_000;
+  const feedLatestLabel = Number.isFinite(feedLatestMs) ? new Date(feedLatestMs).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "short", timeStyle: "short" }) : "";
 
   if (realMode) {
     return (
@@ -143,6 +148,8 @@ export default async function HomePage() {
               message={
                 !fixtureData
                   ? "تعذّر استرجاع جدول مباريات موثوق."
+                  : feedIsSampleBehindNow
+                    ? `المصدر يعرض عينة محدودة (${fixtureData?.data.length ?? 0} مباراة كرة قدم) لا تغطي كل مباريات اليوم، وأحدث مباراة فيها بتوقيت ${feedLatestLabel}. لا نعرض مباريات غير مؤكدة.`
                   : fixtureData.degraded
                     ? "مصدر المباريات لم يُرجع جدولًا كاملًا في آخر محاولة، ولا يوجد في ما وصلنا مباراة لهذا اليوم. لا نعرض مباريات غير مؤكدة."
                     : "لم يتضمن آخر تحديث مباريات لهذا اليوم."

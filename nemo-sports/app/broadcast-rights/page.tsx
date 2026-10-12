@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: "إفصاح حقوق البث",
   description: "كيف نتعامل مع حقوق البث: مصادر رسمية فقط، لا إعادة بث، وإفصاح كامل عن الناقل.",
   alternates: { canonical: "/broadcast-rights" },
+  // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
+  robots: { index: true, follow: true },
 };
 
 const allowed = [

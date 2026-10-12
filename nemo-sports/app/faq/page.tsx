@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   title: "الأسئلة الشائعة",
   description: "إجابات عن توفر البيانات الرياضية ومصادرها وسياسة البث في نيمو سبورتس.",
   alternates: { canonical: "/faq" },
+  // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
+  robots: { index: true, follow: true },
 };
 
 const faq = [

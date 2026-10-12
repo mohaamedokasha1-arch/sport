@@ -22,10 +22,22 @@
  */
 const PLACEHOLDER_IDENTITY = /^(?:team|club|player|home|away)-[a-z0-9]{8,}$/i;
 
+/**
+ * The same opaque id arrives with a SPACE instead of a hyphen as the display
+ * name of a side: production served `/matches/team-4wyrn4h9jwyq86p-vs-…` with
+ * the title «Team dn1m1gh15xlmoep ضد Team 4wyrn4h9jwyq86p» (HTTP 200, listed in
+ * the sitemap). The hyphen-only rule above missed it because the name differs.
+ *
+ * The id must be lowercase, 8+ characters and contain at least one digit —
+ * provider ids look like `dn1m1gh15xlmoep`, while a real club such as
+ * «Team Wellbeing» or «Team Galaxy» has no digit in its opaque tail and is kept.
+ */
+const PLACEHOLDER_DISPLAY_NAME = /^(?:[Tt]eam|[Cc]lub|[Pp]layer|[Hh]ome|[Aa]way)\s+(?=[a-z0-9]*\d)[a-z0-9]{8,}$/;
+
 export function isPlaceholderIdentity(value: string | null | undefined): boolean {
   const raw = String(value ?? "").trim();
   if (!raw) return true;
-  return PLACEHOLDER_IDENTITY.test(raw);
+  return PLACEHOLDER_IDENTITY.test(raw) || PLACEHOLDER_DISPLAY_NAME.test(raw);
 }
 
 /**

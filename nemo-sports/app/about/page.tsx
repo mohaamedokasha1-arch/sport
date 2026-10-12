@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: "من نحن",
   description: "تعرف على طريقة عرض نيمو سبورتس للبيانات الرياضية ومصادرها وسياسة حقوق البث.",
   alternates: { canonical: "/about" },
+  // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
+  robots: { index: true, follow: true },
 };
 
 export default function AboutPage() {

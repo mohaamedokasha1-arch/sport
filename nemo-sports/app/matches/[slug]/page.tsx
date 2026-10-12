@@ -2,7 +2,7 @@ import ShareMatch from "@/components/match/ShareMatch";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cache } from "react";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
 import DataSourceNote from "@/components/data/DataSourceNote";
@@ -307,6 +307,11 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
   // Arabic slugs arrive percent-encoded; decode once so every lookup (admin
   // match, stream registry, overrides, provider) uses the real slug.
   const slug = decodeSlug((await params).slug);
+
+  // Provider and admin slugs are lowercase (slugifyMatch, SportScore URLs), and the
+  // store matches them case-insensitively. Without this, `/matches/MALAGA-vs-espanyol`
+  // answered 200 with a self-referencing canonical: a second copy of the same page.
+  if (/[A-Z]/.test(slug)) permanentRedirect(`/matches/${encodeURIComponent(slug.toLowerCase())}`);
 
   /* ══ 1) real match (SportScore via SDL or admin-managed fixture) ══════ */
   let f: NormalizedFixture | null = null;

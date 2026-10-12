@@ -180,3 +180,28 @@ test("the brand appears once in a static page title (the layout adds it)", async
   assert.ok(!title.includes("نيمو سبورتس"), `the layout template adds the brand; the page title must not repeat it: ${title}`);
   assert.equal((metadata.alternates as { canonical?: string })?.canonical, "/about");
 });
+
+/* ── static, always-listed pages must not inherit a data-dependent robots ── */
+
+test("always-listed static pages declare index,follow explicitly (2026-10-12 audit)", async () => {
+  // app/sitemap.ts lists these unconditionally. Without an explicit robots they inherited
+  // the root layout's `noindex` whenever no provider data was servable — a contradiction.
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = join(process.cwd());
+  const files = [
+    "app/about/page.tsx",
+    "app/contact/page.tsx",
+    "app/faq/page.tsx",
+    "app/broadcast-rights/page.tsx",
+    "components/legal/LegalShell.tsx", // used by privacy, terms, copyright
+  ];
+  for (const file of files) {
+    const src = readFileSync(join(root, file), "utf8");
+    assert.match(src, /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/, `${file} must declare robots index,follow`);
+  }
+  for (const file of ["app/privacy/page.tsx", "app/terms/page.tsx", "app/copyright/page.tsx"]) {
+    const src = readFileSync(join(root, file), "utf8");
+    assert.match(src, /legalMetadata\(/, `${file} must use legalMetadata (which sets robots)`);
+  }
+});
