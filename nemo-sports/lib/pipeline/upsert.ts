@@ -594,6 +594,26 @@ export async function replaceStandings(
   const groupName = rows[0]?.groupName ?? null;
   const incomingRank = rankOf(cfg, ctx.source);
 
+  // Identity guard: the table is replaced only when EVERY row resolves to a
+  // known team. Otherwise the delete below would remove the stored rows and
+  // insert only the resolvable subset (or nothing), silently shrinking or
+  // wiping a good table because of an identity gap. In that case the stored
+  // table is kept and the gap is recorded for review.
+  const unresolved = rows.filter((row) => !ctx.teamIdFor(row.teamSourceId)).length;
+  if (unresolved > 0) {
+    await recordDiscrepancy({
+      entityType: "standing",
+      entityId: ctx.seasonId,
+      field: "table",
+      severity: "high",
+      values: { [ctx.source]: `${rows.length} rows, ${unresolved} unresolved team(s)` },
+      winner: ctx.source,
+      losers: [],
+      notes: "standings replacement skipped: unresolved team identities; stored table kept",
+    });
+    return { applied: 0, skipped: rows.length, replacedOtherProviders: 0, provider: ctx.source };
+  }
+
   return db.transaction(async (tx) => {
     const existing = await tx.select<{ provider: string; count: string }>(
       `SELECT provider, count(*)::text AS count
