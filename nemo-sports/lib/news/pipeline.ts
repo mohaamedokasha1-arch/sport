@@ -19,6 +19,7 @@ import { parseRss } from "./parse";
 import {
   canonicalizeUrl,
   cleanText,
+  publicExcerpt,
   extractDomain,
   fingerprint,
   resolvePublisherUrl,
@@ -212,7 +213,17 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           continue;
         }
 
-        const relevanceDetail = sportsRelevanceDetail(title, cleanText(raw.description));
+        // Two different jobs, two strings:
+        //  · `excerpt` is what a reader may ever see — markup stripped, the
+        //    publisher's own suffix removed, and noise (a one-letter snippet or
+        //    a snippet that only repeats the headline) collapsed to "";
+        //  · `judged` is what the gate and the classifiers read. Google News
+        //    feeds carry nothing but the headline inside <description>, so a
+        //    headline-only item must not lose its story to the display rule:
+        //    judging falls back to the cleaned feed text, never to raw markup.
+        const excerpt = publicExcerpt(raw.description, { sourceName, title });
+        const judged = excerpt || cleanText(raw.description).slice(0, 600);
+        const relevanceDetail = sportsRelevanceDetail(title, judged);
         const relevance = relevanceDetail.verdict;
         if (relevance === "reject") { base.validationFailures++; continue; }
 
@@ -226,7 +237,7 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           sourceUrl: resolvedUrl,
           canonicalUrl: canonical,
           title,
-          description: raw.description,
+          description: excerpt,
           sourceDomain: domain,
           publicationDate,
         };
@@ -249,8 +260,8 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
         }
 
         // CATEGORIZE + ENTITY MATCH
-        const cat = categorizeArticle(title, raw.description);
-        const entities = matchEntities(title, raw.description);
+        const cat = categorizeArticle(title, judged);
+        const entities = matchEntities(title, judged);
         base.entityMatches += entities.length;
 
         // STORE (metadata only — never the full body)
@@ -264,7 +275,7 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           sourceDomain: domain,
           publicationDate,
           fetchedDate: now,
-          description: cleanText(raw.description).slice(0, 300),
+          description: excerpt.slice(0, 300),
           category: cat.primary,
           secondaryCategories: cat.secondary,
           categoryConfidence: cat.confidence,

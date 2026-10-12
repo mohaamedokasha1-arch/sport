@@ -247,6 +247,27 @@ export function matchSlugFromUrl(url: string | null | undefined): string | null 
   }
 }
 
+/**
+ * The provider's own URL-safe identifier for a team/competition, read from the
+ * permalink it publishes next to the row (`/football/team/al-ahly-fc/`).
+ * Never guessed from the display name — that is how nearly every match link
+ * used to 404.
+ */
+export function entitySlugFromUrl(url: string | null | undefined): string | null {
+  const m = String(url ?? "").match(/\/(?:team|competition|player|coach|venue)\/([^/?#]+)\/?/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]) || null;
+  } catch {
+    return m[1] || null;
+  }
+}
+
+/** Only an absolute http(s) image is embeddable; anything else is "no logo". */
+function logoUrl(value: string | null): string | null {
+  return value && /^https:\/\/\S+$/i.test(value) ? value : null;
+}
+
 function score(v: string | number | null | undefined): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
@@ -554,8 +575,16 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
         const teamName = str(r.team);
         const pos = toInt(r.pos);
         if (!teamName || pos === null) continue;
+        // The row carries a URL-safe slug and a crest that used to be thrown
+        // away: `team_slug` is what a NEMO team link must be built from, and
+        // `team_logo` is what makes a standings row recognisable.
+        const teamSlug = str(r.team_slug) ?? entitySlugFromUrl(str(r.team_url));
         rows.push({
           teamProviderId: teamName,
+          teamName,
+          teamShortName: str(r.team_short),
+          teamLogoUrl: logoUrl(str(r.team_logo)),
+          teamProviderSlug: teamSlug,
           group: str(table.group),
           position: pos,
           played: toInt(r.p) ?? 0,
@@ -590,6 +619,7 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
         playerProviderId: playerSlug ?? playerName,
         playerName,
         teamProviderId: str(s.team_slug) ?? str(s.team),
+        teamProviderSlug: str(s.team_slug) ?? entitySlugFromUrl(str(s.team_url)),
         teamName: str(s.team),
         goals,
         appearances: toInt(s.matches),

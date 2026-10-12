@@ -10,6 +10,7 @@ import { persistOrThrow, StoreWriteError, STORE_WRITE_FAILED_AR } from "@/lib/db
  */
 
 import { getDb, sanitizeDbMessage } from "@/lib/db/pg";
+import { publicExcerpt } from "./normalize";
 import { defaultSources } from "./sources";
 import type { NewsArticle, NewsEntityRef, RSSSource } from "./types";
 
@@ -153,6 +154,12 @@ function sourceFromRow(r: SourceRow): RSSSource {
 
 function articleFromRow(r: ArticleRow): NewsArticle {
   const now = new Date().toISOString();
+  // Rows written before the snippet rule exist carry the feed's own markup
+  // (`<a href="https://news.google.com/rss/articles/…` as visible text, seen on
+  // production /news). Reads sanitise, writes clean, nothing is rewritten:
+  // the stored row stays exactly as ingested for a later audit.
+  const storedSourceName = str(r.source_name);
+  const excerpt = publicExcerpt(str(r.description), { sourceName: storedSourceName, title: str(r.title) });
   let entities: NewsEntityRef[] = [];
   try {
     const raw = r.related_entities;
@@ -165,11 +172,11 @@ function articleFromRow(r: ArticleRow): NewsArticle {
     title: str(r.title),
     sourceUrl: str(r.source_url),
     canonicalUrl: str(r.canonical_url),
-    sourceName: str(r.source_name),
+    sourceName: storedSourceName,
     sourceDomain: str(r.source_domain),
     publicationDate: iso(r.publication_date) ?? now,
     fetchedDate: iso(r.fetched_date) ?? now,
-    description: str(r.description),
+    description: excerpt,
     category: str(r.category) || "Sports",
     secondaryCategories: Array.isArray(r.secondary_categories) ? (r.secondary_categories as string[]) : [],
     categoryConfidence: num(r.category_confidence),

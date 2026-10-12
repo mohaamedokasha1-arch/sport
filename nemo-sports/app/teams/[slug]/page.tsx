@@ -19,11 +19,13 @@ import { age, number } from "@/lib/format";
 import { footballDataCompetitions, footballMatches, footballStandings } from "@/lib/football-data";
 import { team as sdlTeam, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
+import { canonicalCompetitions, competitionByPath } from "@/lib/competition-catalog";
 import type { NormalizedFixture, NormalizedStandingRow } from "@/packages/sdl/src";
 import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
 import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
+import { coveredFootballCompetitionIds, findTeamRow } from "@/lib/team-lookup";
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 
 /**
@@ -45,13 +47,16 @@ type RealTeamLookup = {
 const findTeamInRealTables = cache(async function findTeamInRealTables(
   teamId: string,
 ): Promise<RealTeamLookup | null> {
-  const majors = footballDataCompetitions(true);
-  const ids = majors.map((c) => c.slug ?? c.code);
+  // Every competition the site covers, not only the Football-Data featured
+  // list: the pages that link here are built from all of them, so a club that
+  // appears in a covered table must resolve. `coveredFootballCompetitionIds()`
+  // is ordered featured-first, so the common lookup still stops early.
+  const ids = coveredFootballCompetitionIds();
   const tables = await Promise.all(ids.map((id) => footballStandings(id)));
   for (let i = 0; i < tables.length; i += 1) {
     const res = tables[i];
     if (!res.ok || res.source.provider === "demo") continue;
-    const row = res.data.find((candidate) => candidate.teamProviderId === teamId);
+    const row = findTeamRow(res.data, teamId);
     if (!row) continue;
     return {
       row,
@@ -81,10 +86,11 @@ export function generateStaticParams() {
   return demoContentVisible() ? teams.map((t) => ({ slug: t.slug })) : [];
 }
 
-/** Local name of a competition id (code or SportScore slug). */
+/** Local name of a competition id (code, SportScore slug or catalogue entry). */
 function competitionNameAr(id: string): string {
-  const majors = footballDataCompetitions(true);
-  return majors.find((c) => c.slug === id || c.code === id)?.nameAr ?? id;
+  const catalogue = [...footballDataCompetitions(false), ...canonicalCompetitions];
+  const match = catalogue.find((c) => c.slug === id || c.code === id) ?? competitionByPath(id);
+  return match?.nameAr ?? id;
 }
 
 async function teamMetadataBody({

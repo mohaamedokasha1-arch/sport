@@ -2,7 +2,7 @@ import { reportKind } from "@/lib/news/relevance";
 import Link from "next/link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
-import { cleanText } from "@/lib/news/normalize";
+import { cleanText, displayHeadline } from "@/lib/news/normalize";
 import { relative } from "@/lib/format";
 import { newsEntityHref } from "@/lib/news/entity-links";
 
@@ -52,7 +52,7 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
             className="transition group-hover:text-gold-600 dark:group-hover:text-gold-400"
             title={`اقرأ الخبر كاملًا على ${article.sourceName}`}
           >
-            {article.title}
+            {displayHeadline(article.title, article.sourceName)}
           </a>
         </h3>
 
