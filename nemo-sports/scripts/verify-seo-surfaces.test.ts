@@ -67,6 +67,13 @@ test("the sitemap never advertises a match page the site cannot render", async (
     0,
     `placeholder identities leaked into the sitemap: ${urls.filter((u) => /team-[a-z0-9]{6,}/.test(u)).join(", ")}`,
   );
+  // Unresolved bracket slots («1st Place Team», «R32P27») are real provider rows
+  // but not matches yet — they must not be advertised to crawlers.
+  assert.equal(
+    urls.filter((u) => /\/matches\/(\d{1,2}-(st|nd|rd|th)-place-team|r\d{1,3}p\d{1,3})(-vs-|$)/.test(u)).length,
+    0,
+    "bracket slots leaked into the sitemap",
+  );
   // Duplicate canonical host / double-encoding accidents.
   assert.equal(urls.filter((u) => /%25|\/\/.+\/\//.test(u.replace(/^https?:\/\//, ""))).length, 0);
   // Every entry is absolute and on the canonical origin — never a relative
@@ -150,4 +157,26 @@ test("⑤ the root layout reads settings instead of repeating them", async () =>
   assert.ok(!layout.includes(`description:\n    "مواعيد ونتائج`), "no hardcoded description may come back");
   assert.ok(!/keywords: \[/.test(layout), "no hardcoded keyword list may come back");
   assert.match(layout, /siteBranding\(settings\)/, "the Organization/WebSite JSON-LD uses the same brand");
+});
+
+test("the legacy /match/{slug} path answers 308 (permanent), not 307", async () => {
+  const { default: LegacyPage } = await import("@/app/match/[slug]/page");
+  let thrown: unknown = null;
+  try {
+    await LegacyPage({ params: Promise.resolve({ slug: "flamengo-vs-santos" }) });
+  } catch (error) {
+    thrown = error;
+  }
+  const digest = (thrown as { digest?: string } | null)?.digest ?? "";
+  assert.ok(digest.startsWith("NEXT_REDIRECT;"), `expected a redirect, got: ${String(thrown)}`);
+  assert.ok(digest.includes("/matches/flamengo-vs-santos"), `redirect target: ${digest}`);
+  assert.ok(digest.endsWith(";308;") || digest.includes(";308"), `status must be 308 (permanent): ${digest}`);
+});
+
+test("the brand appears once in a static page title (the layout adds it)", async () => {
+  const { metadata } = await import("@/app/about/page");
+  const title = typeof metadata.title === "string" ? metadata.title : "";
+  assert.ok(title.length > 0, "the about page has its own title");
+  assert.ok(!title.includes("نيمو سبورتس"), `the layout template adds the brand; the page title must not repeat it: ${title}`);
+  assert.equal((metadata.alternates as { canonical?: string })?.canonical, "/about");
 });

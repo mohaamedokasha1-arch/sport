@@ -3,7 +3,8 @@ import Link from "next/link";
 import { demoContentVisible } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "من نحن — نيمو سبورتس",
+  // The root layout appends " | نيمو سبورتس", so the brand is not repeated here.
+  title: "من نحن",
   description: "تعرف على طريقة عرض نيمو سبورتس للبيانات الرياضية ومصادرها وسياسة حقوق البث.",
   alternates: { canonical: "/about" },
 };
