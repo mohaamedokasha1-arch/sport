@@ -1,0 +1,422 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  NEMO Sports · Data Pipeline — سجل المصادر (Endpoint registry)
+#
+#  هذا الملف هو المصدر الوحيد للروابط والمعرّفات والحدود والجدولة:
+#  لا يوجد أي URL أو معرّف مصدر مكتوب داخل الكود.
+#
+#  قواعد ملزمة (التكليف §2):
+#   • لا تعديل على بنية أي موقع مصدر ولا على روابطه: نستخدم ما هو منشور فقط.
+#   • `verified: false` تعني «لم يُتحقَّق من هذا المسار» ولا يُستدعى إطلاقًا
+#     إلا بموافقة صريحة مؤقتة: PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS=1
+#   • مصادر الصفحات (EPL/EFA/FIFA) مغلقة بثلاث بوابات: enabled +
+#     scraping_licensed + PIPELINE_SCRAPING_LICENSED=1
+#   • المفاتيح لا تُكتب هنا أبدًا — يُكتب اسم متغير البيئة فقط.
+#
+#  بعد أي تعديل: npm run pipeline:config:sync   (ثم pipeline:doctor)
+# ═══════════════════════════════════════════════════════════════════════════
+
+version: 1
+
+# ترتيب السلطة عند التعارض (§6): الأسبق = الأعلى. أي مصدر جديد يلزمه سطر هنا.
+priority:
+  - egyptianproleague
+  - efa
+  - fifa
+  - football_data
+  - thesportsdb
+
+defaults:
+  user_agent: "NemoSportsDataBot/1.0"
+  contact_env: PIPELINE_CONTACT
+  timeout_ms: 12000
+  retries: 3
+  backoff_base_ms: 750
+  backoff_max_ms: 30000
+  robots_ttl_minutes: 360
+  min_interval_ms: 1200
+  raw_retention_days: 90
+  max_payload_kb: 512
+
+# المنافسات داخل نطاق التغطية: الدوري المصري + كأس مصر + السوبر المصري
+competitions:
+  - slug: egyptian-premier-league
+    name_ar: "الدوري المصري الممتاز"
+    name_en: "Egyptian Premier League"
+    short_ar: "الدوري المصري"
+    short_en: "EPL"
+    type: league
+    country: EG
+    featured: true
+    tier: 1
+    domestic: true
+  - slug: egypt-cup
+    name_ar: "كأس مصر"
+    name_en: "Egypt Cup"
+    short_ar: "كأس مصر"
+    short_en: "Egypt Cup"
+    type: cup
+    country: EG
+    featured: true
+    domestic: true
+  - slug: egyptian-super-cup
+    name_ar: "كأس السوبر المصري"
+    name_en: "Egyptian Super Cup"
+    short_ar: "السوبر المصري"
+    short_en: "Super Cup"
+    type: cup
+    country: EG
+    featured: false
+    domestic: true
+
+sources:
+  # ─── 1 · رابطة الأندية المصرية المحترفة (المصدر الرسمي الأول) ─────────────
+  egyptianproleague:
+    label_ar: "الدوري المصري الممتاز — الموقع الرسمي"
+    label_en: "Egyptian Pro League (official)"
+    home: "https://www.egyptianproleague.com/"
+    base_url: "https://www.egyptianproleague.com"
+    docs: "https://www.egyptianproleague.com/"
+    mode: scrape
+    enabled: false
+    scraping_licensed: false
+    license_note: "لا جمع آلي قبل تأكيد كتابي من مالك الحقوق. عند التأكيد: enabled=true و scraping_licensed=true ثم PIPELINE_SCRAPING_LICENSED=1"
+    policy:
+      respect_robots: true
+      min_interval_ms: 2500
+      timeout_ms: 15000
+    rate_limit:
+      per_minute: 6
+      per_day: 200
+    endpoints:
+      - name: matches
+        path: "/matches"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح من بنية الموقع العامة — يُثبَّت بعد مراجعة الموقع ورخصته."
+      - name: standings
+        path: "/standings"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح — الجدول يُقرأ من JSON-LD أو جدول HTML بعناوين عربية."
+      - name: competitions
+        path: "/competitions"
+        kind: html
+        verified: false
+        notes: "صفحة البطولات — تُستخدم لمعرفة المنافسات المنشورة على الموقع."
+    targets:
+      - competition: egyptian-premier-league
+        enabled: true
+        ref:
+          season: current
+      - competition: egypt-cup
+        enabled: true
+        ref:
+          season: current
+      - competition: egyptian-super-cup
+        enabled: true
+        ref:
+          season: current
+
+  # ─── 2 · الاتحاد المصري لكرة القدم ────────────────────────────────────────
+  efa:
+    label_ar: "الاتحاد المصري لكرة القدم"
+    label_en: "Egyptian Football Association"
+    home: "https://www.efa.eg/ar/"
+    base_url: "https://www.efa.eg"
+    docs: "https://www.efa.eg/ar/"
+    mode: scrape
+    enabled: false
+    scraping_licensed: false
+    license_note: "نفس شرط الدوري المصري: لا جمع آلي قبل تأكيد الرخصة كتابةً."
+    policy:
+      respect_robots: true
+      min_interval_ms: 2500
+      timeout_ms: 15000
+    rate_limit:
+      per_minute: 6
+      per_day: 200
+    endpoints:
+      - name: matches
+        path: "/ar/matches"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح — يُثبَّت من الموقع الرسمي بعد الترخيص."
+      - name: standings
+        path: "/ar/standings"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح."
+      - name: competitions
+        path: "/ar/competitions"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح — مصدر كأس مصر."
+    targets:
+      - competition: egypt-cup
+        enabled: true
+        ref:
+          season: current
+      - competition: egyptian-premier-league
+        enabled: true
+        ref:
+          season: current
+
+  # ─── 3 · الفيفا (منتخبات ومسابقات دولية) ─────────────────────────────────
+  fifa:
+    label_ar: "الاتحاد الدولي (فيفا)"
+    label_en: "FIFA"
+    home: "https://www.fifa.com/"
+    base_url: "https://www.fifa.com"
+    docs: "https://www.fifa.com/"
+    mode: scrape
+    enabled: false
+    scraping_licensed: false
+    license_note: "شروط استخدام صارمة ولا يوجد API عام مجاني؛ يبقى موقوفًا حتى موافقة كتابية."
+    policy:
+      respect_robots: true
+      min_interval_ms: 4000
+      timeout_ms: 15000
+    rate_limit:
+      per_minute: 4
+      per_day: 120
+    endpoints:
+      - name: matches
+        path: "/fixtures"
+        kind: html
+        verified: false
+        notes: "مسار مرشَّح — للمباريات الدولية فقط."
+      - name: standings
+        path: "/fifa-world-ranking/men"
+        kind: html
+        verified: false
+        notes: "تصنيف المنتخبات — مرشَّح."
+      - name: competitions
+        path: "/tournaments"
+        kind: html
+        verified: false
+        notes: "صفحة المسابقات الدولية — مرشَّح."
+    targets:
+      - competition: egyptian-premier-league
+        enabled: false
+        ref:
+          scope: international
+        notes: "FIFA لا تنشر بيانات الدوري المحلي — دورها المنتخبات والمسابقات الدولية."
+
+  # ─── 4 · Football-Data.org (API — تحقق ودعم) ─────────────────────────────
+  football_data:
+    label_ar: "Football-Data.org"
+    label_en: "Football-Data.org"
+    home: "https://www.football-data.org/"
+    base_url: "https://api.football-data.org/v4"
+    docs: "https://www.football-data.org/documentation/api"
+    mode: api
+    enabled: true
+    scraping_licensed: false
+    auth: {type: header, header: "X-Auth-Token", env: FOOTBALL_DATA_API_KEY}
+    policy:
+      respect_robots: true
+      min_interval_ms: 6500
+      timeout_ms: 15000
+    rate_limit:
+      per_minute: 8
+      per_day: 900
+    endpoints:
+      - name: competitions
+        path: "/competitions"
+        kind: json
+        verified: true
+        docs: "https://www.football-data.org/documentation/api"
+      - name: competition
+        path: "/competitions/{code}"
+        kind: json
+        verified: true
+        docs: "https://www.football-data.org/documentation/api"
+      - name: standings
+        path: "/competitions/{code}/standings"
+        kind: json
+        verified: true
+        docs: "https://www.football-data.org/documentation/api"
+      - name: matches
+        path: "/competitions/{code}/matches"
+        kind: json
+        verified: true
+        params:
+          limit: 500
+        docs: "https://www.football-data.org/documentation/api"
+      - name: scorers
+        path: "/competitions/{code}/scorers"
+        kind: json
+        verified: true
+        params:
+          limit: 100
+      - name: team
+        path: "/teams/{id}"
+        kind: json
+        verified: true
+    targets:
+      # الخطة المجانية لا تشمل الدوري المصري: يبقى الهدفان معطّلين حتى تتأكد
+      # التغطية على الحساب — لا يُخمَّن الكود ولا يُشغَّل كما لو أنه يعمل.
+      - competition: egyptian-premier-league
+        enabled: false
+        ref:
+          code: EGP
+          season: current
+        notes: "يتطلب خطة تغطي مصر — فعِّله فقط بعد التأكد من لوحة الحساب."
+      - competition: egypt-cup
+        enabled: false
+        ref:
+          code: EGC
+          season: current
+        notes: "غير متاح في الخطة المجانية."
+      # هدف تحقق (verification target): يثبت أن المسار الكامل يعمل — جلب
+      # وتطبيع وأرشفة — ولا يُنشر في جداول الموقع لأن foreign=true.
+      - competition: england-premier-league
+        enabled: true
+        foreign: true
+        ref:
+          code: PL
+          season: current
+        notes: "دوري إنجليزي — للتحقق فقط، لا يُنشر إلا بـ PIPELINE_PUBLISH_FOREIGN=1."
+
+  # ─── 5 · TheSportsDB (مصدر مساند: هويات وشعارات وبيانات تاريخية) ─────────
+  thesportsdb:
+    label_ar: "TheSportsDB"
+    label_en: "TheSportsDB"
+    home: "https://www.thesportsdb.com/"
+    base_url: "https://www.thesportsdb.com/api/v1/json"
+    docs: "https://www.thesportsdb.com/free_sports_api"
+    mode: api
+    enabled: true
+    scraping_licensed: false
+    auth: {type: header, header: "X-API-KEY", env: THESPORTSDB_API_KEY}
+    policy:
+      respect_robots: true
+      min_interval_ms: 2500
+      timeout_ms: 12000
+    rate_limit:
+      per_minute: 10
+      per_day: 500
+    # لا يُخمَّن معرّف الدوري: يُكتشف وقت التشغيل ويُخزَّن في sync_state.cursor
+    discovery:
+      endpoint: leagues
+      store_as: league_id
+      match_field: strLeague
+      match_contains: egypt
+    endpoints:
+      - name: leagues
+        path: "/search_all_leagues.php"
+        kind: json
+        verified: false
+        params:
+          c: Egypt
+          s: Soccer
+        notes: "اكتشاف معرّف الدوري المصري — راجع التوثيق ثم اضبط verified: true."
+      - name: league_table
+        path: "/lookuptable.php"
+        kind: json
+        verified: false
+        params:
+          l: "{id}"
+          s: "{season}"
+        notes: "جدول الترتيب — المسار بحاجة تأكيد من توثيق TheSportsDB."
+      - name: season_schedule
+        path: "/eventsseason.php"
+        kind: json
+        verified: false
+        params:
+          id: "{id}"
+          s: "{season}"
+        notes: "مباريات الموسم — يُستخدم للمباريات وإعادة التعبئة."
+      - name: teams
+        path: "/lookup_all_teams.php"
+        kind: json
+        verified: false
+        params:
+          id: "{id}"
+        notes: "فرق الدوري — هويات وشعارات."
+    targets:
+      # ref هنا وصفي فقط: الموسم يُحسب من كائن الوصف (ctx.seasonName) لأن
+      # الصيغة المطلوبة تختلف عن صيغة الموقع.
+      - competition: egyptian-premier-league
+        enabled: true
+        ref:
+          league_name: "Egyptian Premier League"
+      - competition: egypt-cup
+        enabled: true
+        ref:
+          league_name: "Egyptian Cup"
+
+# ─── الجدولة (§7.2): التكرار مصدره هنا، لا داخل الكود ─────────────────────
+jobs:
+  matches:
+    description: "المباريات: المواعيد والنتائج والحالة"
+    sources:
+      - egyptianproleague
+      - efa
+      - fifa
+      - football_data
+      - thesportsdb
+    interval_minutes: 45
+    matchday_interval_minutes: 3
+    min_interval_minutes: 2
+    match_window_minutes: 180
+    entities:
+      - match
+  standings:
+    description: "جداول الترتيب"
+    sources:
+      - egyptianproleague
+      - efa
+      - football_data
+      - thesportsdb
+    interval_minutes: 720
+    matchday_interval_minutes: 60
+    min_interval_minutes: 30
+    entities:
+      - standing
+  teams:
+    description: "الفرق والملاعب"
+    sources:
+      - egyptianproleague
+      - efa
+      - football_data
+      - thesportsdb
+    interval_minutes: 1440
+    entities:
+      - team
+  competitions:
+    description: "البطولات والمواسم"
+    sources:
+      - egyptianproleague
+      - efa
+      - fifa
+      - football_data
+      - thesportsdb
+    interval_minutes: 10080
+    entities:
+      - competition
+      - season
+  players:
+    description: "اللاعبون والهدافون (الطور الثاني)"
+    sources:
+      - football_data
+      - thesportsdb
+    interval_minutes: 10080
+    entities:
+      - player
+  bootstrap:
+    description: "تهيئة شاملة بعد أول نشر أو انقطاع طويل"
+    sources:
+      - egyptianproleague
+      - efa
+      - fifa
+      - football_data
+      - thesportsdb
+    interval_minutes: 10080
+    run_on_boot: true
+    entities:
+      - competition
+      - season
+      - team
+      - standing
+      - match
