@@ -144,6 +144,22 @@ test("a real match keeps its identity; a missing side or time does not", () => {
   assert.equal(isPlaceholderIdentity(null), true);
 });
 
+test("a provider opaque id shown as a display name is a placeholder (2026-10-12 production)", () => {
+  // Production page: title «Team dn1m1gh15xlmoep ضد Team 4wyrn4h9jwyq86p» was indexable.
+  const junk = {
+    homeName: "Team dn1m1gh15xlmoep",
+    awayName: "Team 4wyrn4h9jwyq86p",
+    scheduledAt: "2026-10-12T19:00:00Z",
+  };
+  assert.equal(isPlaceholderIdentity(junk.homeName), true);
+  assert.equal(isPlaceholderIdentity(junk.awayName), true);
+  assert.equal(fixtureHasIdentity(junk), false);
+  // Real clubs with a "Team" prefix and no opaque digit tail stay readable.
+  assert.equal(isPlaceholderIdentity("Team Galaxy"), false);
+  assert.equal(isPlaceholderIdentity("Team Stavanger"), false);
+  assert.equal(isPlaceholderIdentity("Team Galaxy 2"), false);
+});
+
 /* ── 3b · bracket slots are kept out of the index, real names are not ────── */
 
 test("unresolved bracket slots are flagged for SEO (sitemap + noindex)", () => {

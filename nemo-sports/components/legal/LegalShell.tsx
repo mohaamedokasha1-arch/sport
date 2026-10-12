@@ -31,8 +31,15 @@ export function Section({ title, children }: { title: string; children: ReactNod
   );
 }
 
+/**
+ * Legal pages are static, real content and are listed in app/sitemap.ts
+ * unconditionally. They therefore state `index, follow` explicitly. Without it
+ * they inherited the root layout's data-dependent robots (noindex whenever no
+ * provider data is servable), which contradicted the sitemap during any outage.
+ */
 export const legalMetadata = (title: string, description: string, canonical: string): Metadata => ({
   title,
   description,
   alternates: { canonical },
+  robots: { index: true, follow: true },
 });

@@ -59,7 +59,7 @@ export default async function AdminAds() {
                 <span key="s" className="num text-white/60">{s.size}</span>,
                 <span key="f" className="text-white/60">{s.fill}</span>,
                 <Pill key="st" tone="warn">{UNVERIFIED}</Pill>,
-                <button key="a" type="button" className="rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400">
+                <button key="a" type="button" disabled title="غير مفعّل — لا يوجد مخزن لهذه البيانات بعد" className="cursor-not-allowed rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/40">
                   تغيير
                 </button>,
               ])}
@@ -75,7 +75,7 @@ export default async function AdminAds() {
                 <span key="f" className="num text-white/60">{c.from}</span>,
                 <span key="t2" className="num text-white/60">{c.to}</span>,
                 <Pill key="s" tone="warn">{c.status === "منتهٍ" ? "منتهٍ حسب التاريخ المسجَّل" : UNVERIFIED}</Pill>,
-                <button key="a" type="button" className="rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/75 transition hover:border-gold-500 hover:text-gold-400">
+                <button key="a" type="button" disabled title="غير مفعّل — لا يوجد مخزن لهذه البيانات بعد" className="cursor-not-allowed rounded-[3px] border border-navy-700 px-2 py-1 text-[11px] font-bold text-white/40">
                   تعديل
                 </button>,
               ])}
