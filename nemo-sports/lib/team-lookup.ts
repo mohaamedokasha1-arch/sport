@@ -117,3 +117,20 @@ export function coveredFootballCompetitionIds(): string[] {
   }
   return ids;
 }
+
+/**
+ * Does the team appear in any fixture of the window the provider returned?
+ *
+ * A team page built from a league table alone (country, founding year and venue
+ * are not provided by the keyless feed) with no fixture in that window is a thin
+ * page: standings numbers and "لا توجد مباريات" notices. The team page uses this
+ * to keep such pages out of the index while they carry no match content, and it
+ * returns to the index on its own once fixtures for the team arrive. The rule
+ * matches the one competition pages apply (app/competitions/[slug]).
+ */
+export function teamHasFixtureInWindow(
+  fixtures: readonly { homeProviderId?: string | null; awayProviderId?: string | null }[],
+  teamId: string,
+): boolean {
+  return fixtures.some((fixture) => fixture.homeProviderId === teamId || fixture.awayProviderId === teamId);
+}

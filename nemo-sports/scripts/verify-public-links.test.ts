@@ -22,12 +22,13 @@ import {
   findTeamRow,
   rowLookupKeys,
   teamHref,
+  teamHasFixtureInWindow,
   teamIdFromHref,
   teamLinkSlug,
   teamLookupKeys,
 } from "@/lib/team-lookup";
 import { canonicalCompetitions } from "@/lib/competition-catalog";
-import { fixtureHasIdentity, isPlaceholderIdentity } from "@/lib/match-identity";
+import { fixtureHasIdentity, isBracketSlotFixture, isBracketSlotName, isPlaceholderIdentity } from "@/lib/match-identity";
 import { resolveMatchSlug, sideKeys, slugSides } from "@/lib/match-links";
 
 /* ── 1 · the link builder and the resolver must agree ─────────────────────── */
@@ -141,6 +142,58 @@ test("a real match keeps its identity; a missing side or time does not", () => {
   assert.equal(isPlaceholderIdentity("Team Wellbeing"), false);
   assert.equal(isPlaceholderIdentity("Al Ahly FC"), false);
   assert.equal(isPlaceholderIdentity(null), true);
+});
+
+/* ── 3b · bracket slots are kept out of the index, real names are not ────── */
+
+test("unresolved bracket slots are flagged for SEO (sitemap + noindex)", () => {
+  // Both live production cases from the 2026-10-12 crawl.
+  const pearl = { homeName: "1st Place Team", awayName: "2nd Place Team", scheduledAt: "2026-10-12T18:00:00Z" };
+  const atp = { homeName: "R32P27", awayName: "R32P28", scheduledAt: "2026-10-12T10:00:00Z" };
+  assert.equal(isBracketSlotFixture(pearl), true);
+  assert.equal(isBracketSlotFixture(atp), true);
+  assert.equal(isBracketSlotName("3rd-place-team"), true, "hyphenated slug form");
+  assert.equal(isBracketSlotName("Winner of Match 12"), true);
+  assert.equal(isBracketSlotName("TBD"), true);
+  assert.equal(isBracketSlotName("W1"), true);
+  assert.equal(isBracketSlotFixture({ homeName: "Al Ahly FC", awayName: "1st Place Team" }), true, "one side is enough");
+});
+
+test("real clubs and players are never flagged as bracket slots", () => {
+  for (const name of [
+    "Al Ahly FC",
+    "Winners FC",
+    "Winnipeg Stars",
+    "Team Wellbeing",
+    "Real Madrid",
+    "Lens",
+    "Ajax II",
+    "Al Nassr",
+    "Olimpico LDD",
+    "Wolves",
+  ]) {
+    assert.equal(isBracketSlotName(name), false, `${name} must not be treated as a bracket slot`);
+  }
+  assert.equal(isBracketSlotName(null), false);
+  assert.equal(isBracketSlotFixture(null), false);
+  // The identity rule that the live board and the streams depend on is unchanged.
+  assert.equal(fixtureHasIdentity({ homeName: "1st Place Team", awayName: "2nd Place Team", scheduledAt: "2026-10-12T18:00:00Z" }), true);
+});
+
+/* ── 3c · a team with no fixture in the window is a thin page (noindex) ──── */
+
+test("a team counts as having match content only when a fixture names it", () => {
+  const window = [
+    { homeProviderId: "manchester-city", awayProviderId: "arsenal" },
+    { homeProviderId: "chelsea", awayProviderId: "everton" },
+  ];
+  assert.equal(teamHasFixtureInWindow(window, "arsenal"), true, "away side counts");
+  assert.equal(teamHasFixtureInWindow(window, "chelsea"), true, "home side counts");
+  // UDIB appears in the table but not in the fixture window → thin, noindex.
+  assert.equal(teamHasFixtureInWindow(window, "udib"), false);
+  assert.equal(teamHasFixtureInWindow([], "udib"), false, "an empty window is thin");
+  // Exact id match only: a prefix never counts as the same club.
+  assert.equal(teamHasFixtureInWindow(window, "manchester"), false);
 });
 
 /* ── 4 · inbound partner links resolve to the canonical page ──────────────── */

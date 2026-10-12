@@ -8,6 +8,7 @@ import { canonicalCompetitions } from "@/lib/competition-catalog";
 import { listManualNews } from "@/lib/manual-news";
 import { matchUrl } from "@/lib/match-links";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
+import { isBracketSlotFixture } from "@/lib/match-identity";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 /**
@@ -141,7 +142,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const result of results) {
         if (!result || !result.ok) continue;
         for (const f of result.data as NormalizedFixture[]) {
-          if (f.providerId && hasMatchIdentity(f)) slugs.add(f.providerId);
+          // Unresolved bracket slots («1st Place Team», «R32P27») are real
+          // fixtures but not yet matches a reader can use: keep them out of the
+          // sitemap (their pages also carry noindex — see app/matches/[slug]).
+          if (f.providerId && hasMatchIdentity(f) && !isBracketSlotFixture(f)) slugs.add(f.providerId);
         }
       }
       let i = 0;

@@ -25,7 +25,7 @@ import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
 import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
-import { coveredFootballCompetitionIds, findTeamRow } from "@/lib/team-lookup";
+import { coveredFootballCompetitionIds, findTeamRow, teamHasFixtureInWindow } from "@/lib/team-lookup";
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 
 /**
@@ -121,11 +121,18 @@ async function teamMetadataBody({
     if (listed && name) {
       const title = `${name} | الفريق`;
       const description = `كل ما يخص ${name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
+      // Thin-page rule (same as competition pages): a team known only from its
+      // table row, with no fixture in the provider window, is noindex, follow.
+      // It returns to the index by itself once its fixtures are available.
+      const fixturesRes = listed.compId ? await footballMatches({ competitionId: listed.compId }) : null;
+      const fixtureData = fixturesRes?.ok && fixturesRes.source.provider !== "demo" ? fixturesRes.data : [];
+      const hasMatchContent = teamHasFixtureInWindow(fixtureData, slug);
       return {
         title,
         description,
         alternates: { canonical: `/teams/${slug}` },
         openGraph: { title, description, type: "article" },
+        ...(hasMatchContent ? {} : { robots: { index: false, follow: true } }),
       };
     }
   }

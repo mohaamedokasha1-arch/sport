@@ -25,6 +25,7 @@ import { serializeJsonLd } from "@/lib/json-ld";
 import type { NormalizedEvent, NormalizedFixture, NormalizedLineup, NormalizedStat } from "@/packages/sdl/src";
 import { isLiveStatus } from "@/lib/match-state";
 import { matchPath, matchUrl, schemaSportName } from "@/lib/match-links";
+import { isBracketSlotFixture } from "@/lib/match-identity";
 
 // Rendered per request: the page carries admin-controlled stream state
 // (publish / stop / edit / delete). ISR with revalidatePath() does not reliably
@@ -249,6 +250,9 @@ export async function generateMetadata({
       description,
       alternates: { canonical: matchPath(slug) },
       openGraph: { title, description, type: "article" },
+      // A bracket slot (e.g. "1st Place Team") is not a settled match yet: the
+      // page stays reachable for anyone with the link, but is kept out of the index.
+      ...(isBracketSlotFixture(f) ? { robots: { index: false, follow: true } } : {}),
     };
   }
 
