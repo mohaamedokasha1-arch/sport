@@ -1,0 +1,15 @@
+# Never copy build output, local state or secrets into the image.
+node_modules
+.next
+.git
+.github
+.env
+.env.*
+!.env.example
+npm-debug.log*
+*.log
+coverage
+dist
+out
+docs/verification-*
+scripts/mock-*

@@ -1,0 +1,523 @@
+{
+  "competitions": [
+    {
+      "country": "EG",
+      "domestic": true,
+      "featured": true,
+      "name_ar": "الدوري المصري الممتاز",
+      "name_en": "Egyptian Premier League",
+      "short_ar": "الدوري المصري",
+      "short_en": "EPL",
+      "slug": "egyptian-premier-league",
+      "tier": 1,
+      "type": "league"
+    },
+    {
+      "country": "EG",
+      "domestic": true,
+      "featured": true,
+      "name_ar": "كأس مصر",
+      "name_en": "Egypt Cup",
+      "short_ar": "كأس مصر",
+      "short_en": "Egypt Cup",
+      "slug": "egypt-cup",
+      "type": "cup"
+    },
+    {
+      "country": "EG",
+      "domestic": true,
+      "featured": false,
+      "name_ar": "كأس السوبر المصري",
+      "name_en": "Egyptian Super Cup",
+      "short_ar": "السوبر المصري",
+      "short_en": "Super Cup",
+      "slug": "egyptian-super-cup",
+      "type": "cup"
+    }
+  ],
+  "defaults": {
+    "backoff_base_ms": 750,
+    "backoff_max_ms": 30000,
+    "contact_env": "PIPELINE_CONTACT",
+    "max_payload_kb": 512,
+    "min_interval_ms": 1200,
+    "raw_retention_days": 90,
+    "retries": 3,
+    "robots_ttl_minutes": 360,
+    "timeout_ms": 12000,
+    "user_agent": "NemoSportsDataBot/1.0"
+  },
+  "jobs": {
+    "bootstrap": {
+      "description": "تهيئة شاملة بعد أول نشر أو انقطاع طويل",
+      "entities": [
+        "competition",
+        "season",
+        "team",
+        "standing",
+        "match"
+      ],
+      "interval_minutes": 10080,
+      "run_on_boot": true,
+      "sources": [
+        "egyptianproleague",
+        "efa",
+        "fifa",
+        "football_data",
+        "thesportsdb"
+      ]
+    },
+    "competitions": {
+      "description": "البطولات والمواسم",
+      "entities": [
+        "competition",
+        "season"
+      ],
+      "interval_minutes": 10080,
+      "sources": [
+        "egyptianproleague",
+        "efa",
+        "fifa",
+        "football_data",
+        "thesportsdb"
+      ]
+    },
+    "matches": {
+      "description": "المباريات: المواعيد والنتائج والحالة",
+      "entities": [
+        "match"
+      ],
+      "interval_minutes": 45,
+      "match_window_minutes": 180,
+      "matchday_interval_minutes": 3,
+      "min_interval_minutes": 2,
+      "sources": [
+        "egyptianproleague",
+        "efa",
+        "fifa",
+        "football_data",
+        "thesportsdb"
+      ]
+    },
+    "players": {
+      "description": "اللاعبون والهدافون (الطور الثاني)",
+      "entities": [
+        "player"
+      ],
+      "interval_minutes": 10080,
+      "sources": [
+        "football_data",
+        "thesportsdb"
+      ]
+    },
+    "standings": {
+      "description": "جداول الترتيب",
+      "entities": [
+        "standing"
+      ],
+      "interval_minutes": 720,
+      "matchday_interval_minutes": 60,
+      "min_interval_minutes": 30,
+      "sources": [
+        "egyptianproleague",
+        "efa",
+        "football_data",
+        "thesportsdb"
+      ]
+    },
+    "teams": {
+      "description": "الفرق والملاعب",
+      "entities": [
+        "team"
+      ],
+      "interval_minutes": 1440,
+      "sources": [
+        "egyptianproleague",
+        "efa",
+        "football_data",
+        "thesportsdb"
+      ]
+    }
+  },
+  "priority": [
+    "egyptianproleague",
+    "efa",
+    "fifa",
+    "football_data",
+    "thesportsdb"
+  ],
+  "sources": {
+    "efa": {
+      "base_url": "https://www.efa.eg",
+      "docs": "https://www.efa.eg/ar/",
+      "enabled": false,
+      "endpoints": [
+        {
+          "kind": "html",
+          "name": "matches",
+          "notes": "مسار مرشَّح — يُثبَّت من الموقع الرسمي بعد الترخيص.",
+          "path": "/ar/matches",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "standings",
+          "notes": "مسار مرشَّح.",
+          "path": "/ar/standings",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "competitions",
+          "notes": "مسار مرشَّح — مصدر كأس مصر.",
+          "path": "/ar/competitions",
+          "verified": false
+        }
+      ],
+      "home": "https://www.efa.eg/ar/",
+      "label_ar": "الاتحاد المصري لكرة القدم",
+      "label_en": "Egyptian Football Association",
+      "license_note": "نفس شرط الدوري المصري: لا جمع آلي قبل تأكيد الرخصة كتابةً.",
+      "mode": "scrape",
+      "policy": {
+        "min_interval_ms": 2500,
+        "respect_robots": true,
+        "timeout_ms": 15000
+      },
+      "rate_limit": {
+        "per_day": 200,
+        "per_minute": 6
+      },
+      "scraping_licensed": false,
+      "targets": [
+        {
+          "competition": "egypt-cup",
+          "enabled": true,
+          "ref": {
+            "season": "current"
+          }
+        },
+        {
+          "competition": "egyptian-premier-league",
+          "enabled": true,
+          "ref": {
+            "season": "current"
+          }
+        }
+      ]
+    },
+    "egyptianproleague": {
+      "base_url": "https://www.egyptianproleague.com",
+      "docs": "https://www.egyptianproleague.com/",
+      "enabled": false,
+      "endpoints": [
+        {
+          "kind": "html",
+          "name": "matches",
+          "notes": "مسار مرشَّح من بنية الموقع العامة — يُثبَّت بعد مراجعة الموقع ورخصته.",
+          "path": "/matches",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "standings",
+          "notes": "مسار مرشَّح — الجدول يُقرأ من JSON-LD أو جدول HTML بعناوين عربية.",
+          "path": "/standings",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "competitions",
+          "notes": "صفحة البطولات — تُستخدم لمعرفة المنافسات المنشورة على الموقع.",
+          "path": "/competitions",
+          "verified": false
+        }
+      ],
+      "home": "https://www.egyptianproleague.com/",
+      "label_ar": "الدوري المصري الممتاز — الموقع الرسمي",
+      "label_en": "Egyptian Pro League (official)",
+      "license_note": "لا جمع آلي قبل تأكيد كتابي من مالك الحقوق. عند التأكيد: enabled=true و scraping_licensed=true ثم PIPELINE_SCRAPING_LICENSED=1",
+      "mode": "scrape",
+      "policy": {
+        "min_interval_ms": 2500,
+        "respect_robots": true,
+        "timeout_ms": 15000
+      },
+      "rate_limit": {
+        "per_day": 200,
+        "per_minute": 6
+      },
+      "scraping_licensed": false,
+      "targets": [
+        {
+          "competition": "egyptian-premier-league",
+          "enabled": true,
+          "ref": {
+            "season": "current"
+          }
+        },
+        {
+          "competition": "egypt-cup",
+          "enabled": true,
+          "ref": {
+            "season": "current"
+          }
+        },
+        {
+          "competition": "egyptian-super-cup",
+          "enabled": true,
+          "ref": {
+            "season": "current"
+          }
+        }
+      ]
+    },
+    "fifa": {
+      "base_url": "https://www.fifa.com",
+      "docs": "https://www.fifa.com/",
+      "enabled": false,
+      "endpoints": [
+        {
+          "kind": "html",
+          "name": "matches",
+          "notes": "مسار مرشَّح — للمباريات الدولية فقط.",
+          "path": "/fixtures",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "standings",
+          "notes": "تصنيف المنتخبات — مرشَّح.",
+          "path": "/fifa-world-ranking/men",
+          "verified": false
+        },
+        {
+          "kind": "html",
+          "name": "competitions",
+          "notes": "صفحة المسابقات الدولية — مرشَّح.",
+          "path": "/tournaments",
+          "verified": false
+        }
+      ],
+      "home": "https://www.fifa.com/",
+      "label_ar": "الاتحاد الدولي (فيفا)",
+      "label_en": "FIFA",
+      "license_note": "شروط استخدام صارمة ولا يوجد API عام مجاني؛ يبقى موقوفًا حتى موافقة كتابية.",
+      "mode": "scrape",
+      "policy": {
+        "min_interval_ms": 4000,
+        "respect_robots": true,
+        "timeout_ms": 15000
+      },
+      "rate_limit": {
+        "per_day": 120,
+        "per_minute": 4
+      },
+      "scraping_licensed": false,
+      "targets": [
+        {
+          "competition": "egyptian-premier-league",
+          "enabled": false,
+          "notes": "FIFA لا تنشر بيانات الدوري المحلي — دورها المنتخبات والمسابقات الدولية.",
+          "ref": {
+            "scope": "international"
+          }
+        }
+      ]
+    },
+    "football_data": {
+      "auth": {
+        "env": "FOOTBALL_DATA_API_KEY",
+        "header": "X-Auth-Token",
+        "type": "header"
+      },
+      "base_url": "https://api.football-data.org/v4",
+      "docs": "https://www.football-data.org/documentation/api",
+      "enabled": true,
+      "endpoints": [
+        {
+          "docs": "https://www.football-data.org/documentation/api",
+          "kind": "json",
+          "name": "competitions",
+          "path": "/competitions",
+          "verified": true
+        },
+        {
+          "docs": "https://www.football-data.org/documentation/api",
+          "kind": "json",
+          "name": "competition",
+          "path": "/competitions/{code}",
+          "verified": true
+        },
+        {
+          "docs": "https://www.football-data.org/documentation/api",
+          "kind": "json",
+          "name": "standings",
+          "path": "/competitions/{code}/standings",
+          "verified": true
+        },
+        {
+          "docs": "https://www.football-data.org/documentation/api",
+          "kind": "json",
+          "name": "matches",
+          "params": {
+            "limit": 500
+          },
+          "path": "/competitions/{code}/matches",
+          "verified": true
+        },
+        {
+          "kind": "json",
+          "name": "scorers",
+          "params": {
+            "limit": 100
+          },
+          "path": "/competitions/{code}/scorers",
+          "verified": true
+        },
+        {
+          "kind": "json",
+          "name": "team",
+          "path": "/teams/{id}",
+          "verified": true
+        }
+      ],
+      "home": "https://www.football-data.org/",
+      "label_ar": "Football-Data.org",
+      "label_en": "Football-Data.org",
+      "mode": "api",
+      "policy": {
+        "min_interval_ms": 6500,
+        "respect_robots": true,
+        "timeout_ms": 15000
+      },
+      "rate_limit": {
+        "per_day": 900,
+        "per_minute": 8
+      },
+      "scraping_licensed": false,
+      "targets": [
+        {
+          "competition": "egyptian-premier-league",
+          "enabled": false,
+          "notes": "يتطلب خطة تغطي مصر — فعِّله فقط بعد التأكد من لوحة الحساب.",
+          "ref": {
+            "code": "EGP",
+            "season": "current"
+          }
+        },
+        {
+          "competition": "egypt-cup",
+          "enabled": false,
+          "notes": "غير متاح في الخطة المجانية.",
+          "ref": {
+            "code": "EGC",
+            "season": "current"
+          }
+        },
+        {
+          "competition": "england-premier-league",
+          "enabled": true,
+          "foreign": true,
+          "notes": "دوري إنجليزي — للتحقق فقط، لا يُنشر إلا بـ PIPELINE_PUBLISH_FOREIGN=1.",
+          "ref": {
+            "code": "PL",
+            "season": "current"
+          }
+        }
+      ]
+    },
+    "thesportsdb": {
+      "auth": {
+        "env": "THESPORTSDB_API_KEY",
+        "header": "X-API-KEY",
+        "type": "header"
+      },
+      "base_url": "https://www.thesportsdb.com/api/v1/json",
+      "discovery": {
+        "endpoint": "leagues",
+        "match_contains": "egypt",
+        "match_field": "strLeague",
+        "store_as": "league_id"
+      },
+      "docs": "https://www.thesportsdb.com/free_sports_api",
+      "enabled": true,
+      "endpoints": [
+        {
+          "kind": "json",
+          "name": "leagues",
+          "notes": "اكتشاف معرّف الدوري المصري — راجع التوثيق ثم اضبط verified: true.",
+          "params": {
+            "c": "Egypt",
+            "s": "Soccer"
+          },
+          "path": "/search_all_leagues.php",
+          "verified": false
+        },
+        {
+          "kind": "json",
+          "name": "league_table",
+          "notes": "جدول الترتيب — المسار بحاجة تأكيد من توثيق TheSportsDB.",
+          "params": {
+            "l": "{id}",
+            "s": "{season}"
+          },
+          "path": "/lookuptable.php",
+          "verified": false
+        },
+        {
+          "kind": "json",
+          "name": "season_schedule",
+          "notes": "مباريات الموسم — يُستخدم للمباريات وإعادة التعبئة.",
+          "params": {
+            "id": "{id}",
+            "s": "{season}"
+          },
+          "path": "/eventsseason.php",
+          "verified": false
+        },
+        {
+          "kind": "json",
+          "name": "teams",
+          "notes": "فرق الدوري — هويات وشعارات.",
+          "params": {
+            "id": "{id}"
+          },
+          "path": "/lookup_all_teams.php",
+          "verified": false
+        }
+      ],
+      "home": "https://www.thesportsdb.com/",
+      "label_ar": "TheSportsDB",
+      "label_en": "TheSportsDB",
+      "mode": "api",
+      "policy": {
+        "min_interval_ms": 2500,
+        "respect_robots": true,
+        "timeout_ms": 12000
+      },
+      "rate_limit": {
+        "per_day": 500,
+        "per_minute": 10
+      },
+      "scraping_licensed": false,
+      "targets": [
+        {
+          "competition": "egyptian-premier-league",
+          "enabled": true,
+          "ref": {
+            "league_name": "Egyptian Premier League"
+          }
+        },
+        {
+          "competition": "egypt-cup",
+          "enabled": true,
+          "ref": {
+            "league_name": "Egyptian Cup"
+          }
+        }
+      ]
+    }
+  },
+  "version": 1
+}

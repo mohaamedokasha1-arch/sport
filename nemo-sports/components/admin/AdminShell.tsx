@@ -49,6 +49,7 @@ const GROUPS: NavGroup[] = [
     title: "النظام",
     items: [
       { href: "/admin/providers", label: "مصادر البيانات", perm: "providers" },
+      { href: "/admin/pipeline", label: "خط البيانات (Pipeline)", perm: "providers" },
       { href: "/admin/activity", label: "سجل العمليات", perm: "activity" },
       { href: "/admin/users", label: "المستخدمون والصلاحيات", perm: "users" },
       { href: "/admin/settings", label: "إعدادات الموقع", perm: "settings" },

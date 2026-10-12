@@ -1,0 +1,95 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  NEMO Sports — Docker stack (Postgres + site + ingestion scheduler)
+#  ─────────────────────────────────────────────────────────────────────────
+#  §2.5 of the brief: the system must be runnable on a server/cloud. This
+#  compose file is the VPS/self-hosted path; Vercel + Vercel Cron remains the
+#  managed path and uses the same image, registry and run history.
+#
+#    cp .env.example .env      # fill DATABASE_URL + provider keys
+#    docker compose up --build
+#
+#  Services:
+#    db         PostgreSQL 16 with a named volume and a healthcheck
+#    migrate    one-shot `npm run db:setup` (schema + seed + migrations)
+#    app        the Next.js server on http://localhost:3000
+#    scheduler  the pipeline loop — reads the cadence from
+#               config/pipeline/endpoints.yml and skips anything not due
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nemo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo_local_dev}
+      POSTGRES_DB: nemo
+    volumes:
+      - nemo-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nemo -d nemo"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # No published port by default: only the app/scheduler need the database.
+    expose:
+      - "5432"
+
+  migrate:
+    build: .
+    image: nemo-sports:local
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://nemo:${POSTGRES_PASSWORD:-nemo_local_dev}@db:5432/nemo
+    command: ["npm", "run", "db:setup"]
+
+  app:
+    build: .
+    image: nemo-sports:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://nemo:${POSTGRES_PASSWORD:-nemo_local_dev}@db:5432/nemo
+      # Provider credentials stay in the environment, never in the image.
+      FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
+      THESPORTSDB_API_KEY: ${THESPORTSDB_API_KEY:-}
+      NEMO_INGEST_TOKEN: ${NEMO_INGEST_TOKEN:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      # Licence switches: both must be on before any scrape source may run.
+      PIPELINE_SCRAPING_LICENSED: ${PIPELINE_SCRAPING_LICENSED:-}
+      PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS: ${PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS:-}
+      PIPELINE_CONTACT: ${PIPELINE_CONTACT:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+    ports:
+      - "3000:3000"
+
+  scheduler:
+    image: nemo-sports:local
+    build: .
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://nemo:${POSTGRES_PASSWORD:-nemo_local_dev}@db:5432/nemo
+      FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
+      THESPORTSDB_API_KEY: ${THESPORTSDB_API_KEY:-}
+      PIPELINE_SCRAPING_LICENSED: ${PIPELINE_SCRAPING_LICENSED:-}
+      PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS: ${PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS:-}
+      PIPELINE_CONTACT: ${PIPELINE_CONTACT:-}
+      # how often the loop looks for due work (each job's own cadence lives in
+      # config/pipeline/endpoints.yml)
+      PIPELINE_TICK_SECONDS: "60"
+    command: ["npm", "run", "pipeline:loop"]
+
+volumes:
+  nemo-db:

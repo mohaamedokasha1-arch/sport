@@ -51,6 +51,11 @@ npm run check    # فحص شامل لكل المسارات مقابل خادم �
 | `FOOTBALL_DATA_SEASON` | تثبيت موسم معيّن بصيغة سنة البداية (`2025`). الافتراضي: الموسم الحالي |
 | `FOOTBALL_DATA_BASE_URL` | تجاوز عنوان الـBase URL (للتطوير مقابل mock محلي فقط؛ اتركه فارغًا في الإنتاج) |
 | `NEMO_SDL_MODE` | `auto` (افتراضي) أو `demo` لإجبار المحوّل التجريبي |
+| `FOOTBALL_DATA_API_KEY` · `THESPORTSDB_API_KEY` | مفتاحا مصدري الـAPI في خط البيانات (المرجع الكامل: `docs/PIPELINE.md`) |
+| `PIPELINE_SCRAPING_LICENSED` | `1` لفتح مصادر قراءة الصفحات (EPL/EFA/FIFA) — ولا يعمل وحده: يشترط `enabled` + `scraping_licensed` في `config/pipeline/endpoints.yml` |
+| `PIPELINE_ALLOW_UNVERIFIED_ENDPOINTS` | `1` لفحص مسار لم يُتحقَّق منه بعد (`verified: false`) — للفحص الموجه فقط |
+| `PIPELINE_CONTACT` | جهة اتصال تُضاف إلى User-Agent الخاص بالزاحف (يفضّل ضبطها في الإنتاج) |
+| `PIPELINE_TICK_SECONDS` | الفاصل بين دورات المجدول في `npm run pipeline:loop` (افتراضي 60) |
 
 ```bash
 cp .env.example .env.local   # ثم املأ ما لديك
@@ -277,6 +282,29 @@ Google News RSS ──► جلب (ETag + مهلة 10s) ──► تحليل (ب�
 - العميل يعيد الجلب كل 5 ثوانٍ (4 في صفحة المباراة) دون إعادة تحميل، وعند الفشل تبقى آخر
   نتيجة معروفة على الشاشة.
 - في الإنتاج: WebSocket + delta updates + Redis.
+
+---
+
+## 2.5 خط البيانات (Data Pipeline) — جلب وتحديث تلقائي
+
+نظام جلب وتحديث مجدول للمنافسات المحلية، مع أرشيف خام وسجل تشغيلات وحسم تعارضات بالأولوية.
+التوثيق الكامل: [`docs/PIPELINE.md`](docs/PIPELINE.md) · اللوحة: `/admin/pipeline`.
+
+```bash
+npm run pipeline:doctor                      # تحقق: ما هو مفتوح، وما هو موقوف ولماذا
+npm run pipeline:run -- matches --force      # مزامنة المباريات الآن
+npm run pipeline:run -- standings --dry      # فحص جاف بلا كتابة
+npm run pipeline:tick                        # ما استحقّ فقط (مدخل cron)
+npm run pipeline:loop                        # مجدول دائم (VPS/حاوية)
+```
+
+- **المصادر والروابط** كلها في `config/pipeline/endpoints.yml` ولا رابط واحد في الكود.
+- **الأولوية:** EPL ← EFA ← FIFA ← Football-Data.org ← TheSportsDB، وقرار كل حقل يُسجَّل.
+- **الجدولة:** مباريات ٢–٥ دقائق في أيام المباريات (٤٥ دقيقة عدا ذلك) · ترتيب ٦–١٢ ساعة ·
+  فرق يوميًا · بطولات أسبوعيًا، مع `ETag`/`If-Modified-Since` و`Retry`/`Backoff` عند 429/5xx.
+- **الحماية:** مصادر قراءة الصفحات مغلقة حتى تأكيد الترخيص كتابةً، و`robots.txt` إلزامي،
+  والمفاتيح في البيئة فقط، وكل استجابة تُحفظ مع تعويض أي مفتاح بـ `***`.
+- **التشغيل:** Vercel Cron (`vercel.json`) أو `npm run pipeline:loop` أو `docker compose up`.
 
 ---
 
