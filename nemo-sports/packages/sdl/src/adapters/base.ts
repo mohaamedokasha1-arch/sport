@@ -90,9 +90,11 @@ export abstract class BaseAdapter {
    *  Identical concurrent GETs (same final URL) share one in-flight request
    *  — a match page firing detail+events+stats+lineups simultaneously hits
    *  the provider once, not four times (§3.8 source protection). */
-  /** @internal */ async getJson<T>(endpoint: string, params: Record<string, unknown>): Promise<ProviderResult<T>> {
+  /** @internal */ async getJson<T>(endpoint: string, params: Record<string, unknown>, base?: string): Promise<ProviderResult<T>> {
     const key = this.key(endpoint, params);
-    const url = new URL(`${this.baseUrl()}/${endpoint.replace(/^\//, "")}`);
+    // `base` lets one adapter address a second documented API root on the same
+    // host (SportScore: /api/widget and /api/v1). The cache key is unchanged.
+    const url = new URL(`${(base ?? this.baseUrl()).replace(/\/+$/, "")}/${endpoint.replace(/^\//, "")}`);
     for (const [k, v] of Object.entries(params)) {
       if (v === undefined || v === null || v === "") continue;
       url.searchParams.set(k, String(v));
