@@ -152,12 +152,12 @@ const ALIASES: Map<string, string> = (() => {
 export function footballDataCode(id: string | null | undefined): string | null {
   if (!id) return null;
   const raw = String(id).trim();
-  if (/^\d{2,4}$/.test(raw)) {
+  if (/^\d{1,12}$/.test(raw)) {
     // numeric ids: 2000-series competition ids used by the API
     const byId: Record<string, string> = { "2021": "PL", "2014": "PD", "2019": "SA", "2002": "BL1", "2015": "FL1", "2001": "CL" };
-    return byId[raw] ?? null;
+    return byId[raw] ?? raw;
   }
-  return ALIASES.get(raw.toLowerCase().replace(/[_\s]+/g, "-")) ?? null;
+  return ALIASES.get(raw.toLowerCase().replace(/[_\s]+/g, "-")) ?? (/^[A-Z][A-Z0-9]{1,11}$/.test(raw) ? raw : null);
 }
 
 /* ── provider payload shapes (v4) ─────────────────────────── */
@@ -276,8 +276,9 @@ const parseForm = (raw: string | null | undefined): ("W" | "D" | "L")[] =>
 const utcDay = (offsetDays = 0): string => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
 
 export class FootballDataAdapter extends withDefaults("football_data") {
-  readonly capabilities: DataType[] = ["fixtures", "live_matches", "match_detail", "results", "standings", "top_scorers", "competition", "competitions", "team", "health"];
+  readonly capabilities: DataType[] = ["fixtures", "live_matches", "match_detail", "results", "standings", "top_scorers", "competition", "competitions", "competition_seasons", "team", "health"];
   readonly supportedSports: string[] = ["football"];
+  readonly syncWindowDays = 7;
 
   private apiKey: string;
   private base: string;
@@ -363,6 +364,9 @@ export class FootballDataAdapter extends withDefaults("football_data") {
     const params = this.seasonParams({ season: input.season });
     const res = await this.getJson<FdStandingsResponse>(`competitions/${code}/standings`, params);
     if (!res.ok) return res;
+    if ((res.data.competition?.code && res.data.competition.code !== code) ||
+        (input.season && res.data.season?.startDate && res.data.season.startDate.slice(0, 4) !== input.season))
+      return this.schemaFailure("competition/season mismatch in statistics", res.requestKey);
 
     const rows: NormalizedStandingRow[] = [];
     for (const table of res.data.standings ?? []) {
@@ -405,6 +409,9 @@ export class FootballDataAdapter extends withDefaults("football_data") {
     const params = { ...this.seasonParams({ season: input.season }), limit: "20" };
     const res = await this.getJson<FdScorersResponse>(`competitions/${code}/scorers`, params);
     if (!res.ok) return res;
+    if ((res.data.competition?.code && res.data.competition.code !== code) ||
+        (input.season && res.data.season?.startDate && res.data.season.startDate.slice(0, 4) !== input.season))
+      return this.schemaFailure("competition/season mismatch in statistics", res.requestKey);
 
     const scorers: NormalizedTopScorer[] = [];
     for (const s of res.data.scorers ?? []) {
@@ -491,17 +498,18 @@ export class FootballDataAdapter extends withDefaults("football_data") {
     }
     const res = await this.getJson<{ count?: number; competitions?: (FdCompetitionRef & { area?: FdArea | null })[] | null }>("competitions", {});
     if (!res.ok) return res;
-    const rows = res.data.competitions ?? [];
+    if (!Array.isArray(res.data.competitions)) return this.schemaFailure("competitions", res.requestKey);
+    const rows = res.data.competitions;
     const country = str(input.country);
     const data: NormalizedCatalogCompetition[] = [];
     for (const c of rows) {
       const code = str(c.code);
       const name = str(c.name);
-      if (!code || !name) continue; // an unnamed/unkeyed row cannot be mapped safely
+      if ((!code && !c.id) || !name) continue; // an unnamed/unkeyed row cannot be mapped safely
       const areaName = str(c.area?.name);
       if (country && areaName && areaName.toLowerCase() !== country.toLowerCase()) continue;
       data.push({
-        providerId: code,
+        providerId: code ?? String(c.id),
         name,
         shortName: code,
         countryCode: str(c.area?.code),
@@ -513,6 +521,34 @@ export class FootballDataAdapter extends withDefaults("football_data") {
       });
     }
     return { ok: true, data, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
+  }
+
+  private schemaFailure(endpoint: string, requestKey: string): ProviderResult<never> {
+    return { ok: false, provider: this.name, requestKey, fromCache: false,
+      error: { code: "bad_response", message: `football_data schema changed: ${endpoint} array missing` } };
+  }
+
+  override async getCompetitionSeasons(input: { providerCompetitionId: string }): Promise<ProviderResult<import("../provider").NormalizedSeason[]>> {
+    const id = footballDataCode(input.providerCompetitionId);
+    if (!id) return this.unknownCompetition(input.providerCompetitionId, "competition_seasons", input);
+    type Season = { id: number; startDate?: string; endDate?: string };
+    const res = await this.getJson<{ currentSeason?: Season; seasons?: Season[] }>(`competitions/${id}`, {});
+    if (!res.ok) return res;
+    const rows = res.data.seasons ?? (res.data.currentSeason ? [res.data.currentSeason] : null);
+    if (!Array.isArray(rows)) return this.schemaFailure("seasons", res.requestKey);
+    const data = rows.filter(row => row.id && /^\d{4}-\d{2}-\d{2}$/.test(row.startDate ?? "")).map(row => ({
+      providerId: String(row.id), competitionProviderId: input.providerCompetitionId,
+      name: row.startDate!.slice(0, 4) === row.endDate?.slice(0, 4) ? row.startDate!.slice(0, 4) : `${row.startDate!.slice(0, 4)}/${row.endDate?.slice(0, 4) ?? ""}`,
+      queryValue: row.startDate!.slice(0, 4), isCurrent: row.id === res.data.currentSeason?.id,
+      startDate: row.startDate ?? null, endDate: row.endDate ?? null,
+    }));
+    return { ...res, data };
+  }
+
+  async syncFixturePage(input: { sport: string; competitionProviderId: string; range: { from: string; to: string }; season?: import("../provider").NormalizedSeason; cursor?: string }): Promise<ProviderResult<{ items: NormalizedFixture[]; nextCursor: string | null }>> {
+    if (input.cursor) return this.schemaFailure("unexpected pagination cursor", this.key("fixtures", input));
+    const res = await this.matchesCall({ ...input, season: input.season?.queryValue }, "fixtures");
+    return res.ok ? { ...res, data: { items: res.data, nextCursor: null } } : res;
   }
 
   override async getTeam(input: { providerTeamId: string }): Promise<ProviderResult<NormalizedTeam>> {
@@ -595,17 +631,17 @@ export class FootballDataAdapter extends withDefaults("football_data") {
    * exclusive in v4, so the default window is [today-1, today+3).
    */
   private async matchesCall(
-    input: { sport: string; competitionProviderId?: string; range?: { from: string; to: string }; date?: string },
+    input: { sport: string; competitionProviderId?: string; range?: { from: string; to: string }; date?: string; season?: string },
     endpoint: DataType,
   ): Promise<ProviderResult<NormalizedFixture[]>> {
-    const params: Record<string, unknown> = { ...this.seasonParams({}) };
+    const params: Record<string, unknown> = { ...this.seasonParams(input) };
     let path: string;
 
     if (input.competitionProviderId) {
       const code = footballDataCode(input.competitionProviderId);
       if (!code) return this.unknownCompetition(input.competitionProviderId, endpoint, input);
       path = `competitions/${code}/matches`;
-      Object.assign(params, { ...this.seasonParams({}) });
+      Object.assign(params, { ...this.seasonParams(input) });
     } else {
       path = "matches";
       Object.assign(params, this.competitionParams());
@@ -627,7 +663,8 @@ export class FootballDataAdapter extends withDefaults("football_data") {
 
     const res = await this.getJson<FdMatchesResponse>(path, params);
     if (!res.ok) return res;
-    const matches = res.data.matches ?? [];
+    if (!Array.isArray(res.data.matches)) return this.schemaFailure("matches", res.requestKey);
+    const matches = res.data.matches;
     return {
       ok: true,
       data: matches.map((m) => this.mapMatch(m)),
@@ -657,12 +694,13 @@ export class FootballDataAdapter extends withDefaults("football_data") {
     return {
       providerId: String(m.id),
       sport: "football",
-      competitionProviderId: str(m.competition?.code) ?? "",
+      competitionProviderId: str(m.competition?.code) ?? (m.competition?.id ? String(m.competition.id) : ""),
       seasonProviderId: m.season?.id ? String(m.season.id) : null,
       round: toInt(m.matchday) !== null ? `Matchday ${toInt(m.matchday)}` : str(m.stage),
       homeProviderId: m.homeTeam?.id ? String(m.homeTeam.id) : null,
       awayProviderId: m.awayTeam?.id ? String(m.awayTeam.id) : null,
-      scheduledAt: toIso(m.utcDate) ?? new Date().toISOString(),
+      originalScheduledAt: String(m.utcDate ?? ""),
+      scheduledAt: toIso(m.utcDate) ?? "",
       status,
       homeScore: played ? (full?.home ?? null) : null,
       awayScore: played ? (full?.away ?? null) : null,

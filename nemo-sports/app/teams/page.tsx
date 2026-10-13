@@ -1,3 +1,4 @@
+import { SyncedEntityDirectory } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import { unstable_noStore as noStore } from "next/cache";
 import DataUnavailable from "@/components/ui/DataUnavailable";
@@ -207,6 +208,7 @@ export default async function TeamsPage() {
     <>
       <AdminTeamsSection />
       <TeamsPageBody />
+      <SyncedEntityDirectory kind="team" />
     </>
   );
 }

@@ -120,6 +120,19 @@ export class RateLimiter {
     }
   }
 
+  /** Charge every actual HTTP attempt, including retries and adapter-internal pages. */
+  async reserve(provider: ProviderName): Promise<boolean> {
+    const cfg = this.configs.get(provider);
+    if (!cfg) return true;
+    const now = Math.floor(Date.now() / 1000);
+    const windows = WINDOWS.flatMap(w => {
+      const limit = cfg[w.key === "second" ? "perSecond" : w.key === "minute" ? "perMinute" : w.key === "hour" ? "perHour" : w.key === "day" ? "perDay" : "perMonth"];
+      return limit ? [{ key: this.key(provider, w.key, Math.floor(now / w.seconds)), limit, ttlSeconds: w.seconds + 5 }] : [];
+    });
+    // No non-atomic fallback: distributed quota failure must fail closed.
+    return this.store.reserve ? this.store.reserve(windows) : false;
+  }
+
   begin(provider: ProviderName): void {
     this.inflight.set(provider, (this.inflight.get(provider) ?? 0) + 1);
   }

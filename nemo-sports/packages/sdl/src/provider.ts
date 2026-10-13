@@ -83,6 +83,8 @@ export type NormalizedFixture = {
   homeProviderId: string | null;
   awayProviderId: string | null;
   scheduledAt: string;
+  /** Original provider timestamp, before UTC normalization. */
+  originalScheduledAt?: string;
   status: string;
   homeScore: number | null;
   awayScore: number | null;
@@ -252,6 +254,8 @@ export type NormalizedSeason = {
   isCurrent: boolean;
   startDate: string | null;
   endDate: string | null;
+  /** Documented query parameter, distinct from the stable season ID. */
+  queryValue?: string;
 };
 
 export type NormalizedStandingRow = {
@@ -326,6 +330,14 @@ export interface SportsDataProvider {
   readonly name: ProviderName;
   readonly capabilities: DataType[];
   readonly supportedSports: string[];
+  readonly chargesHttpRequests?: boolean;
+  setRequestGuard?(guard: () => Promise<boolean>): void;
+  /** Optional bounded synchronization transport; adapters must declare actual pagination. */
+  syncFixturePage?(input: { sport: string; competitionProviderId: string; range: DateRange; season?: NormalizedSeason; cursor?: string }): Promise<ProviderResult<{ items: NormalizedFixture[]; nextCursor: string | null }>>;
+  /** Maximum safe date window; absent means one UTC day, never an assumed full season. */
+  readonly syncWindowDays?: number;
+  /** Documented date endpoint returns all competitions for a sport. */
+  readonly syncFixturesAreUnscoped?: boolean;
 
   getFixtures(input: { sport: string; competitionProviderId?: string; range?: DateRange; date?: string }): Promise<ProviderResult<NormalizedFixture[]>>;
   getLiveMatches(input: { sport: string }): Promise<ProviderResult<NormalizedFixture[]>>;

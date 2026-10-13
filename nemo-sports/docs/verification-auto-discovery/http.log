@@ -1,0 +1,58 @@
+
+NEMO Sports smoke check → http://127.0.0.1:3107
+
+  ✓ 13/13 privileged routes refuse anonymous access
+  · ADMIN_ACCESS_TOKEN not set — skipping the authorized-path checks
+  · testing 0 detail pages from sitemap
+  · content mode → REAL provider data
+  ✓ home → attribution reflects available source
+  ✓ /api/live → 0 matches (production: must be empty, never fabricated)
+  ✓ /api/live?scope=rail → 0 items (empty)
+  ✓ /api/search (arabic) → 0 hits (preview=false; demo news hidden)
+  ✓ /api/search short query → empty results
+  ✓ /api/v1 → contract v1, 8 endpoints
+  ✓ /api/v1/live → 0 fixtures from all_providers_failed (source=none)
+  ✓ /api/v1/live → no credential material in payload
+  ✓ /api/v1/matches → 5 fixtures (source=provider)
+  ✓ /api/v1/matches?events= → 0 canonical events (source=none)
+  ✓ /api/v1/football-data/status → configured=false, registered=false, budget 8/min, cache layers 2
+  ✓ /api/v1/football-data/standings → 503 Data temporarily unavailable
+  ✓ /api/v1/football-data/matches → 503 Data temporarily unavailable
+  ✓ /api/v1/football-data/scorers → 503 Data temporarily unavailable
+  ✓ /api/v1/football-data/matches?date= (invalid) → 400
+  ✓ /api/v1/system → guarded (set ADMIN_ACCESS_TOKEN to inspect)
+  ✓ /this-page-does-not-exist → robots directives agree (noindex + noindex, follow)
+  ✓ /teams/nope → robots directives agree (noindex + noindex, follow)
+  ✓ /news/nope → robots directives agree (noindex + noindex, follow)
+  ✓ home contains "مباشر الآن"
+  ✓ home contains "مباريات اليوم"
+  ✓ home contains "نعرض بيانات المباريات التي أمكن استرجاعها والتحقق منها فقط"
+  ✓ home contains "dir="rtl""
+  ✓ home contains "NEMO"
+  ✓ /api/v1/system → infrastructure: canonical=undefined, cache=undefined, pg=down, redis=down
+  ✓ /api/v1/ingest → 401 unauthorized
+  ✓ /api/v1/news → 200 0 articles (stale=true)
+  ✓ /api/cron/fetch-news → 401 unauthorized (must refuse anonymous)
+  ✓ footer → provider attribution present for live data
+  ✓ client bundle → no provider hostname in 11 shipped chunks
+  ✓ indexability agrees across surfaces → robots noindex, sitemap withholds data sections (9 urls, mode=unknown)
+  ✓ no empty data page is indexable
+  ✓ /matches/999999999 → 404
+  ✓ /matches/1 → 404
+  ✓ /matches/0 → 404
+  ✓ /players/nope-not-a-player → 404 (expected a stable 404, not 500)
+  ✓ /players/999999 → 404 (expected a stable 404, not 500)
+  ✓ /teams/nope → 404 (expected a stable 404, not 500)
+  ✓ /competitions/nope → 404 (expected a stable 404, not 500)
+  ✓ /news/nope → 404 (expected a stable 404, not 500)
+  ✓ security header x-content-type-options
+  ✓ security header x-frame-options
+  ✓ security header referrer-policy
+  ✓ security header content-security-policy
+  ✓ security header permissions-policy
+  ✓ /live → provider panel rendered
+  ✓ /teams → honest unavailable state
+
+✅ ALL GREEN — 37 routes checked
+
+LOCAL HTTP EVIDENCE: legacy smoke green; robots/sitemap 200; empty discovered URLs excluded; RTL /sports 200; unknown match 404; unauthorized job 401; authorized job without durable database 503 (not false success).

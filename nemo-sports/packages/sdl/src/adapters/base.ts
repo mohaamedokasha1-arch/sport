@@ -53,6 +53,10 @@ export abstract class BaseAdapter {
     this.fetchImpl = this.http.fetchImpl ?? (globalThis.fetch as typeof fetch);
   }
 
+  readonly chargesHttpRequests: boolean = true;
+  private requestGuard: (() => Promise<boolean>) | null = null;
+  setRequestGuard(guard: () => Promise<boolean>) { this.requestGuard = guard; }
+
   /** subclass hook: add auth headers/query */
   /** @internal */ auth(_url: string): { headers: Record<string, string>; query?: Record<string, string> } {
     return { headers: {} };
@@ -131,6 +135,8 @@ export abstract class BaseAdapter {
     };
 
     for (let attempt = 0; attempt <= this.retries; attempt++) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, Math.min(2000, 250 * 2 ** (attempt - 1))));
+      if (this.requestGuard && !await this.requestGuard()) return { ok: false, provider: this.name, requestKey: key, fromCache: false, error: { code: "rate_limited", message: `${this.name}: shared request budget exhausted or unavailable` } };
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {

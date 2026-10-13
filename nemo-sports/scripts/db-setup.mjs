@@ -43,6 +43,8 @@ steps.push(["migration-0004-durable-storage.sql", read("migration-0004-durable-s
 steps.push(["migration-0005-moderation-rights.sql", read("migration-0005-moderation-rights.sql")]);
 steps.push(["migration-0006-pipeline.sql", read("migration-0006-pipeline.sql")]);
 
+steps.push(["migration-0007-sports-discovery.sql", read("migration-0007-sports-discovery.sql")]);
+
 let failed = false;
 for (const [name, sql] of steps) {
   try {

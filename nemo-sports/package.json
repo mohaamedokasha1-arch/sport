@@ -6,7 +6,7 @@
     "admin:hash": "node scripts/hash-admin-password.mjs",
     "admin:test": "tsx scripts/verify-admin.ts",
     "build": "next build",
-    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run news:quality:test && npm run news:cycle:test && npm run links:test && npm run seo:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run competitions:test && npm run stream-policy:test && npm run news:classify:test && npm run cron:test && npm run consistency:test && npm run scenarios:test && npm run pipeline:config:check && npm run pipeline:test && npm run standings-guard:test",
+    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run news:quality:test && npm run news:cycle:test && npm run links:test && npm run seo:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run competitions:test && npm run stream-policy:test && npm run news:classify:test && npm run cron:test && npm run consistency:test && npm run scenarios:test && npm run pipeline:config:check && npm run pipeline:test && npm run standings-guard:test && npm run sports-sync:test && npm run lint",
     "competitions:report": "tsx scripts/report-competition-coverage.ts docs/competition-coverage.json",
     "competitions:test": "tsx --test scripts/verify-competition-sync.test.ts",
     "consistency:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-consistency.test.ts",
@@ -48,7 +48,10 @@
     "test": "npm run sdl:test",
     "typecheck": "tsc --noEmit",
     "verify:live": "node scripts/verify-live-consistency.mjs",
-    "verify:news-ingestion": "node scripts/verify-news-ingestion.mjs"
+    "verify:news-ingestion": "node scripts/verify-news-ingestion.mjs",
+    "lint": "eslint .",
+    "sports-sync:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-sports-sync.test.tsx",
+    "sports-sync": "tsx scripts/sports-sync.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -59,16 +62,25 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@eslint/js": "^10.0.1",
+    "@next/eslint-plugin-next": "^14.2.35",
     "@tailwindcss/postcss": "4.1.13",
     "@types/node": "22.10.2",
     "@types/pg": "^8.11.10",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "4.1.13",
     "tsx": "^4.19.2",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "typescript-eslint": "^8.71.2"
   },
   "overrides": {
-    "postcss": "8.5.29"
+    "postcss": "8.5.29",
+    "@next/eslint-plugin-next": {
+      "glob": "10.5.0"
+    }
   }
 }

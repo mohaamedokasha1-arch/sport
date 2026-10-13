@@ -30,7 +30,7 @@ const MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 h — a catalog changes by seas
  * double-scheduled cron from spending quota twice in the same minute, not to
  * protect data integrity.
  */
-let running: Promise<unknown> | null = null;
+let running: ReturnType<typeof syncCompetitions> | null = null;
 
 export async function GET(request: Request) {
   if (!authorizeCron(request)) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   }
 
   const run = () => syncCompetitions();
-  const result = running ? running.then(() => syncCompetitions()) : run();
+  const result = running ?? run();
   running = result.finally(() => {
     running = null;
   });

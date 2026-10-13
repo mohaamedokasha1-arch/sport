@@ -8,6 +8,7 @@
 export * from "./types";
 export type {
   DataType,
+  DateRange,
   ProviderError,
   ProviderResult,
   SportsDataProvider,

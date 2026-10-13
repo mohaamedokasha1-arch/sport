@@ -21,6 +21,7 @@ import type { KvStore } from "./cache";
 /** The subset of a Redis client the SDL needs. `ioredis` and `node-redis` both satisfy it. */
 export interface RedisLike {
   get(key: string): Promise<string | null>;
+  eval?(script: string, keys: string[], args: string[]): Promise<unknown>;
   set(key: string, value: string, mode?: "EX", ttlSeconds?: number): Promise<unknown>;
   del(key: string): Promise<unknown>;
   /** Delete by pattern. SCAN, not KEYS, so a large keyspace never blocks. */
@@ -57,6 +58,26 @@ export class RedisKvStore implements KvStore {
 
   private k(key: string): string {
     return `${this.prefix}${key}`;
+  }
+
+  async reserve(windows: { key: string; limit: number; ttlSeconds: number }[]): Promise<boolean> {
+    if (!this.client.eval) return false;
+    const script = `
+      local counts = {}
+      for i,key in ipairs(KEYS) do
+        local raw = redis.call('GET',key)
+        local count = 0
+        if raw then count = tonumber(cjson.decode(raw).value) or 0 end
+        if count >= tonumber(ARGV[(i-1)*3+1]) then return 0 end
+        counts[i] = count
+      end
+      for i,key in ipairs(KEYS) do
+        redis.call('SET',key,cjson.encode({value=counts[i]+1,expiresAt=tonumber(ARGV[(i-1)*3+3])}),'EX',ARGV[(i-1)*3+2])
+      end
+      return 1`;
+    try {
+      return Number(await this.client.eval(script, windows.map(w => this.k(w.key)), windows.flatMap(w => [String(w.limit), String(w.ttlSeconds), String(Date.now() + w.ttlSeconds * 1000)]))) === 1;
+    } catch { this.failures++; return false; }
   }
 
   async get<T>(key: string): Promise<{ value: T; expiresAt: number } | null> {

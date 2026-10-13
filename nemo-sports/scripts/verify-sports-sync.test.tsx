@@ -1,0 +1,264 @@
+import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { qualityChecks } from "@/lib/sports-sync/quality";
+import { test } from "node:test";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { PGlite } from "@electric-sql/pglite";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FootballDataAdapter, BaseAdapter, type DataType, type NormalizedCatalogCompetition, type NormalizedFixture, type NormalizedSeason, type ProviderResult, type SportsDataProvider, type SqlClient, SportsDataLayer } from "@/packages/sdl/src";
+import { runSync, windows, type SyncTransport } from "@/lib/sports-sync/engine";
+import { MemorySyncStore, PgSyncStore } from "@/lib/sports-sync/store";
+import { classification, fixtureErrors, freshness, indexWorthy, makeRecord } from "@/lib/sports-sync/model";
+import { syncedPath } from "@/lib/sports-sync/public";
+import { SyncNotice, SyncedFixtureList } from "@/components/data/SyncedSports";
+import { emptyCapabilities } from "@/packages/sdl/src";
+import { siteDateKey } from "@/lib/tz";
+
+const NOW = Date.parse("2026-10-13T12:00:00Z"), AT = new Date(NOW).toISOString();
+const options = { force: true, maxTasks: 20, now: NOW };
+const catalog = (id = "NEW", name = "Newly Introduced Cup"): NormalizedCatalogCompetition => ({ providerId: id, name, shortName: null, countryCode: "EG", countryName: "Egypt", type: "cup", logoUrl: null, sport: "football", capabilities: emptyCapabilities() });
+const season = (id = "s1", current = true): NormalizedSeason => ({ providerId: id, competitionProviderId: "NEW", name: "2026/2027", startDate: "2026-10-12", endDate: "2026-10-25", isCurrent: current, queryValue: "2026" });
+const fixture = (id = "m1", date = "2026-10-13T21:00:00Z"): NormalizedFixture => ({ providerId: id, competitionProviderId: "NEW", seasonProviderId: "s1", sport: "football", homeProviderId: "t1", awayProviderId: "t2", homeName: "Home", awayName: "Away", competitionName: "Newly Introduced Cup", scheduledAt: date, status: "scheduled", homeScore: null, awayScore: null, periods: [], round: null, venueProviderId: null, venueName: null, attendance: null, minute: null });
+function ok<T>(data: T): ProviderResult<T> { return { ok: true, data, provider: "football_data", fetchedAt: AT, requestKey: "test", fromCache: false }; }
+function adapter(overrides: Partial<SportsDataProvider> = {}): SportsDataProvider {
+  return { name: "football_data", supportedSports: ["football"], syncWindowDays: 7, capabilities: ["competitions", "competition_seasons", "fixtures", "live_matches", "standings", "top_scorers", "team"],
+    getCompetitions: async () => ok([catalog()]), getCompetitionSeasons: async () => ok([season()]),
+    getLiveMatches: async () => ok([fixture()]), getFixtures: async () => ok([fixture()]),
+    getStandings: async () => ok([]), getTopScorers: async () => ok([]), ...overrides } as SportsDataProvider;
+}
+function transport(providers = [adapter()]): SyncTransport {
+  return { providers, async call(_p, _s, _t, _params, call) { const r = await call(_p); if (!r.ok) throw new Error(r.error.message); return { data: r.data, at: r.fetchedAt }; } };
+}
+async function seed(store: MemorySyncStore | PgSyncStore, tr = transport()) { await runSync("catalog", store, tr, options); await runSync("seasons", store, tr, options); }
+
+test("new competition and new season discovered without mappings/code edits; IDs/slugs stable on metadata changes", async () => {
+  const store = new MemorySyncStore(); let rows = [catalog()]; let seasons = [season()];
+  const tr = transport([adapter({ getCompetitions: async () => ok(rows), getCompetitionSeasons: async () => ok(seasons) })]);
+  await seed(store, tr); rows.push(catalog("NEW2", "New Asian League")); seasons = [season("s1", false), season("s2")];
+  const previous = (await store.list("competition"))[0]; rows[0].name = "Renamed Cup";
+  await seed(store, tr);
+  assert.equal((await store.list("competition")).length, 2);
+  assert.equal((await store.list("season")).filter(s => s.competitionKey === "NEW").length, 2);
+  assert.equal((await store.get("competition", "football_data", "NEW"))!.slug, previous.slug);
+  assert.equal((await store.get("competition", "football_data", "NEW"))!.id, previous.id);
+});
+
+test("source-bound SDL requests enumerate BOTH providers even without priority entries", async () => {
+  const sdl = new SportsDataLayer();
+  sdl.register(adapter()); sdl.register(adapter({ name: "api_football", getCompetitions: async () => ({ ...ok([catalog("SECOND")]), provider: "api_football" }) }));
+  for (const provider of ["football_data", "api_football"] as const) {
+    const r = await sdl.fetch({ provider, sport: "football", dataType: "competitions", endpoint: "catalog", params: {}, call: p => p.getCompetitions({ sport: "football" }) });
+    assert.ok(r.ok); assert.equal(r.value.provider, provider);
+  }
+});
+
+test("multiple pages and windows resume exact page, overlap imports idempotently", async () => {
+  const store = new MemorySyncStore(); const calls: string[] = [];
+  const p = adapter({ syncFixturePage: async input => {
+    calls.push(`${input.range.from}:${input.cursor ?? "first"}`);
+    const f = fixture("overlap", `${input.range.from}T12:00:00Z`);
+    return ok({ items: [f, f], nextCursor: input.cursor ? null : "page2" });
+  } }); const tr = transport([p]); await seed(store, tr);
+  const first = await runSync("backfill", store, tr, { ...options, maxTasks: 1 });
+  assert.ok(first.checkpoint); assert.equal((await store.state("backfill")).page, "page2");
+  const second = await runSync("backfill", store, tr, options);
+  assert.equal(calls.length, 4); assert.equal(second.checkpoint, null); assert.equal((await store.list("fixture")).length, 1);
+  const ids = (await store.list("fixture")).map(f => f.id);
+  await runSync("backfill", store, tr, options);
+  assert.deepEqual((await store.list("fixture")).map(f => f.id), ids);
+  assert.equal(windows("2026-01-01", "2026-02-01", 7).length, 5);
+  assert.throws(() => windows("2020-01-01", "2026-01-01", 7), /730/);
+});
+
+test("repeated imports prevent duplicate fixtures/teams and preserve historical final records", async () => {
+  const store = new MemorySyncStore(); let fs = [fixture()]; const tr = transport([adapter({ getLiveMatches: async () => ok(fs) })]);
+  await seed(store, tr);
+  const r1 = await runSync("live", store, tr, options); const r2 = await runSync("live", store, tr, options);
+  assert.equal(r1.fetched, 1); assert.equal(r1.inserted, 3); assert.equal(r2.inserted, 0); assert.equal(r2.updated, 3); assert.equal(r1.entities.fixture?.inserted, 1); assert.equal(r2.entities.fixture?.updated, 1);
+  fs = [{ ...fixture(), status: "finished", homeScore: 2, awayScore: 1 }]; await runSync("live", store, tr, options);
+  fs = [{ ...fixture(), status: "live", homeScore: 0, awayScore: 0 }]; const conflict = await runSync("live", store, tr, options);
+  assert.equal((await store.list("fixture"))[0].data.homeScore, 2); assert.equal(conflict.status, "partial");
+  fs = []; await runSync("live", store, tr, options); assert.equal((await store.list("fixture")).length, 1);
+  assert.equal((await store.list("team")).length, 2);
+});
+
+test("empty/error catalog preserves data, shrinking catalog marks unconfirmed without deletion", async () => {
+  const store = new MemorySyncStore(); let rows = [catalog(), catalog("A"), catalog("B")];
+  const p = adapter({ getCompetitions: async () => ok(rows) }); const tr = transport([p]); await runSync("catalog", store, tr, options);
+  rows = []; const failed = await runSync("catalog", store, tr, options); assert.equal(failed.status, "failed");
+  assert.equal((await store.list("competition")).length, 3); assert.equal((await store.state("catalog")).lastSuccessAt, AT);
+  rows = [catalog()]; const shrunk = await runSync("catalog", store, tr, options); assert.equal(shrunk.status, "partial");
+  assert.equal((await store.get("competition", "football_data", "A"))!.availability, "unconfirmed");
+  p.getCompetitions = async () => ({ ok: false, provider: "football_data", requestKey: "bad", fromCache: false, error: { code: "auth", message: "permission denied" } });
+  await runSync("catalog", store, tr, options); assert.equal((await store.list("competition")).length, 3);
+});
+
+test("uncertain/conflicting coverage from two providers stays isolated and enters review", async () => {
+  const store = new MemorySyncStore();
+  const tr = transport([adapter({ getLiveMatches: async () => ok([{ ...fixture(), status: "finished", homeScore: 3, awayScore: 1 }]) }), adapter({ name: "api_football", getLiveMatches: async () => ({ ...ok([{ ...fixture(), status: "finished", homeScore: 0, awayScore: 0 }]), provider: "api_football" }) })]);
+  await runSync("live", store, tr, options);
+  const fs = await store.list("fixture"); assert.equal(fs.length, 2); assert.notEqual(fs[0].id, fs[1].id);
+  assert.equal(fs.find(f => f.provider === "football_data")!.data.homeScore, 3); assert.equal(fs.find(f => f.provider === "api_football")!.data.homeScore, 0);
+  assert.ok(store.issues.some(i => i.code === "cross_source_review"));
+});
+
+test("failed persistence rolls back records AND checkpoint and is not successful", async () => {
+  const store = new MemorySyncStore(); let calls = 0;
+  store.put = async () => { if (++calls === 2) throw new Error("disk full"); };
+  const r = await runSync("catalog", store, transport([adapter({ getCompetitions: async () => ok([catalog(), catalog("A")]) })]), options);
+  assert.equal(r.status, "failed"); assert.equal(r.fetched, 2); assert.equal(r.inserted, 0); assert.equal((await store.list()).length, 0);
+});
+
+test("non-overlap lease, cadence and job completion with actual PostgreSQL-compatible persisted rows", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nemo-sync-test-"));
+  const pg = new PGlite(dir); await pg.exec(readFileSync("db/migration-0007-sports-discovery.sql", "utf8"));
+  function client(runner: Pick<PGlite, "query" | "transaction">): SqlClient {
+    return { async select<T extends object>(sql: string, params: unknown[]) { return (await runner.query<T>(sql, params)).rows; },
+      async run(sql, params) { await runner.query(sql, params); },
+      async transaction<T>(fn: (tx: SqlClient) => Promise<T>) { return runner.transaction(tx => fn(client(tx as unknown as Pick<PGlite, "query" | "transaction">))); } };
+  }
+  await pg.exec(`CREATE TABLE provider_entity_map(entity_type text,provider text,provider_id text,canonical_id uuid,verified boolean);
+    INSERT INTO provider_entity_map VALUES('competition','football_data','NEW','12345678-1234-5234-a234-123456789012',true);`);
+  const db = client(pg), store = new PgSyncStore(db); await seed(store);
+  assert.equal((await store.get("competition", "football_data", "NEW"))!.canonicalId, "12345678-1234-5234-a234-123456789012");
+  assert.ok(await store.acquire("worker1")); assert.equal(await store.acquire("worker2"), false);
+  const skipped = await runSync("live", store, transport(), options); assert.equal(skipped.status, "skipped"); await store.release("worker1");
+  const r = await runSync("live", store, transport(), options); assert.equal(r.status, "success");
+  const reloaded = new PgSyncStore(db); assert.equal((await reloaded.list("fixture")).length, 1);
+  const row = await db.select<{ payload: { status: string; inserted: number; fetched: number; finishedAt: string } }>("SELECT payload FROM sports_sync_runs WHERE id=$1", [r.id]);
+  assert.equal(row[0].payload.status, "success"); assert.equal(row[0].payload.inserted, 3); assert.equal(row[0].payload.fetched, 1); assert.ok(row[0].payload.finishedAt);
+  assert.equal((await reloaded.state("live")).lastSuccessAt, AT);
+  const cadence = await runSync("live", reloaded, transport(), { now: NOW }); assert.equal(cadence.status, "skipped");
+  console.log(`PERSISTENCE EVIDENCE: catalog=1, seasons=1, fixtures fetched=${r.fetched}, inserted fixtures=1, teams=2, reloaded fixture count=1, run status=${row[0].payload.status}`);
+  await pg.close();
+  const reopened = new PGlite(dir);
+  assert.equal((await new PgSyncStore(client(reopened)).list("fixture")).length, 1);
+  await reopened.close(); rmSync(dir, { recursive: true, force: true });
+});
+
+test("live/upcoming/completed and postponed/abandoned classifications are explicit", () => {
+  for (const s of ["live", "halftime", "extra_time", "penalty_shootout"]) assert.equal(classification(s), "live");
+  assert.equal(classification("scheduled"), "upcoming"); assert.equal(classification("finished"), "completed");
+  for (const s of ["postponed", "cancelled", "abandoned", "suspended"]) assert.equal(classification(s), "other");
+  assert.ok(fixtureErrors({ ...fixture(), scheduledAt: "" }).length);
+  assert.ok(fixtureErrors({ ...fixture(), status: "finished" }).length);
+  assert.ok(fixtureErrors({ ...fixture(), homeScore: -1 }).length);
+});
+
+test("Cairo midnight and DST/winter boundaries; original offsets normalize to UTC without fabrication", () => {
+  assert.equal(siteDateKey(new Date("2026-10-13T20:59:59Z")), "2026-10-13");
+  assert.equal(siteDateKey(new Date("2026-10-13T21:00:00Z")), "2026-10-14");
+  assert.equal(siteDateKey(new Date("2026-12-01T21:59:59Z")), "2026-12-01");
+  assert.equal(siteDateKey(new Date("2026-12-01T22:00:00Z")), "2026-12-02");
+});
+
+test("standings only run with verified distinct season query; wrong-season fixtures rejected", async () => {
+  const store = new MemorySyncStore(); let seen = "";
+  const tr = transport([adapter({ getStandings: async input => { seen = `${input.providerCompetitionId}/${input.season}`; return ok([{ teamProviderId: "t1", teamName: "Home", position: 1, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 1, goalsAgainst: 0, points: 3, form: [], group: null, status: null }]); } })]);
+  await seed(store, tr); await runSync("statistics", store, tr, options);
+  assert.equal(seen, "NEW/2026"); assert.equal((await store.list("standings"))[0].data.seasonProviderId, "s1");
+  const bad = transport([adapter({ syncFixturePage: async () => ok({ items: [{ ...fixture(), seasonProviderId: "WRONG" }], nextCursor: null }) })]);
+  await runSync("backfill", store, bad, options); assert.equal((await store.list("fixture")).length, 0);
+});
+
+test("dynamic canonical URLs and index-worthiness require content; stale/missing frontend never claims empty provider", () => {
+  const c = makeRecord("competition", "football_data", "NEW", "football", { ...catalog() }, AT);
+  const f = makeRecord("fixture", "football_data", "m1", "football", { ...fixture() }, AT, undefined, "NEW");
+  assert.match(syncedPath(c), /^\/competitions\/newly-introduced-cup--/);
+  assert.match(syncedPath(f), /^\/sports\/matches\/home-vs-away--/);
+  assert.equal(syncedPath(makeRecord("competition", "football_data", "PL", "football", { name: "Premier League" }, AT)), "/competitions/premier-league");
+  assert.equal(indexWorthy(c, []), false); assert.equal(indexWorthy(c, [f]), true);
+  assert.equal(freshness(f, NOW + 3 * 86400000), "stale");
+  assert.match(renderToStaticMarkup(<SyncNotice record={{ ...f, lastSuccessAt: "2020-01-01T00:00:00Z" }} />), /بيانات قديمة/);
+  assert.match(renderToStaticMarkup(<SyncNotice error="تعذّر قراءة البيانات؛ لا يعني ذلك عدم وجود مباريات" />), /لا يعني/);
+  assert.match(renderToStaticMarkup(<SyncedFixtureList fixtures={[f]} />), /2026-10-14/);
+});
+
+class TimeoutAdapter extends BaseAdapter {
+  readonly name = "football_data" as const; readonly capabilities: DataType[] = []; readonly supportedSports = ["football"];
+  baseUrl() { return "https://authorized-test.invalid"; }
+}
+test("provider timeouts, controlled retry/backoff and schema/entitlement failures", async () => {
+  let attempts = 0; const started = Date.now();
+  const a = new TimeoutAdapter({ timeoutMs: 5, retries: 1, fetchImpl: (async (_url, init) => {
+    attempts++; return await new Promise<Response>((_resolve, reject) => init!.signal!.addEventListener("abort", () => reject(Object.assign(new Error("timeout"), { name: "AbortError" }))));
+  }) as typeof fetch });
+  const r = await a.getJson("catalog", {}); assert.equal(r.ok, false); assert.equal(attempts, 2); assert.ok(Date.now() - started >= 250);
+  if (!r.ok) assert.equal(r.error.code, "timeout");
+  let requests: string[] = [];
+  const fd = new FootballDataAdapter({ fetchImpl: (async url => { requests.push(String(url)); return Response.json({ competitions: [ { id: 9009, code: "NEW", name: "New Cup" } ] }); }) as typeof fetch });
+  const catalogResult = await fd.getCompetitions(); assert.ok(catalogResult.ok); assert.equal(catalogResult.data[0].providerId, "NEW");
+  fd.fetchImpl = (async url => { requests.push(String(url)); return Response.json({ matches: [] }); }) as typeof fetch;
+  assert.ok((await fd.getFixtures({ sport: "football", competitionProviderId: "NEW", date: "2026-10-13" })).ok);
+  assert.ok(requests.some(u => u.includes("competitions/NEW/matches")));
+  fd.fetchImpl = (async () => Response.json({ changedSchema: [] })) as typeof fetch;
+  assert.equal((await fd.getCompetitions()).ok, false);
+  fd.fetchImpl = (async () => Response.json({ message: "not available with your current plan" }, { status: 403 })) as typeof fetch;
+  assert.equal((await fd.getFixtures({ sport: "football", competitionProviderId: "NEW" })).ok, false);
+});
+
+test("Football-Data season metadata preserves ID/query distinction and validates statistics identity", async () => {
+  const fd = new FootballDataAdapter({ fetchImpl: (async () => Response.json({ currentSeason: { id: 44, startDate: "2026-08-01", endDate: "2027-05-01" }, seasons: [{ id: 44, startDate: "2026-08-01", endDate: "2027-05-01" }] })) as typeof fetch });
+  const r = await fd.getCompetitionSeasons({ providerCompetitionId: "NEW" }); assert.ok(r.ok); assert.equal(r.data[0].providerId, "44"); assert.equal(r.data[0].queryValue, "2026"); assert.equal(r.data[0].name, "2026/2027");
+  fd.fetchImpl = (async () => Response.json({ competition: { code: "WRONG" }, standings: [] })) as typeof fetch;
+  const bad = await fd.getStandings({ providerCompetitionId: "NEW", season: "2026" }); assert.equal(bad.ok, false);
+});
+
+test("empty schedules retain historical records and pagination loops fail safely", async () => {
+  const store = new MemorySyncStore(); await seed(store); await runSync("live", store, transport(), options);
+  const r = await runSync("results", store, transport([adapter({ getFixtures: async () => ok([]) })]), options);
+  assert.equal((await store.list("fixture")).length, 1); assert.ok(r.failures.some(f => f.includes("disappeared")));
+  const loop = transport([adapter({ syncFixturePage: async () => ok({ items: [fixture()], nextCursor: "loop" }) })]);
+  const first = await runSync("upcoming", store, loop, { ...options, maxTasks: 1 }); assert.ok(first.checkpoint);
+  const second = await runSync("upcoming", store, loop, { ...options, maxTasks: 1 }); assert.ok(second.failures.some(f => f.includes("pagination loop")));
+});
+
+test("sync routes fail closed and no production scheduler/deployment changes are required", async () => {
+  const { GET } = await import("@/app/api/cron/sports-sync/[job]/route");
+  const old = process.env.CRON_SECRET; delete process.env.CRON_SECRET; delete process.env.NEMO_INGEST_TOKEN; delete process.env.VERCEL_CRON_SECRET;
+  assert.equal((await GET(new Request("https://example.test/api/cron/sports-sync/catalog"), { params: Promise.resolve({ job: "catalog" }) })).status, 503);
+  process.env.CRON_SECRET = "local-test-only";
+  assert.equal((await GET(new Request("https://example.test/api/cron/sports-sync/catalog"), { params: Promise.resolve({ job: "catalog" }) })).status, 401);
+  if (old) process.env.CRON_SECRET = old; else delete process.env.CRON_SECRET;
+});
+
+
+test("large catalogs checkpoint after 50 records and finish without code edits", async () => {
+  const store = new MemorySyncStore(); const rows = Array.from({ length: 123 }, (_, i) => catalog(`C${String(i).padStart(3, "0")}`));
+  const tr = transport([adapter({ getCompetitions: async () => ok(rows) })]);
+  await runSync("catalog", store, tr, { ...options, maxTasks: 1 });
+  assert.equal((await store.list("competition")).length, 50); assert.equal((await store.state("catalog")).page, "row:50");
+  await runSync("catalog", store, tr, options); assert.equal((await store.list("competition")).length, 123); assert.equal((await store.state("catalog")).cursor, null);
+});
+
+test("quality checks detect duplicate/orphan/timestamps/staleness/statistics/URL errors; record issues", async () => {
+  const store = new MemorySyncStore();
+  const bad = makeRecord("fixture", "football_data", "bad", "football", { ...fixture(), scheduledAt: "invalid" }, "2020-01-01T00:00:00Z", undefined, "MISSING");
+  bad.slug = "wrong-url"; await store.put(bad);
+  const issues = qualityChecks([bad, bad], NOW);
+  for (const code of ["duplicate_entity", "orphan_fixture", "orphan_team", "stale_data", "invalid_fixture", "invalid_canonical_url"]) assert.ok(issues.some(i => i.code === code), code);
+  const r = await runSync("quality", store, transport(), options); assert.equal(r.status, "failed"); assert.ok(store.issues.length);
+});
+
+test("opaque provider IDs are not merged by punctuation, case or similar names", () => {
+  const a = makeRecord("competition", "football_data", "A/B", "football", { name: "Same" }, AT);
+  const b = makeRecord("competition", "football_data", "a-b", "football", { name: "Same" }, AT);
+  assert.notEqual(a.id, b.id); assert.notEqual(a.slug, b.slug);
+});
+
+test("shared atomic request budget charges failures/retries and stops provider attempts at quota", async () => {
+  let calls = 0;
+  const fd = new FootballDataAdapter({ retries: 3, fetchImpl: (async () => { calls++; return Response.json({ message: "outage" }, { status: 500 }); }) as typeof fetch });
+  const sdl = new SportsDataLayer({ rateLimits: { football_data: { perSecond: null, perMinute: 2, perHour: null, perDay: null, perMonth: null, concurrency: 2, throttleAt: .85 } } });
+  sdl.register(fd);
+  const r = await sdl.fetch({ provider: "football_data", sport: "football", dataType: "competitions", endpoint: "test-quota", params: {}, call: p => p.getCompetitions({ sport: "football" }) });
+  assert.equal(r.ok, false); assert.equal(calls, 2);
+  assert.equal((await sdl.rateLimiter.usage("football_data"))[0].used, 2);
+});
+
+test("original broadcast/player/source stores/auth and deployment settings remain byte-for-byte unchanged", async () => {
+  const { createHash } = await import("node:crypto");
+  const baseline = JSON.parse(readFileSync("scripts/sports-sync-safety-baseline.json", "utf8")) as Record<string, string>;
+  for (const [path, expected] of Object.entries(baseline)) assert.equal(createHash("sha256").update(readFileSync(path)).digest("hex"), expected, path);
+});

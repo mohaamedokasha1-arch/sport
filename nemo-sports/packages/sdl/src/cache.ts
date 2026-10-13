@@ -11,6 +11,8 @@ export interface KvStore {
   /** invalidate by prefix — targeted, never a global flush (§3.7) */
   delPrefix(prefix: string): Promise<number>;
   keys(prefix: string): Promise<string[]>;
+  /** Atomic all-or-none quota reservation. Failure must deny, not look like an empty cache. */
+  reserve?(windows: { key: string; limit: number; ttlSeconds: number }[]): Promise<boolean>;
 }
 
 export class MemoryStore implements KvStore {
@@ -63,6 +65,14 @@ export class MemoryStore implements KvStore {
 
   async keys(prefix: string): Promise<string[]> {
     return [...this.map.keys()].filter((k) => k.startsWith(prefix));
+  }
+
+  async reserve(windows: { key: string; limit: number; ttlSeconds: number }[]): Promise<boolean> {
+    const now = Date.now();
+    const used = windows.map(w => { const r = this.map.get(w.key); return r && r.expiresAt > now ? Number(r.value) : 0; });
+    if (windows.some((w, i) => used[i] >= w.limit)) return false;
+    windows.forEach((w, i) => this.map.set(w.key, { value: used[i] + 1, expiresAt: now + w.ttlSeconds * 1000 }));
+    return true;
   }
 
   stats() {

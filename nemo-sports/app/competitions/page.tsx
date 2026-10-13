@@ -1,3 +1,4 @@
+import { SyncedCompetitionDirectory } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import Link from "next/link";
 import CompetitionCard from "@/components/competition/CompetitionCard";
@@ -70,10 +71,14 @@ function CompetitionsPageBody() {
   );
 }
 
-export default async function CompetitionsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CompetitionsPage({ searchParams }: { searchParams: Promise<{ sport?: string; country?: string }> }) {
+  const filters = await searchParams;
   return (
     <>
       <AdminCompetitionsSection />
+      <SyncedCompetitionDirectory sport={filters.sport} country={filters.country} />
       <CompetitionsPageBody />
     </>
   );

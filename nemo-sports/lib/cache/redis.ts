@@ -29,11 +29,15 @@ async function loadRedis(): Promise<RedisCtor | null> {
 let client: Redis | null = null;
 let kv: RedisKvStore | null = null;
 let loadFailed = false;
+let connecting: Promise<void> | null = null;
 
 async function getClient(): Promise<Redis | null> {
   const url = process.env.REDIS_URL;
   if (!url || loadFailed) return null;
-  if (client) return client;
+  if (client) {
+    if (connecting) { try { await connecting; } catch { return null; } }
+    return client;
+  }
   const RedisClient = await loadRedis();
   if (!RedisClient) {
     loadFailed = true;
@@ -46,6 +50,10 @@ async function getClient(): Promise<Redis | null> {
     retryStrategy: (times: number) => Math.min(times * 200, 2000),
   };
   client = new RedisClient(url, options);
+  // lazyConnect + disabled offline queue otherwise turns the first health
+  // check into a false outage before the socket is ready.
+  connecting = client.connect();
+  try { await connecting; } catch { return null; }
   return client;
 }
 
@@ -53,6 +61,7 @@ async function getClient(): Promise<Redis | null> {
 function asRedisLike(c: Redis): RedisLike {
   return {
     get: (key) => c.get(key),
+    eval: (script, keys, args) => c.eval(script, keys.length, ...keys, ...args),
     set: (key, value, mode, ttl) =>
       mode === "EX" && ttl !== undefined ? c.set(key, value, "EX", ttl) : c.set(key, value),
     del: (key) => c.del(key),
@@ -93,3 +102,6 @@ export async function redisHealth(): Promise<{ ok: boolean; detail: string }> {
   const h = await store.health();
   return { ok: h.ok, detail: h.detail };
 }
+
+/** CLI/test lifecycle only; request-time code keeps the shared connection. */
+export function closeRedis() { client?.disconnect(); client = null; kv = null; connecting = null; }
