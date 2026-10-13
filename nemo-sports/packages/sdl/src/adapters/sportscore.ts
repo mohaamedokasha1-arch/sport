@@ -120,6 +120,7 @@ type SSLineups = {
 };
 
 type SSFeed = { sport?: string; count?: number; matches?: SSMatch[] | null; updated?: string };
+type SSFixturesDay = { sport?: string; date?: string; count?: number; matches?: SSMatch[] | null };
 type SSDetail = { match?: SSMatch & { incidents?: SSIncident[] | null; stats?: unknown; lineups?: SSLineups | null } | null; updated?: string };
 type SSStandings = {
   competition?: string;
@@ -215,6 +216,31 @@ export function mapStatus(status: string | null | undefined, statusText: string 
   // "upcoming" / "scheduled" / "not started" / "delayed" / anything unknown
   // without a live signal → scheduled (never invent a state).
   return { status: "scheduled", minute: null };
+}
+
+/** Days either side of today a competition-only fixtures request covers. */
+export const COMPETITION_WINDOW_DAYS = 5;
+/** Hard cap on days one request may fan out to (one provider call per day). */
+const MAX_WINDOW_DAYS = 14;
+
+/**
+ * UTC calendar days a competition-only request covers.
+ * With a range: every day in it (capped). Without one: today ± COMPETITION_WINDOW_DAYS.
+ * Returns null for an unusable range rather than guessing.
+ */
+export function competitionWindowDays(range: DateRange | undefined, now = Date.now()): string[] | null {
+  const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const fromMs = range ? Date.parse(range.from) : NaN;
+  const toMs = range ? Date.parse(range.to) : NaN;
+  if (range && (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs < fromMs)) return null;
+  const start = range ? fromMs : now - COMPETITION_WINDOW_DAYS * 86_400_000;
+  const end = range ? toMs : now + COMPETITION_WINDOW_DAYS * 86_400_000;
+  const days: string[] = [];
+  // Walk whole UTC days from the start day, inclusive of the end day.
+  for (let t = Date.parse(`${dayOf(start)}T00:00:00Z`); t <= end && days.length < MAX_WINDOW_DAYS; t += 86_400_000) {
+    days.push(dayOf(t));
+  }
+  return days;
 }
 
 /** "English Premier League" → "english-premier-league" (same form SportScore uses for standings slugs). */
@@ -430,18 +456,74 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     return { ok: true, data: live, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }
 
+  /**
+   * Fixtures for a day, or for one competition across a window of days.
+   *
+   * WHY NOT THE FEED
+   *   `matches/` is documented as "live + recent" and is capped at 50 matches
+   *   across EVERY competition. Filtering it by UTC day returned the matches of
+   *   whatever happened to fall in the 50 — often none for a given day, and
+   *   almost never a smaller league (the Egyptian Premier League page showed a
+   *   standings table and zero fixtures for that reason). SportScore's REST v1
+   *   `fixtures/` endpoint is documented as "fixtures & results for one calendar
+   *   day, filterable by competition", and it returns the complete day.
+   *
+   * RULES
+   *   · date given            → one v1 call for that UTC day (optionally scoped
+   *                             to the competition). Empty day = genuine [].
+   *   · competition, no date  → one v1 call per day of a bounded window
+   *                             (± COMPETITION_WINDOW_DAYS around today, or the
+   *                             requested range, capped). Any failed day fails
+   *                             the whole request: a partial schedule is never
+   *                             presented as complete.
+   *   · neither               → the live + recent feed, as before.
+   */
   override async getFixtures(input: { sport: string; competitionProviderId?: string; range?: DateRange; date?: string }): Promise<ProviderResult<NormalizedFixture[]>> {
+    const competition = input.competitionProviderId ? competitionSlug(input.competitionProviderId) : undefined;
+
+    if (input.date || competition) {
+      const days = input.date ? [input.date] : competitionWindowDays(input.range);
+      if (days === null) {
+        return { ok: false, provider: this.name, requestKey: this.key("fixtures/", { sport: input.sport }), fromCache: false, error: { code: "bad_response", message: "sportscore: invalid date range" } };
+      }
+      const collected: SSMatch[] = [];
+      // "updated" = the newest provider response that contributed, never the local clock.
+      let fetchedAt: string | null = null;
+      for (const day of days) {
+        const res = await this.dayFixtures(input.sport, day, competition);
+        if (!res.ok) return res;
+        collected.push(...res.data);
+        if (!fetchedAt || res.fetchedAt > fetchedAt) fetchedAt = res.fetchedAt;
+      }
+      let list = collected
+        .map((m) => this.fixtureFrom(m, input.sport))
+        .filter((f): f is NormalizedFixture => f !== null);
+      // The provider day is UTC; the same id can appear on two adjacent days
+      // when a window overlaps, so de-duplicate on the provider match id.
+      list = [...new Map(list.map((f) => [f.providerId, f])).values()];
+      if (input.date) list = list.filter((f) => f.scheduledAt.slice(0, 10) === input.date);
+      if (competition) {
+        // Compare both in slug form (exact equivalence, no substring matching),
+        // so a page never receives another competition's fixtures.
+        list = list.filter((f) => f.competitionProviderId === input.competitionProviderId || competitionSlug(f.competitionProviderId) === competition);
+      }
+      list.sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+      return {
+        ok: true,
+        data: list,
+        provider: this.name,
+        fetchedAt: fetchedAt ?? new Date().toISOString(),
+        requestKey: this.key("fixtures/", { sport: input.sport, date: input.date ?? "window", competition }),
+        fromCache: false,
+      };
+    }
+
     const res = await this.feed(input.sport);
     if (!res.ok) return res;
     let list = res.data
       .map((m) => this.fixtureFrom(m, input.sport))
       .filter((f): f is NormalizedFixture => f !== null);
-
-    if (input.date) {
-      // provider feed carries "live + recent" only — filter to that UTC day
-      // and return [] when nothing matches (never pad with other days).
-      list = list.filter((f) => f.scheduledAt.slice(0, 10) === input.date);
-    } else if (input.range) {
+    if (input.range) {
       const from = +new Date(input.range.from);
       const to = +new Date(input.range.to);
       list = list.filter((f) => {
@@ -449,16 +531,39 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
         return Number.isFinite(from) && Number.isFinite(to) ? t >= from && t <= to : true;
       });
     }
-    if (input.competitionProviderId) {
-      // The feed carries the competition DISPLAY name ("English Premier League"),
-      // while NEMO routes address competitions by SportScore SLUG
-      // ("english-premier-league"). Compare both in slug form, which is an exact
-      // equivalence (no substring matching), so a page never receives another
-      // competition's fixtures.
-      const wanted = competitionSlug(input.competitionProviderId);
-      list = list.filter((f) => f.competitionProviderId === input.competitionProviderId || competitionSlug(f.competitionProviderId) === wanted);
-    }
     return { ok: true, data: list, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
+  }
+
+  /** One UTC calendar day from the documented REST v1 `fixtures/` endpoint. */
+  private async dayFixtures(sport: string, date: string, competition?: string): Promise<ProviderResult<SSMatch[]>> {
+    const base = this.v1Base();
+    if (!base) {
+      return {
+        ok: false,
+        provider: this.name,
+        requestKey: this.key("fixtures/", { sport, date }),
+        fromCache: false,
+        error: { code: "not_supported", message: "sportscore: day fixtures need the direct REST v1 endpoint (the relay only proxies widget endpoints)" },
+      };
+    }
+    const res = await this.getJson<SSFixturesDay>("fixtures/", { sport, date, competition, limit: 200 }, base);
+    if (!res.ok) return res;
+    if (!Array.isArray(res.data.matches)) {
+      return { ok: false, provider: this.name, requestKey: res.requestKey, fromCache: false, error: { code: "bad_response", message: "sportscore: fixtures payload without matches array" } };
+    }
+    return { ok: true, data: res.data.matches, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
+  }
+
+  /**
+   * The documented REST v1 root on the same host as the configured widget base.
+   * Null when the configured base is the compatibility relay (it proxies widget
+   * endpoints only) — the caller then reports "not supported" instead of guessing.
+   */
+  private v1Base(): string | null {
+    const base = this.baseUrl();
+    if (/\/api\/widget$/.test(base)) return base.replace(/\/api\/widget$/, "/api/v1");
+    if (/\/api\/v1$/.test(base)) return base;
+    return null;
   }
 
   /* ── match detail / events / stats / lineups ────────────── */

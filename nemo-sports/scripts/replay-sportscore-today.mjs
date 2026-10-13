@@ -14,6 +14,7 @@
  *   GET /__expected                    the counts a correct site must show
  *
  * Point the app at it with SPORTSCORE_BASE_URL=http://127.0.0.1:<port>/api/widget
+ *   (the REST v1 root is derived from the same host: /api/v1/fixtures/)
  */
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
@@ -120,6 +121,16 @@ const server = createServer((req, res) => {
     const list = feeds(now)[sport];
     if (!list) return send(200, { error: "unsupported sport" });
     return send(200, { sport, count: list.length, matches: list, updated: new Date(now).toISOString() });
+  }
+  // REST v1 day endpoint (documented: fixtures for one UTC day, optional competition slug).
+  // The Egyptian 2026-10-12 answer is the REAL captured payload; every other day is
+  // derived from this harness's own kickoffs, so other days are honest empties.
+  if (u.pathname === "/api/v1/fixtures/") {
+    const date = u.searchParams.get("date") ?? "";
+    const comp = u.searchParams.get("competition");
+    if (date === "2026-10-12" && comp === "egyptian-premier-league") return send(200, fx("v1-fixtures-egypt-2026-10-12.json"));
+    const list = (feeds(now)[sport] ?? []).filter((m) => m.time.slice(0, 10) === date && (!comp || m.competition.toLowerCase().replace(/\s+/g, "-") === comp));
+    return send(200, { sport, date, count: list.length, matches: list });
   }
   if (u.pathname === "/api/widget/match/") return send(200, detail(sport, u.searchParams.get("slug") ?? "", now));
   if (u.pathname === "/api/widget/standings/") return send(200, u.searchParams.get("slug") === "uefa-champions-league" ? fx("standings.json") : { error: "No current season" });

@@ -12,7 +12,7 @@ import SectionHead from "@/components/ui/SectionHead";
 import { fixturesForCairoDate, cachePolicyFor, fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
-import { siteDay, siteDateKey } from "@/lib/tz";
+import { siteDay, siteDateKey, shiftDateKey } from "@/lib/tz";
 import { isFinishedStatus, matchStateOf } from "@/lib/match-state";
 import { SPORT_NAME_AR, liveBoard, reconcileResult } from "@/lib/live-board";
 import {
@@ -41,11 +41,18 @@ export default async function HomePage() {
   // same data /live, /matches and the score rail count. It used to read the
   // football live feed only, which is why the homepage could say "0 live"
   // while /matches?date=today counted 24 (all sports).
-  const [board, fixtureResult, scorerResult, todayResult] = await Promise.all([
+  const todayCairo = siteDateKey(now);
+  // Every football day section reads the day endpoint (fixturesForCairoDate).
+  // The former "tomorrow" and "results" lists were filtered out of the 50-match
+  // live+recent feed, which almost never contains tomorrow's or yesterday's
+  // matches — so those sections were structurally empty.
+  const [board, fixtureResult, scorerResult, todayResult, tomorrowResult, yesterdayResult] = await Promise.all([
     liveBoard(undefined, now),
     sdlFixtures({ sport: "football" }),
     footballTopScorers("english-premier-league"),
-    fixturesForCairoDate({ sport: "football", date: siteDateKey(now) }),
+    fixturesForCairoDate({ sport: "football", date: todayCairo }),
+    fixturesForCairoDate({ sport: "football", date: shiftDateKey(todayCairo, 1) }),
+    fixturesForCairoDate({ sport: "football", date: shiftDateKey(todayCairo, -1) }),
   ]);
 
   const fixtureData = fixtureResult.ok && fixtureResult.source === "provider" ? fixtureResult : null;
@@ -62,28 +69,24 @@ export default async function HomePage() {
   const tomorrowKey = todayKey + 86_400_000;
   // Football sections, reconciled with the same board so a match never shows
   // "live" here and something else on /live.
-  const providerFixtures = fixtureData ? reconcileResult(fixtureData, board.boards, now).filter(hasMatchIdentity) : [];
-  const todayFixtures = (todayResult.ok && todayResult.source === "provider" ? reconcileResult(todayResult, board.boards, now).filter(hasMatchIdentity) : [])
+  const dayRows = (result: typeof todayResult) => (result.ok && result.source === "provider" ? reconcileResult(result, board.boards, now).filter(hasMatchIdentity) : []);
+  const todayFixtures = dayRows(todayResult)
     .filter((fixture) => siteDay(fixture.scheduledAt) === todayKey)
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
   const todayShown = todayFixtures.slice(0, 12);
-  const tomorrowFixtures = providerFixtures
+  const tomorrowData = tomorrowResult.ok && tomorrowResult.source === "provider" ? tomorrowResult : null;
+  const tomorrowFixtures = dayRows(tomorrowResult)
     .filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt, now) === "upcoming" && siteDay(fixture.scheduledAt) === tomorrowKey)
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
     .slice(0, 9);
-  const latestResults = providerFixtures
+  const resultsData = todayResult.ok && todayResult.source === "provider" ? todayResult : yesterdayResult.ok && yesterdayResult.source === "provider" ? yesterdayResult : null;
+  const latestResults = [...dayRows(yesterdayResult), ...dayRows(todayResult)]
     .filter((fixture) => isFinishedStatus(fixture.status))
     .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
     .slice(0, 6);
 
   const cacheTtl = fixtureData ? (await cachePolicyFor("fixtures")).canonical : undefined;
   const demoMode = !realMode && demoContentVisible();
-  // The football feed is a capped sample (≈50 matches, no date filter). When its newest
-  // kickoff is well behind "now", today's empty list reflects the sample, not the calendar.
-  const feedLatestMs = fixtureData ? Math.max(...fixtureData.data.map((f) => +new Date(f.scheduledAt)).filter(Number.isFinite), Number.NEGATIVE_INFINITY) : Number.NEGATIVE_INFINITY;
-  const feedIsSampleBehindNow = Number.isFinite(feedLatestMs) && feedLatestMs < now - 2 * 3_600_000;
-  const feedLatestLabel = Number.isFinite(feedLatestMs) ? new Date(feedLatestMs).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "short", timeStyle: "short" }) : "";
-
   if (realMode) {
     return (
       <div className="mx-auto max-w-[1280px] space-y-10 px-4 py-6">
@@ -143,20 +146,21 @@ export default async function HomePage() {
               {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : (
-            <DataUnavailable
-              title="لا توجد مباريات اليوم في البيانات المتاحة"
-              message={
-                !fixtureData
-                  ? "تعذّر استرجاع جدول مباريات موثوق."
-                  : feedIsSampleBehindNow
-                    ? `المصدر يعرض عينة محدودة (${fixtureData?.data.length ?? 0} مباراة كرة قدم) لا تغطي كل مباريات اليوم، وأحدث مباراة فيها بتوقيت ${feedLatestLabel}. لا نعرض مباريات غير مؤكدة.`
-                  : fixtureData.degraded
-                    ? "مصدر المباريات لم يُرجع جدولًا كاملًا في آخر محاولة، ولا يوجد في ما وصلنا مباراة لهذا اليوم. لا نعرض مباريات غير مؤكدة."
-                    : "لم يتضمن آخر تحديث مباريات لهذا اليوم."
-              }
-              actionHref="/matches"
-              actionLabel="فتح قائمة المباريات"
-            />
+            todayResult.ok && todayResult.source === "provider" ? (
+              <DataUnavailable
+                title="لا توجد مباريات كرة قدم اليوم في المصدر"
+                message={todayResult.degraded ? "المصدر لم يُرجع جدول اليوم كاملًا في آخر محاولة. لا نعرض مباريات غير مؤكدة." : "لم يسجّل المصدر مباريات كرة قدم لهذا اليوم (بتوقيت القاهرة) في آخر تحديث."}
+                actionHref="/matches"
+                actionLabel="فتح قائمة المباريات"
+              />
+            ) : (
+              <DataUnavailable
+                title="تعذّر استرجاع مباريات اليوم"
+                message="لم تصل استجابة مؤكدة من مصدر المواعيد. هذا ليس دليلًا على عدم وجود مباريات، ولا نعرض بيانات تقديرية."
+                actionHref="/matches"
+                actionLabel="فتح قائمة المباريات"
+              />
+            )
           )}
         </section>
 
@@ -165,10 +169,12 @@ export default async function HomePage() {
           {tomorrowFixtures.length > 0 ? (
             <>
               <ProviderMatchList fixtures={tomorrowFixtures} />
-              {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
+              {tomorrowData ? <DataSourceNote className="mt-3" provider={tomorrowData.provider} fromCache={tomorrowData.fromCache} stale={tomorrowData.stale} degraded={tomorrowData.degraded} fetchedAt={tomorrowData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
+          ) : tomorrowData ? (
+            <div className="card px-4 py-5 text-center text-[13px] text-muted">لا تتوفر مواعيد مؤكدة للغد في آخر تحديث من المصدر. <Link href="/fixtures" className="font-bold text-gold-600 dark:text-gold-400">تصفّح جدول المواعيد</Link>.</div>
           ) : (
-            <div className="card px-4 py-5 text-center text-[13px] text-muted">لا تتوفر مواعيد مؤكدة للغد في آخر تحديث. <Link href="/fixtures" className="font-bold text-gold-600 dark:text-gold-400">تصفّح جدول المواعيد</Link>.</div>
+            <DataUnavailable title="تعذّر تحديث مواعيد الغد" message="لم تصل استجابة مؤكدة من مصدر المواعيد. لا نعرض مواعيد تقديرية." actionHref="/fixtures" actionLabel="تصفّح جدول المواعيد" />
           )}
         </section>
 
@@ -177,10 +183,10 @@ export default async function HomePage() {
           {latestResults.length > 0 ? (
             <>
               <ProviderMatchList fixtures={latestResults} />
-              {fixtureData ? <DataSourceNote className="mt-3" provider={fixtureData.provider} fromCache={fixtureData.fromCache} stale={fixtureData.stale} fetchedAt={fixtureData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
+              {resultsData ? <DataSourceNote className="mt-3" provider={resultsData.provider} fromCache={resultsData.fromCache} stale={resultsData.stale} degraded={resultsData.degraded} fetchedAt={resultsData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : (
-            <DataUnavailable title="لا توجد نتائج مكتملة في البيانات المتاحة" message={fixtureData ? "لم يتضمن آخر تحديث مباريات مكتملة." : "تعذّر استرجاع نتائج موثوقة."} actionHref="/results" actionLabel="فتح صفحة النتائج" />
+            <DataUnavailable title="لا توجد نتائج مكتملة في البيانات المتاحة" message={resultsData ? "لم يتضمن آخر تحديث مباريات مكتملة لليومين الماضيين." : "تعذّر استرجاع نتائج موثوقة."} actionHref="/results" actionLabel="فتح صفحة النتائج" />
           )}
         </section>
 

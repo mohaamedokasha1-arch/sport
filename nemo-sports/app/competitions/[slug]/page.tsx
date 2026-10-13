@@ -73,6 +73,9 @@ async function competitionMetadataBody({
       description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`,
       // Canonical is always the registered path, never the alias the visitor used.
       alternates: { canonical: `/competitions/${providerCompetition.canonicalSlug}` },
+      // Own social title/description: without this, shared links inherit the
+      // site-wide homepage title ("نيمو سبورتس | نتائج ومواعيد المباريات").
+      openGraph: { title, description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`, type: "website" },
       ...(hasData ? {} : { robots: { index: false, follow: true } }),
     };
   }

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SportScoreAdapter, competitionSlug, entitySlugFromUrl, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
+import { SportScoreAdapter, competitionSlug, competitionWindowDays, entitySlugFromUrl, mapStatus, matchSlugFromUrl } from "../src/adapters/sportscore";
 
 // compiled tests run from dist-test/test/ — fixtures live in test/fixtures/
 const here = join(__dirname, "../../test");
@@ -93,22 +93,83 @@ test("competitionSlug: display names and slugs compare equal (no substring match
   assert.notEqual(competitionSlug("CAF Champions League"), competitionSlug("CAF Confederation Cup"));
 });
 
-test("getFixtures: a competition slug returns that competition's fixtures (display-name payload)", async () => {
-  const t = stubTransport({ "matches?football:50": fx("feed.json") });
-  const res = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "concacaf-league-champions-cup" });
+/** Transport for REST v1 `fixtures/`: answers per requested UTC day; records every URL. */
+function v1Transport(byDay: Record<string, unknown>, opts: { failDay?: string } = {}) {
+  const urls: string[] = [];
+  const impl = (async (url: string) => {
+    urls.push(url);
+    const u = new URL(url);
+    const day = u.searchParams.get("date") ?? "";
+    if (opts.failDay && day === opts.failDay) return { ok: false, status: 503, headers: new Headers(), json: async () => ({}) } as unknown as Response;
+    const body = byDay[day] ?? { sport: "football", date: day, count: 0, matches: [] };
+    return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => body } as unknown as Response;
+  }) as typeof fetch;
+  return { impl, urls, calls: () => urls.length };
+}
+
+const v1Adapter = (transport: typeof fetch, baseUrl = "https://sportscore.com/api/widget") =>
+  new SportScoreAdapter({ baseUrl, fetchImpl: transport, retries: 0 });
+
+test("REST v1 day endpoint: a date request returns that whole UTC day, not the 50-match feed sample", async () => {
+  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") });
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", date: "2026-10-12" });
   assert.equal(res.ok, true);
   if (!res.ok) return;
-  assert.equal(res.data.length, 1, "the captured feed holds exactly one CONCACAF League Champions Cup fixture");
-  assert.equal(res.data[0].competitionProviderId, "CONCACAF League Champions Cup");
-  assert.equal(res.data[0].providerId, "cruz-azul-vs-inter-miami-cf");
+  assert.equal(t.calls(), 1, "one provider call for one day");
+  assert.match(t.urls[0], /^https:\/\/sportscore\.com\/api\/v1\/fixtures\/\?/, "uses the documented v1 root");
+  assert.equal(res.data.length, 4, "all four captured Egyptian fixtures are kept");
+  assert.deepEqual(res.data.map((f) => f.competitionProviderId), Array(4).fill("Egyptian Premier League"));
+  assert.ok(res.data.every((f) => f.status === "finished"), "finished results stay finished");
 });
 
-test("getFixtures: the exact display name still matches, and other competitions never leak in", async () => {
-  const t = stubTransport({ "matches?football:50": fx("feed.json") });
-  const exact = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "USL Championship" });
-  assert.ok(exact.ok && exact.data.length === 1 && exact.data[0].competitionProviderId === "USL Championship");
-  const absent = await adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "english-premier-league" });
-  assert.ok(absent.ok && absent.data.length === 0, "a competition absent from the feed yields [] — never another competition's matches");
+test("REST v1 competition request: one call per day of the window, scoped to the competition slug", async () => {
+  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") });
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "egyptian-premier-league" });
+  assert.equal(res.ok, true);
+  if (!res.ok) return;
+  assert.equal(t.calls(), 11, "±5 days around today");
+  assert.ok(t.urls.every((u) => u.includes("competition=egyptian-premier-league")), "competition slug is sent to the provider");
+  assert.equal(res.data.length, 4, "the day that has matches contributes its fixtures, once each");
+  assert.equal(new Set(res.data.map((f) => f.providerId)).size, 4, "no duplicated fixtures");
+});
+
+test("REST v1 competition request: another competition's rows never leak in", async () => {
+  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") });
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "english-premier-league" });
+  assert.ok(res.ok && res.data.length === 0, "a competition with no rows in the answer yields [] — not the Egyptian rows the stub returned");
+});
+
+test("REST v1: a failed day fails the whole request — a partial schedule is never presented as complete", async () => {
+  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") }, { failDay: "2026-10-10" });
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "egyptian-premier-league" });
+  assert.equal(res.ok, false, "a provider failure is not an empty result");
+});
+
+test("REST v1: an empty day is a genuine empty result (ok, zero rows)", async () => {
+  const t = v1Transport({});
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", date: "2026-10-13" });
+  assert.ok(res.ok && res.data.length === 0);
+});
+
+test("REST v1: the compatibility relay cannot serve day fixtures and says so instead of guessing", async () => {
+  const t = v1Transport({});
+  const res = await v1Adapter(t.impl, "https://nemo.example/api/v1/sportscore-relay").getFixtures({ sport: "football", date: "2026-10-12" });
+  assert.equal(res.ok, false);
+  if (!res.ok) assert.equal(res.error.code, "not_supported");
+  assert.equal(t.calls(), 0, "no request is attempted through the relay");
+});
+
+test("competitionWindowDays: today ± window by default, explicit range honoured, bad or huge ranges handled", () => {
+  const now = Date.parse("2026-10-13T12:00:00Z");
+  const def = competitionWindowDays(undefined, now);
+  assert.ok(def);
+  assert.equal(def?.length, 11);
+  assert.equal(def?.[0], "2026-10-08");
+  assert.equal(def?.[10], "2026-10-18");
+  assert.equal(competitionWindowDays({ from: "2026-10-10", to: "2026-10-12" }, now)?.length, 3);
+  assert.equal(competitionWindowDays({ from: "2026-10-12", to: "2026-10-10" }, now), null, "reversed range rejected");
+  assert.equal(competitionWindowDays({ from: "nope", to: "2026-10-10" }, now), null, "unparseable range rejected");
+  assert.equal(competitionWindowDays({ from: "2026-01-01", to: "2026-12-31" }, now)?.length, 14, "capped at 14 provider calls");
 });
 
 test("getMatchDetail: real detail payload → normalized fixture with HT periods", async () => {
