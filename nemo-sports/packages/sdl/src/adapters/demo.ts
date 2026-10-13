@@ -145,6 +145,7 @@ export const DEMO_COMPETITIONS: NormalizedCompetition[] = [
 ];
 
 export class DemoAdapter extends withDefaults("demo") {
+  override readonly chargesHttpRequests = false;
   readonly capabilities: DataType[] = ["fixtures", "live_matches", "match_detail", "match_events", "match_stats", "team", "competition", "competition_seasons", "standings", "top_scorers", "health"];
   readonly supportedSports = ["football", "basketball", "tennis", "volleyball", "handball", "hockey", "baseball", "boxing"];
 

@@ -1,3 +1,4 @@
+import { SyncedFixtureHighlights } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import Link from "next/link";
 import DataUnavailable from "@/components/ui/DataUnavailable";
@@ -35,7 +36,7 @@ export const revalidate = 60;
 
 // Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 
-export default async function HomePage() {
+async function HomePageBody() {
   const now = Date.now();
   // The live section reads the site-wide live board (every public sport) — the
   // same data /live, /matches and the score rail count. It used to read the
@@ -265,3 +266,5 @@ export default async function HomePage() {
     </div>
   );
 }
+
+export default async function HomePage() { return <><HomePageBody /><SyncedFixtureHighlights /></>; }

@@ -1,3 +1,6 @@
+import { syncedBySlug, syncedRecords } from "@/lib/sports-sync/read";
+import { indexWorthy } from "@/lib/sports-sync/model";
+import { SyncedCompetitionDetail } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -459,6 +462,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       alternates: { canonical: `/competitions/${slug}` },
     };
   }
+  const synced = await syncedBySlug("competition", slug);
+  if (synced) {
+    const fixtures = (await syncedRecords("fixture")).data;
+    return { title: `${String(synced.data.name)} | البطولات`, alternates: { canonical: `/competitions/${synced.slug}` }, robots: { index: indexWorthy(synced, fixtures), follow: true } };
+  }
   return competitionMetadataBody({ params });
 }
 
@@ -467,5 +475,7 @@ export default async function CompetitionPage({ params }: { params: Promise<{ sl
   const slug = decodeSlug(rawSlug);
   const adminComp = await getAdminCompetitionBySlug(slug);
   if (adminComp?.isPublished) return <AdminCompetitionDetail competition={adminComp} />;
+  const synced = await syncedBySlug("competition", slug);
+  if (synced) return <SyncedCompetitionDetail record={synced} />;
   return <CompetitionPageBody params={params} />;
 }

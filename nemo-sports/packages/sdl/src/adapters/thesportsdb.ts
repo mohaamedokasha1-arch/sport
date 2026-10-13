@@ -124,6 +124,7 @@ type TsdSeason = { idSeason: string; strSeason: string; strLeague?: string; idLe
 
 export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
   readonly capabilities: DataType[] = ["team", "team_squad", "player", "competition", "competitions", "competition_seasons", "venue", "images", "fixtures", "health"];
+  readonly syncFixturesAreUnscoped = true;
   readonly supportedSports = ["football", "basketball", "tennis", "volleyball", "handball", "hockey", "baseball", "boxing"];
 
   private apiKey: string | null;
@@ -292,7 +293,7 @@ export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
         countryName: str(l.strCountry),
         type: str(l.strSport)?.toLowerCase() ?? null,
         logoUrl: str(l.strBadge) ?? str(l.strLogo),
-        sport: str(l.strSport)?.toLowerCase() ?? input.sport ?? null,
+        sport: str(l.strSport)?.toLowerCase() === "soccer" ? "football" : str(l.strSport)?.toLowerCase() ?? input.sport ?? null,
         capabilities: emptyCapabilities(true),
       });
     }
@@ -304,10 +305,10 @@ export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
     const list = this.unwrap(res);
     if (!list.ok) return list;
     const data = list.data.map((s) => ({
-      providerId: s.idSeason,
+      providerId: s.idSeason ?? s.strSeason, // some catalog responses identify a season only by its name
       competitionProviderId: s.idLeague ?? input.providerCompetitionId,
       name: s.strSeason,
-      isCurrent: s.strSeason === String(new Date().getFullYear()),
+      isCurrent: false, // listing has no verified current-season marker
       startDate: null,
       endDate: null,
     }));
@@ -325,13 +326,15 @@ export class TheSportsDbAdapter extends withDefaults("thesportsdb") {
     if (!list.ok) return list;
     const data = list.data.map((e) => ({
       providerId: e.idEvent,
+      homeName: str(e.strHomeTeam), awayName: str(e.strAwayTeam), competitionName: str(e.strLeague),
+      originalScheduledAt: e.strTimestamp ?? `${e.dateEvent ?? ""}T${e.strTime ?? ""}`,
       sport: input.sport,
       competitionProviderId: str(e.idLeague) ?? "",
-      seasonProviderId: str(e.idSeason),
+      seasonProviderId: str(e.idSeason) ?? str(e.strSeason),
       round: str(e.intRound),
       homeProviderId: str(e.idHomeTeam),
       awayProviderId: str(e.idAwayTeam),
-      scheduledAt: toIso(e.strTimestamp) ?? toIso(`${e.dateEvent}T${e.strTime ?? "00:00:00+00:00"}`) ?? new Date().toISOString(),
+      scheduledAt: toIso(e.strTimestamp) ?? (e.strTime ? toIso(`${e.dateEvent}T${e.strTime}`) : null) ?? "",
       status: mapTsdStatus(e.strStatus),
       homeScore: toInt(e.intHomeScore),
       awayScore: toInt(e.intAwayScore),

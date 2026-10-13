@@ -388,7 +388,8 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
       // its name; the canonical mapper resolves/dedupes it per provider.
       homeProviderId: m.home,
       awayProviderId: m.away,
-      scheduledAt: toIso(m.time) ?? new Date().toISOString(),
+      originalScheduledAt: String(m.time ?? ""),
+      scheduledAt: toIso(m.time) ?? "",
       status: st.status,
       homeScore: score(m.home_score),
       awayScore: score(m.away_score),

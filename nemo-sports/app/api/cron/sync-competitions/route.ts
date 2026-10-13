@@ -43,7 +43,7 @@ function authorize(request: Request): boolean {
  * double-scheduled cron from spending quota twice in the same minute, not to
  * protect data integrity.
  */
-let running: Promise<unknown> | null = null;
+let running: ReturnType<typeof syncCompetitions> | null = null;
 
 export async function GET(request: Request) {
   if (!authorize(request)) {
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
   }
 
   const run = () => syncCompetitions();
-  const result = running ? running.then(() => syncCompetitions()) : run();
+  const result = running ?? run();
   running = result.finally(() => {
     running = null;
   });

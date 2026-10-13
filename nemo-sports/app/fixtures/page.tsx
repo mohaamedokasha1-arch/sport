@@ -1,3 +1,4 @@
+import { SyncedFixtureHighlights } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import MatchCard from "@/components/match/MatchCard";
@@ -33,7 +34,7 @@ function groupFixturesByDay(fixtures: NormalizedFixture[]) {
   }));
 }
 
-export default async function FixturesPage() {
+async function FixturesPageBody() {
   const now = Date.now();
   const real = await sdlFixtures({ sport: "football" });
   const realData = real.ok && real.source === "provider" ? real : null;
@@ -113,3 +114,5 @@ export default async function FixturesPage() {
     </div>
   );
 }
+
+export default async function FixturesPage() { return <><FixturesPageBody /><SyncedFixtureHighlights state="upcoming" /></>; }

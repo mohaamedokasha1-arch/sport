@@ -205,6 +205,7 @@ export class SportsDataLayer {
   /* ── registration ───────────────────────────────────────── */
 
   register(provider: SportsDataProvider): this {
+    provider.setRequestGuard?.(() => this.rateLimiter.reserve(provider.name));
     this.providers.set(provider.name, provider);
     this.cost.set(provider.name, { provider: provider.name, calls: 0, cacheHits: 0, coalesced: 0, avoided: 0 });
     this.logger.log({ at: nowIso(), level: "info", area: "provider", message: `registered ${provider.name}`, provider: provider.name, meta: { capabilities: provider.capabilities } });
@@ -324,8 +325,13 @@ export class SportsDataLayer {
       };
     }
 
-    const chain = this.chainFor(input.sport, input.competition ?? null, input.dataType)
-      .filter((link) => !input.provider || link.provider === input.provider);
+    // Provider IDs are source-local. Explicit discovery requests must not be
+    // hidden by frontend priority rules or fail over to a different source.
+    const pinned = input.provider ? this.providers.get(input.provider) : null;
+    const chain = input.provider
+      ? (pinned?.capabilities.includes(input.dataType) && this.health.available(input.provider)
+          ? [{ provider: input.provider, role: "primary" as const }] : [])
+      : this.chainFor(input.sport, input.competition ?? null, input.dataType);
 
     for (const link of chain) {
       const provider = this.providers.get(link.provider)!;
@@ -385,7 +391,8 @@ export class SportsDataLayer {
       }
 
       if (cost) cost.calls++;
-      await this.rateLimiter.record(link.provider);
+      // BaseAdapter charges actual HTTP attempts; non-HTTP test/custom providers
+      // are charged in execute(), including failed calls.
       this.health.noteSuccess(link.provider, ms);
       attempts.push({ provider: link.provider, ok: true, ms });
 
@@ -448,6 +455,7 @@ export class SportsDataLayer {
   private async execute<T>(provider: SportsDataProvider, input: { endpoint: string; params: Record<string, unknown>; call: (p: SportsDataProvider) => Promise<ProviderResult<T>> }, key: string): Promise<ProviderResult<T>> {
     this.rateLimiter.begin(provider.name);
     try {
+      if (!provider.chargesHttpRequests) await this.rateLimiter.record(provider.name);
       const res = await input.call(provider);
       // normalise the request key so cache + logs correlate regardless of adapter
       if (res.ok) return { ...res, requestKey: key };

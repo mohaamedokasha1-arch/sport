@@ -219,10 +219,7 @@ export class SportmonksAdapter extends withDefaults("sportmonks") {
 
     while (page <= this.maxPages) {
       const res = await this.getJson<Envelope<T>>(endpoint, { ...params, page });
-      if (!res.ok) {
-        if (page === 1) return res;
-        break; // keep what we already have rather than discarding a paid page
-      }
+      if (!res.ok) return res; // incomplete pages are not a successful full response
       first = first ?? res;
       all.push(...(res.data.data ?? []));
       nextUrl = res.data.pagination?.next_page ?? null;
@@ -232,6 +229,8 @@ export class SportmonksAdapter extends withDefaults("sportmonks") {
     }
 
     if (!first) return { ok: false, provider: this.name, requestKey: this.key(endpoint, params), fromCache: false, error: { code: "bad_response", message: "empty paginated response" } };
+    if (page > this.maxPages && nextUrl) return { ok: false, provider: this.name, requestKey: first.requestKey, fromCache: false,
+      error: { code: "bad_response", message: "Sportmonks pagination cap reached; complete data not retrieved" } };
     return { ok: true, data: all, provider: this.name, fetchedAt: first.fetchedAt, requestKey: first.requestKey, fromCache: false };
   }
 
@@ -266,7 +265,8 @@ export class SportmonksAdapter extends withDefaults("sportmonks") {
       round: str(f.round) ?? str(f.name),
       homeProviderId: home?.participant?.id != null ? String(home.participant.id) : null,
       awayProviderId: away?.participant?.id != null ? String(away.participant.id) : null,
-      scheduledAt: toIso(f.starting_at?.date_time) ?? new Date().toISOString(),
+      originalScheduledAt: String(f.starting_at?.date_time ?? ""),
+      scheduledAt: toIso(f.starting_at?.date_time) ?? "",
       status: SM_STATUS[statusId] ?? "scheduled",
       homeScore: scoreFor(home),
       awayScore: scoreFor(away),

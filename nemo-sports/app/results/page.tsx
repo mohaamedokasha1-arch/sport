@@ -1,3 +1,4 @@
+import { SyncedFixtureHighlights } from "@/components/data/SyncedSports";
 import { isFinishedStatus } from "@/lib/match-state";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -51,7 +52,7 @@ function groupByDay(fixtures: NormalizedFixture[]) {
   }));
 }
 
-export default async function ResultsPage({
+async function ResultsPageBody({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -138,3 +139,5 @@ function FilterLinks({ active }: { active: DayFilter }) {
     </nav>
   );
 }
+
+export default async function ResultsPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) { return <><ResultsPageBody {...props} /><SyncedFixtureHighlights state="completed" /></>; }

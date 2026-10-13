@@ -128,12 +128,7 @@ CREATE TABLE IF NOT EXISTS provider_competition_sync_runs (
    Each entry is one provider request, so this list IS the quota budget of a
    sync run. It is deliberately short: TheSportsDB's free tier is ~30 req/min
    and the community endpoint refuses an unfiltered listing anyway. */
-const CATALOG_QUERIES: { sport: string; country?: string }[] = [
-  { sport: "football" },
-  { sport: "basketball" },
-  { sport: "tennis" },
-  { sport: "cricket" },
-];
+
 
 const mem = new Map<string, ProviderCompetition>();
 const memRuns: CompetitionSyncRun[] = [];
@@ -155,8 +150,8 @@ async function pg() {
     const db = await getDb();
     if (!db) return null;
     if (!ddlDone) {
-      ddlDone = true;
       for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) await db.run(stmt, []);
+      ddlDone = true;
     }
     return db;
   } catch {
@@ -248,8 +243,8 @@ export async function lastSyncRun(): Promise<CompetitionSyncRun | null> {
           startedAt: iso(r.started_at),
           finishedAt: r.finished_at ? iso(r.finished_at) : null,
           status: String(r.status) as SyncRunStatus,
-          providersOk: (safeJson(String(r.providers_ok ?? "[]")) as string[]) ?? [],
-          providersFailed: (safeJson(String(r.providers_failed ?? "[]")) as { provider: string; reason: string }[]) ?? [],
+          providersOk: ((typeof r.providers_ok === "string" ? safeJson(r.providers_ok) : r.providers_ok) as string[]) ?? [],
+          providersFailed: ((typeof r.providers_failed === "string" ? safeJson(r.providers_failed) : r.providers_failed) as { provider: string; reason: string }[]) ?? [],
           seen: Number(r.seen ?? 0),
           inserted: Number(r.inserted ?? 0),
           updated: Number(r.updated ?? 0),
@@ -281,8 +276,8 @@ export async function lastSuccessfulRun(): Promise<CompetitionSyncRun | null> {
           startedAt: iso(r.started_at),
           finishedAt: r.finished_at ? iso(r.finished_at) : null,
           status: String(r.status) as SyncRunStatus,
-          providersOk: (safeJson(String(r.providers_ok ?? "[]")) as string[]) ?? [],
-          providersFailed: (safeJson(String(r.providers_failed ?? "[]")) as { provider: string; reason: string }[]) ?? [],
+          providersOk: ((typeof r.providers_ok === "string" ? safeJson(r.providers_ok) : r.providers_ok) as string[]) ?? [],
+          providersFailed: ((typeof r.providers_failed === "string" ? safeJson(r.providers_failed) : r.providers_failed) as { provider: string; reason: string }[]) ?? [],
           seen: Number(r.seen ?? 0),
           inserted: Number(r.inserted ?? 0),
           updated: Number(r.updated ?? 0),
@@ -346,26 +341,26 @@ export type DiscoveryOutcome = {
  * empty catalog, because those two facts need opposite reactions: one means
  * "ask someone else", the other means "the provider's index really is empty".
  */
-export async function discoverCompetitions(queries: { sport: string; country?: string }[] = CATALOG_QUERIES): Promise<DiscoveryOutcome[]> {
+export async function discoverCompetitions(queries?: { sport: string; country?: string }[]): Promise<DiscoveryOutcome[]> {
   const { sdl, mode } = await sdlContext();
+  if (mode === "demo") return [{ provider: "demo", query: { sport: "football" }, ok: false, reason: "demo_mode", competitions: [] }];
   const out: DiscoveryOutcome[] = [];
-  if (mode === "demo") {
-    return [{ provider: "demo", query: { sport: "football" }, ok: false, reason: "demo_mode", competitions: [] }];
-  }
-
-  for (const query of queries) {
-    const result = await sdl.fetch<NormalizedCatalogCompetition[]>({
-      sport: query.sport,
-      dataType: "competitions",
-      endpoint: "competitions",
-      params: { sport: query.sport, ...(query.country ? { country: query.country } : {}) },
-      call: (p) => p.getCompetitions({ ...(query.sport ? { sport: query.sport } : {}), ...(query.country ? { country: query.country } : {}) }),
-    });
-    if (!result.ok) {
-      out.push({ provider: "unknown" as ProviderName, query, ok: false, reason: `${result.error.kind}: ${result.error.message}`, competitions: [] });
-      continue;
+  for (const registered of sdl.registeredProviders()) {
+    const provider = sdl.provider(registered.name)!;
+    if (provider.name === "demo" || !provider.capabilities.includes("competitions")) continue;
+    const scopes = queries?.filter(q => provider.supportedSports.includes(q.sport))
+      ?? provider.supportedSports.map(sport => ({ sport }));
+    for (const query of scopes) {
+      const result = await sdl.fetch<NormalizedCatalogCompetition[]>({
+        provider: provider.name, sport: query.sport, dataType: "competitions", endpoint: "competitions",
+        params: { ...query }, call: p => p.getCompetitions(query),
+      });
+      const usable = result.ok && !result.value.stale && result.value.data.length > 0;
+      out.push({ provider: provider.name, query, ok: usable,
+        reason: !result.ok ? result.error.message : !usable ? "empty_or_stale_catalog: existing rows retained" : undefined,
+        competitions: usable && result.ok ? result.value.data : [],
+      });
     }
-    out.push({ provider: result.value.provider, query, ok: true, competitions: result.value.data });
   }
   return out;
 }
@@ -574,7 +569,7 @@ export async function syncCompetitions(options: { queries?: { sport: string; cou
   }
 
   const allFailed = providersOk.length === 0;
-  const status: SyncRunStatus = allFailed ? "failed" : providersFailed.length > 0 ? "partial" : "success";
+  const status: SyncRunStatus = allFailed ? "failed" : providersFailed.length > 0 || rejected > 0 ? "partial" : "success";
   const message = allFailed
     ? `فشلت كل طلبات الفهرس (${providersFailed.map((f) => f.reason).join("؛ ")}) — لم يُحذف أي سجل موجود`
     : `شوهدت ${seen} بطولة · أُضيفت ${inserted} · حُدِّثت ${updated}${rejected ? ` · مرفوضة ${rejected}` : ""}`;
