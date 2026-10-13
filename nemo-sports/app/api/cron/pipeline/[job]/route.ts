@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runJob, loadPipelineConfig, jobByName, pipelineStatus } from "@/lib/pipeline";
+import { authorizeCron, cronRefusal } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,9 +15,9 @@ export const maxDuration = 60;
  * scheduler that fires too often costs almost nothing: the runner answers
  * `skipped: too soon` without touching a provider.
  *
- * Auth mirrors `/api/cron/sync-competitions` exactly (Bearer secret or
- * `?token=`, 503 when no secret is configured) — the two cron surfaces must not
- * disagree about who may spend provider quota.
+ * The gate is the shared one (lib/cron-auth.ts: Bearer secret or `?token=`,
+ * 503 when no secret is configured) — no cron surface gets to decide on its own
+ * who may spend provider quota.
  *
  * Query parameters:
  *   force=1              ignore the cadence check
@@ -24,17 +25,6 @@ export const maxDuration = 60;
  *   sources=a,b,c        restrict to some of the job's sources
  *   status=1             return the observability snapshot instead of running
  */
-function expectedSecrets(): string[] {
-  return [process.env.NEMO_INGEST_TOKEN, process.env.CRON_SECRET, process.env.VERCEL_CRON_SECRET].filter((s): s is string => Boolean(s));
-}
-
-function authorize(request: Request): boolean {
-  const secrets = expectedSecrets();
-  if (secrets.length === 0) return false;
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const query = new URL(request.url).searchParams.get("token") ?? "";
-  return secrets.some((s) => s.length > 0 && (bearer === s || query === s));
-}
 
 /** In-process single-flight: a double-scheduled cron must not double-fetch. */
 const running = new Map<string, Promise<unknown>>();
@@ -43,20 +33,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ job:
   const { job: jobName } = await params;
   const url = new URL(request.url);
 
-  if (!authorize(request)) {
-    const configured = expectedSecrets().length > 0;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: {
-          code: configured ? "unauthorized" : "not_configured",
-          message: configured
-            ? "a valid bearer token (or ?token=) is required"
-            : "NEMO_INGEST_TOKEN / CRON_SECRET is not set, so the pipeline is disabled",
-        },
-      },
-      { status: configured ? 401 : 503, headers: { "cache-control": "no-store" } },
-    );
+  if (!authorizeCron(request)) {
+    const refusal = cronRefusal("NEMO_INGEST_TOKEN / CRON_SECRET is not set, so the pipeline is disabled");
+    return NextResponse.json(refusal.body, { status: refusal.http, headers: { "cache-control": "no-store" } });
   }
 
   const cfg = loadPipelineConfig();
