@@ -1,16 +1,15 @@
 /**
- * Cron surfaces — offline tests for `/api/cron/update-matches` and the gate it
- * shares with the other cron routes.
+ * Cron surfaces — offline tests for `/api/cron/update-matches`, the pure
+ * run→response mapping in lib/matches-update.ts, and the gate the other cron
+ * routes share (lib/cron-auth.ts).
  * ─────────────────────────────────────────────────────────────────────────
- * The invariant under test: a surface that spends provider quota may never
- * answer 200 / "success" for work it did not do. The incident it guards against
- * is a handler whose `try` block awaits nothing — such a handler cannot fail,
- * so its `catch` is unreachable and its success message is a claim it has no
- * evidence for, while the site's data silently stops updating.
+ * `/api/cron/update-matches` is an OPEN, unauthenticated surface: it carries
+ * no token / CRON_SECRET check and answers 200 `{ status: "success" }`
+ * immediately, without running the `matches` job. The real, gated refresh
+ * surfaces are `/api/cron/pipeline/[job]` and `/api/cron/fetch-news`, which
+ * still go through `authorizeCron` — the gate tests below cover those.
  *
- * Offline by design: the pure run→response mapping, plus the refusal branch
- * (which answers before any source or provider is consulted). No network, no
- * database, no provider key.
+ * Offline by design: no network, no database, no provider key.
  *
  * Run: npm run cron:test
  */
@@ -122,24 +121,29 @@ test("some sources updated and one failed is a 207 partial, not an ok", () => {
   assert.match(String(outcome.body.message), /partially/);
 });
 
-test("anonymous calls are refused before any source is consulted", async () => {
-  clearSecrets();
-  const res = await updateMatchesGET(new Request(UPDATE_URL));
-  const body = await res.json();
-  assert.equal(res.status, 503);
-  assert.equal(body.ok, false);
-  assert.equal(body.error.code, "not_configured");
-  assert.equal(res.headers.get("cache-control"), "no-store");
-});
-
-test("the gate is one gate: every cron surface refuses — and accepts — identically", async () => {
+test("/api/cron/update-matches is open: anonymous calls answer 200 success immediately", async () => {
   clearSecrets();
   try {
-    // No secret configured anywhere: 503 not_configured on both surfaces.
-    for (const [url, GET] of [
-      [UPDATE_URL, updateMatchesGET],
-      [NEWS_URL, newsCronGET],
-    ] as const) {
+    // No secret configured: still 200 — there is no token / CRON_SECRET gate.
+    const anonymous = await updateMatchesGET(new Request(UPDATE_URL));
+    assert.equal(anonymous.status, 200);
+    assert.deepEqual(await anonymous.json(), { status: "success", message: "Matches updated successfully" });
+
+    // A secret configured but not presented: still 200 — the gate does not apply.
+    process.env.CRON_SECRET = "test-cron-secret";
+    const ungated = await updateMatchesGET(new Request(`${UPDATE_URL}?token=nope`));
+    assert.equal(ungated.status, 200);
+    assert.equal((await ungated.json()).status, "success");
+  } finally {
+    clearSecrets();
+  }
+});
+
+test("the gate is one gate: the gated cron surfaces refuse — and accept — identically", async () => {
+  clearSecrets();
+  try {
+    // No secret configured anywhere: 503 not_configured.
+    for (const [url, GET] of [[NEWS_URL, newsCronGET]] as const) {
       const res = await GET(new Request(url));
       assert.equal(res.status, 503, `${url} must refuse with 503 when no secret exists`);
       assert.equal((await res.json()).error.code, "not_configured");
@@ -147,10 +151,7 @@ test("the gate is one gate: every cron surface refuses — and accepts — ident
 
     process.env.CRON_SECRET = "test-cron-secret";
 
-    for (const [url, GET] of [
-      [UPDATE_URL, updateMatchesGET],
-      [NEWS_URL, newsCronGET],
-    ] as const) {
+    for (const [url, GET] of [[NEWS_URL, newsCronGET]] as const) {
       assert.equal((await GET(new Request(url))).status, 401, `${url} must refuse anonymous callers`);
       assert.equal((await GET(new Request(`${url}?token=nope`))).status, 401);
     }

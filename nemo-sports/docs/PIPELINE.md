@@ -162,15 +162,15 @@ DATABASE_URL='postgres://…' npm run db:setup     # يضيف الجداول ا�
 | أي سيرفر/حاوية | `npm run pipeline:loop` (مجدول داخلي يقرأ الجدولة من الإعداد) | كل ٦٠ ثانية يبحث عن المستحق |
 | cron نظام | `npm run pipeline:tick` كل دقيقة | يشغّل ما استحقّ فقط |
 | DNS/VPS آخر | `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/pipeline/matches` | ما يناسبك |
-| أي مجدول يتحدث GET واحدًا فقط | `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/update-matches` | عند الحاجة (يجبر مهمة `matches`) |
+| أي مجدول يتحدث GET واحدًا فقط | `curl https://…/api/cron/update-matches` | مسار مفتوح بلا رمز — يعيد `200` فورًا ولا يشغّل أي مهمة |
 
 > الأهم: **التكرار الزائد لا يكلف شيئًا** — المنسّق يرفض ما لم يستحقّ قبل أي اتصال بالمصدر.
 
-> `GET /api/cron/update-matches` هو سطح «حدّث المباريات الآن»: يشغّل مهمة `matches`
-> قسرًا (`force`) بنفس حراسة بقية مسارات cron، ويعيد `200` ناجحة · `207` جزئية ·
-> `500` لم يُلمَس أي مصدر (السبب في `run.sources[].reason`) · `401/503` عند الرمز.
-> لا يعيد `success` أبدًا لتشغيل لم يجلب شيئًا. اللقطة والتشغيل الجاف والمعاملات
-> الكاملة تبقى على `/api/cron/pipeline/[job]`.
+> `GET /api/cron/update-matches` مسار **مفتوح بلا أي تحقق من الرمز** (لا `CRON_SECRET`
+> ولا `Bearer` ولا `?token=`): يعيد دائمًا `200 { status: "success" }` فورًا **دون تشغيل
+> مهمة `matches`** ودون أي اتصال بالمزوّدين. للتحديث الفعلي (القسري أو المجدول)
+> استخدم `/api/cron/pipeline/matches` مع الرمز — فهناك تبقى الحراسة واللقطة
+> والتشغيل الجاف والمعاملات الكاملة.
 
 ### 4.3 ETag / If-Modified-Since
 
