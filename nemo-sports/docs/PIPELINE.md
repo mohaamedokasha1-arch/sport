@@ -162,8 +162,15 @@ DATABASE_URL='postgres://…' npm run db:setup     # يضيف الجداول ا�
 | أي سيرفر/حاوية | `npm run pipeline:loop` (مجدول داخلي يقرأ الجدولة من الإعداد) | كل ٦٠ ثانية يبحث عن المستحق |
 | cron نظام | `npm run pipeline:tick` كل دقيقة | يشغّل ما استحقّ فقط |
 | DNS/VPS آخر | `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/pipeline/matches` | ما يناسبك |
+| أي مجدول يتحدث GET واحدًا فقط | `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/update-matches` | عند الحاجة (يجبر مهمة `matches`) |
 
 > الأهم: **التكرار الزائد لا يكلف شيئًا** — المنسّق يرفض ما لم يستحقّ قبل أي اتصال بالمصدر.
+
+> `GET /api/cron/update-matches` هو سطح «حدّث المباريات الآن»: يشغّل مهمة `matches`
+> قسرًا (`force`) بنفس حراسة بقية مسارات cron، ويعيد `200` ناجحة · `207` جزئية ·
+> `500` لم يُلمَس أي مصدر (السبب في `run.sources[].reason`) · `401/503` عند الرمز.
+> لا يعيد `success` أبدًا لتشغيل لم يجلب شيئًا. اللقطة والتشغيل الجاف والمعاملات
+> الكاملة تبقى على `/api/cron/pipeline/[job]`.
 
 ### 4.3 ETag / If-Modified-Since
 
@@ -212,6 +219,7 @@ lib/pipeline/
   index.ts         الواجهة العامة الوحيدة
 
 app/api/cron/pipeline/[job]/route.ts   نقطة الـ Cron (نفس حراسة بقية مسارات cron)
+app/api/cron/update-matches/route.ts   تحديث المباريات فورًا (force) بلا انتظار الجدولة
 app/api/v1/pipeline/status/route.ts    لقطة المراقبة (صلاحية providers)
 app/api/v1/pipeline/run/route.ts       تشغيل يدوي من اللوحة (صلاحية providers)
 app/admin/pipeline/page.tsx            لوحة المشغّل: المصادر · المهام · التشغيلات · النزاعات

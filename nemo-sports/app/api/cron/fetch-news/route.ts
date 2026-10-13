@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ingestAllSources, DurableStorageRequiredError, IngestBusyError } from "@/lib/news/pipeline";
 import { invalidateSearchIndex } from "@/lib/search-service";
 import { newsBackend } from "@/lib/news/store";
+import { authorizeCron, cronRefusal } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,35 +24,10 @@ export const maxDuration = 60;
  * stay due. Repeated triggers honor each source's interval and failure backoff.
  */
 
-function expectedSecrets(): string[] {
-  return [process.env.NEMO_INGEST_TOKEN, process.env.CRON_SECRET, process.env.VERCEL_CRON_SECRET].filter(
-    (s): s is string => Boolean(s),
-  );
-}
-
-function authorize(request: Request): boolean {
-  const secrets = expectedSecrets();
-  if (secrets.length === 0) return false;
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const query = new URL(request.url).searchParams.get("token") ?? "";
-  return secrets.some((s) => s.length > 0 && (bearer === s || query === s));
-}
-
 export async function GET(request: Request) {
-  if (!authorize(request)) {
-    const configured = expectedSecrets().length > 0;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: {
-          code: configured ? "unauthorized" : "not_configured",
-          message: configured
-            ? "a valid bearer token (or ?token=) is required"
-            : "NEMO_INGEST_TOKEN / CRON_SECRET is not set, so scheduled ingestion is disabled",
-        },
-      },
-      { status: configured ? 401 : 503, headers: { "cache-control": "no-store" } },
-    );
+  if (!authorizeCron(request)) {
+    const refusal = cronRefusal("NEMO_INGEST_TOKEN / CRON_SECRET is not set, so scheduled ingestion is disabled");
+    return NextResponse.json(refusal.body, { status: refusal.http, headers: { "cache-control": "no-store" } });
   }
 
   const url = new URL(request.url);

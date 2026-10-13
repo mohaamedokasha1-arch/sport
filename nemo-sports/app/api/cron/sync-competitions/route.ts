@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { syncCompetitions, competitionSyncStatus } from "@/lib/competition-sync";
+import { authorizeCron, cronRefusal } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,9 +12,9 @@ export const maxDuration = 60;
  * Asks every registered provider that documents a competition-listing endpoint
  * for its catalog and lands the rows in `provider_competitions`.
  *
- * It spends provider quota, so it is gated exactly like the other cron routes
- * (Bearer CRON_SECRET / NEMO_INGEST_TOKEN, or ?token=). With no secret
- * configured it refuses with 503 instead of running anonymously.
+ * It spends provider quota, so it is gated by the shared cron gate
+ * (lib/cron-auth.ts: Bearer CRON_SECRET / NEMO_INGEST_TOKEN, or ?token=). With
+ * no secret configured it refuses with 503 instead of running anonymously.
  *
  * It NEVER publishes anything. A discovered competition stays unpublished until
  * an operator decides it has real content — that decision lives in the admin
@@ -21,20 +22,6 @@ export const maxDuration = 60;
  */
 
 const MIN_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 h — a catalog changes by season, not by minute
-
-function expectedSecrets(): string[] {
-  return [process.env.NEMO_INGEST_TOKEN, process.env.CRON_SECRET, process.env.VERCEL_CRON_SECRET].filter(
-    (s): s is string => Boolean(s),
-  );
-}
-
-function authorize(request: Request): boolean {
-  const secrets = expectedSecrets();
-  if (secrets.length === 0) return false;
-  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const query = new URL(request.url).searchParams.get("token") ?? "";
-  return secrets.some((s) => s.length > 0 && (bearer === s || query === s));
-}
 
 /**
  * In-process single-flight guard. The news pipeline uses a Postgres advisory
@@ -46,20 +33,9 @@ function authorize(request: Request): boolean {
 let running: ReturnType<typeof syncCompetitions> | null = null;
 
 export async function GET(request: Request) {
-  if (!authorize(request)) {
-    const configured = expectedSecrets().length > 0;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: {
-          code: configured ? "unauthorized" : "not_configured",
-          message: configured
-            ? "a valid bearer token (or ?token=) is required"
-            : "NEMO_INGEST_TOKEN / CRON_SECRET is not set, so competition sync is disabled",
-        },
-      },
-      { status: configured ? 401 : 503, headers: { "cache-control": "no-store" } },
-    );
+  if (!authorizeCron(request)) {
+    const refusal = cronRefusal("NEMO_INGEST_TOKEN / CRON_SECRET is not set, so competition sync is disabled");
+    return NextResponse.json(refusal.body, { status: refusal.http, headers: { "cache-control": "no-store" } });
   }
 
   const url = new URL(request.url);

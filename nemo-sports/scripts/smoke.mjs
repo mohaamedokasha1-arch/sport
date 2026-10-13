@@ -424,6 +424,18 @@ async function main() {
   console.log(`  ${newsCronOk ? "✓" : "✗"} /api/cron/fetch-news → ${newsCronRes.status} ${newsCron.error?.code ?? ""} (must refuse anonymous)`);
   if (!newsCronOk) failures++;
 
+  /* The "update matches now" surface must refuse anonymous callers the same way.
+     It also must never answer 200 to a request that never ran a source, so the
+     anonymous case is asserted on the refusal code, not on the shape of a run. */
+  const matchesCronRes = await fetch(`${BASE}/api/cron/update-matches`);
+  const matchesCron = await matchesCronRes.json().catch(() => ({}));
+  const matchesCronOk =
+    matchesCronRes.status === 503
+      ? matchesCron.error?.code === "not_configured"
+      : matchesCronRes.status === 401 && matchesCron.error?.code === "unauthorized";
+  console.log(`  ${matchesCronOk ? "✓" : "✗"} /api/cron/update-matches → ${matchesCronRes.status} ${matchesCron.error?.code ?? ""} (must refuse anonymous)`);
+  if (!matchesCronOk) failures++;
+
   /* Required provider badges appear only for active providers; a no-provider
      or demo deployment must not claim it is powered by a source it never uses. */
   const sportScoreBadge = home.includes("Powered by SportScore") && home.includes("https://sportscore.com/");
