@@ -244,7 +244,49 @@ sandbox.
 | `npm run seo:test` | **PASS** — 9/9 |
 | `npm run admin:test` | **PASS** — 43 passed, 0 failed |
 | `npm run consistency:test` | **PASS** |
+| `npm run smoke` | **PASS** — exit 0, **107 routes** against a served production build |
 | Lint | **PASS** — clean |
+| CI (`typecheck · tests · build · smoke`) | **PASS** — green on PR #49 |
+
+### D0. The CI smoke check, and why it was extended
+
+The repository already ran a smoke check in CI **against a real production
+server** — the one environment that can see data-gated components. It had **zero
+`/en` coverage**, so it would not have caught either leak described in E2/E2b,
+and it would not catch a future regression in the language plumbing.
+
+`scripts/smoke.mjs` now also asserts, against the served document rather than
+against `generateMetadata()`:
+
+- 29 `/en` routes answer 200;
+- `<html lang="en" dir="ltr">` on English pages, and `lang="ar" dir="rtl"` still
+  on the Arabic ones;
+- the English canonical is the Arabic one with `/en` inserted after the host;
+- hreflang is reciprocal and absolute, `x-default` on Arabic;
+- a 404 carries `noindex` and **no canonical**, in both trees;
+- the switcher keeps the query string, and both of its anchors survive in the
+  server HTML of a *statically prerendered* page;
+- no Arabic in the rendered chrome of any English page;
+- the legacy `/match/[slug]` 308s still work in both trees;
+- the sitemap lists one `/en` entry per Arabic entry, with no duplicates.
+
+Mutation-verified end to end: an Arabic string was injected into the English
+About page, the app was rebuilt, and the check reported
+`/en/about → no Arabic in rendered chrome (1: نبضة تجريبية)`. It was then
+restored and re-verified green (107 routes, exit 0).
+
+Two of my own errors in writing it, both caught by running it rather than by
+review, and both worth recording:
+
+1. My first canonical assertion compared against `BASE`, but canonicals are
+   absolute to `SITE_URL`, so the `/` case could never pass. It now asserts the
+   relationship between the pair.
+2. I initially commented that the leak scan was safe on `/en/live` and
+   `/en/watch` because CI runs empty-data. **That was false** — their Arabic
+   comes from the static in-repo catalogues `lib/core-data.ts` and
+   `lib/broadcasts.ts`, so it renders with or without a database and CI sees it
+   too. Those two pages are now excluded and *reported* as expected data values
+   (limitation E1) rather than silently skipped or falsely asserted clean.
 
 ### D1. New tests written for this work
 
@@ -455,7 +497,11 @@ a test.
 
 What actually happened:
 
-- 40 commits on branch `arena/6b071330-sport`, branched from `c715149`.
+- 46 commits on branch `arena/6b071330-sport`, branched from `c715149`.
+- Pushed, and opened for review as **PR #49** against `main`. CI ran green:
+  `typecheck · tests · build · smoke`, plus the Vercel preview build. **A CI
+  preview build is not a production deployment** — it is a disposable preview
+  URL, and the live site was not changed.
 - Tag `baseline-pre-i18n` marks the pre-work commit as a restore point.
 - A local production build was run and served with `npx next start -H 0.0.0.0 -p 3000`
   for verification.
