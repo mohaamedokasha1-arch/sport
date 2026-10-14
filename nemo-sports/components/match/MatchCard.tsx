@@ -9,6 +9,7 @@ import { awayTeam, compact, compOf, homeTeam, number, timeOf } from "@/lib/forma
 import { teamBySlug } from "@/lib/core-data";
 import type { Match } from "@/lib/data";
 import { useT, useDir, useLocale } from "@/lib/i18n/context";
+import { clockLabel } from "@/lib/i18n/clock";
 
 const url = (m: Match) => `/matches/${m.slug}`;
 
@@ -20,6 +21,7 @@ export default function MatchCard({
   variant?: "card" | "row" | "feature";
 }) {
   const tr = useT();
+  const locale = useLocale();
   if (variant === "row") return <RowCard match={match} />;
   if (variant === "feature") return <FeatureCard match={match} />;
   return <GridCard match={match} />;
@@ -29,10 +31,13 @@ export default function MatchCard({
 
 function GridCard({ match: m }: { match: Match }) {
   const tr = useT();
+  const locale = useLocale();
   const { live, justScored } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
-  const clock = s?.clock ?? m.clock;
+  // Render the structured clock, not the Arabic string on the API payload.
+  // Falling back to m.clock (operator-entered) keeps the old behaviour.
+  const clock = s ? clockLabel(locale, s.clockParts) : m.clock;
   const isLive = status === "LIVE" || status === "HT";
   const isDone = status === "FINISHED";
   const hs = s?.homeScore ?? m.homeScore;
@@ -107,10 +112,13 @@ function GridCard({ match: m }: { match: Match }) {
 
 function RowCard({ match: m }: { match: Match }) {
   const tr = useT();
+  const locale = useLocale();
   const { live } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
-  const clock = s?.clock ?? m.clock;
+  // Render the structured clock, not the Arabic string on the API payload.
+  // Falling back to m.clock (operator-entered) keeps the old behaviour.
+  const clock = s ? clockLabel(locale, s.clockParts) : m.clock;
   const isLive = status === "LIVE" || status === "HT";
   const isDone = status === "FINISHED";
   const hs = s?.homeScore ?? m.homeScore;
@@ -156,10 +164,13 @@ function RowCard({ match: m }: { match: Match }) {
 
 function FeatureCard({ match: m }: { match: Match }) {
   const tr = useT();
+  const locale = useLocale();
   const { live } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
-  const clock = s?.clock ?? m.clock;
+  // Render the structured clock, not the Arabic string on the API payload.
+  // Falling back to m.clock (operator-entered) keeps the old behaviour.
+  const clock = s ? clockLabel(locale, s.clockParts) : m.clock;
   const isLive = status === "LIVE" || status === "HT";
   const isDone = status === "FINISHED";
   const hs = s?.homeScore ?? m.homeScore;

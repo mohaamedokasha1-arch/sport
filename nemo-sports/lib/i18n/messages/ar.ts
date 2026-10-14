@@ -1691,6 +1691,27 @@ const ar = {
   "legal.copyright.reportTitle": "الإبلاغ عن مخالفة",
   "legal.copyright.reportBody": "لا تتوفر حاليًا قناة مراسلة عامة لتلقي البلاغات أو مستندات الملكية. لن نطلب إرسال وثائق حساسة إلى نموذج غير موصول؛ سننشر قناة موثقة هنا عند تفعيلها.",
 
+
+  /* ── live clock (lib/live.ts clockParts) ───────────────────
+     Arabic values are byte-identical to the strings clockFor() has always
+     produced, so Arabic output does not change. */
+  "clock.postponed": "مؤجلة",
+  "clock.cancelled": "ملغاة",
+  "clock.notStarted": "لم تبدأ",
+  "clock.final": "نهائي",
+  "clock.finished": "انتهت",
+  "clock.boutEnded": "انتهى النزال",
+  "clock.halfTime": "الاستراحة",
+  "clock.minute": "{value}'",
+  "clock.stoppage": "90+{value}'",
+  "clock.period.quarter": "الربع {index}",
+  "clock.period.set": "المجموعة {index}",
+  "clock.period.half": "الشوط {index}",
+  "clock.period.period": "الفترة {index}",
+  "clock.period.inning": "الإينينج {index}",
+  "clock.period.round": "الجولة {index}",
+  "clock.periodWithTime": "{period} · {time}",
+
   /* ── errors ─────────────────────────────────────────────── */
   "error.dataReadFailed": "تعذّر قراءة البيانات",
   "error.dataReadBody": "قد تكون خدمة البيانات غير متاحة. لا يعني ذلك عدم وجود مباريات.",

@@ -33,6 +33,8 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { hasMessage, t } from "@/lib/i18n/translate";
 import { STATUS_AR, EVENT_LABEL } from "@/lib/format";
 import { broadcastBadgeKey, broadcastNoticeKey } from "@/lib/i18n/broadcast";
+import { clockLabel } from "@/lib/i18n/clock";
+import type { ClockParts } from "@/lib/live";
 import type { MatchState } from "@/lib/match-state";
 import type { BroadcastState } from "@/lib/broadcast-state";
 import { EN_PREFIX } from "@/lib/i18n/locales";
@@ -406,6 +408,80 @@ test("no public view passes a raw Arabic broadcast notice to a visible prop", ()
       /inactiveNote=\{[^}]*noticeAr\s*\}/.test(src),
       false,
       `${file} passes the raw Arabic notice straight to a visible prop`,
+    );
+  }
+});
+
+/* ── the live clock ─────────────────────────────────────────────────────────
+ * lib/live.ts computes a match clock and has always exposed it as an Arabic
+ * string on LiveState.clock, which is part of the /api/live payload. Client
+ * components rendered that string directly, so English match cards showed
+ * "المجموعة 3" and "الشوط 2 · 14:18" for tennis and handball. The API string
+ * cannot change (public contract), so the same information is now also exposed
+ * structurally as clockParts and rendered through clockLabel.
+ *
+ * Found only by running the app with demo content enabled: the leak needs a
+ * non-football match in play, and no such card renders without data.
+ */
+
+const CLOCK_CASES: [ClockParts, string, string][] = [
+  [{ kind: "status", key: "postponed" }, "مؤجلة", "Postponed"],
+  [{ kind: "status", key: "cancelled" }, "ملغاة", "Cancelled"],
+  [{ kind: "status", key: "notStarted" }, "لم تبدأ", "Not started"],
+  [{ kind: "status", key: "final" }, "نهائي", "Final"],
+  [{ kind: "status", key: "finished" }, "انتهت", "Full time"],
+  [{ kind: "status", key: "boutEnded" }, "انتهى النزال", "Bout over"],
+  [{ kind: "status", key: "halfTime" }, "الاستراحة", "Half-time"],
+  [{ kind: "minute", minute: 67 }, "67'", "67'"],
+  [{ kind: "stoppage", minute: 2 }, "90+2'", "90+2'"],
+  [{ kind: "period", unit: "quarter", index: 3, remaining: "04:12" }, "الربع 3 · 04:12", "Q3 · 04:12"],
+  [{ kind: "period", unit: "set", index: 3, remaining: null }, "المجموعة 3", "Set 3"],
+  [{ kind: "period", unit: "half", index: 2, remaining: "12:40" }, "الشوط 2 · 12:40", "Half 2 · 12:40"],
+  [{ kind: "period", unit: "period", index: 2, remaining: null }, "الفترة 2", "P2"],
+  [{ kind: "period", unit: "inning", index: 5, remaining: null }, "الإينينج 5", "Inning 5"],
+  [{ kind: "period", unit: "round", index: 4, remaining: null }, "الجولة 4", "Round 4"],
+];
+
+test("clockLabel reproduces the legacy Arabic clock string byte-for-byte", () => {
+  for (const [parts, ar] of CLOCK_CASES) {
+    assert.equal(clockLabel("ar", parts), ar, `arabic clock for ${JSON.stringify(parts)}`);
+  }
+});
+
+test("clockLabel renders every clock shape in English with no Arabic left", () => {
+  for (const [parts, , en] of CLOCK_CASES) {
+    const got = clockLabel("en", parts);
+    assert.equal(got, en, `english clock for ${JSON.stringify(parts)}`);
+    assert.equal(
+      /[\u0600-\u06FF]/.test(got),
+      false,
+      `english clock still has Arabic for ${JSON.stringify(parts)}: ${got}`,
+    );
+  }
+});
+
+test("an unrecognised operator clock value is passed through, not guessed at", () => {
+  // Kickoff times and any free-form operator string have no structure to
+  // translate. Inventing one would fabricate meaning.
+  assert.equal(clockLabel("en", { kind: "raw", value: "21:00" }), "21:00");
+  assert.equal(clockLabel("ar", { kind: "raw", value: "21:00" }), "21:00");
+  assert.equal(clockLabel("en", { kind: "raw", value: "some custom note" }), "some custom note");
+  assert.equal(clockLabel("en", null), "");
+});
+
+test("no public component renders the raw Arabic LiveState.clock", () => {
+  // clock is the API's Arabic string; clockParts is the translatable form.
+  for (const file of [
+    "components/match/MatchCard.tsx",
+    "components/match/MatchLive.tsx",
+    "components/live/ScoreRail.tsx",
+  ]) {
+    const src = readFileSync(file, "utf8");
+    assert.match(src, /clockLabel\(/, `${file} must render the clock through clockLabel`);
+    assert.equal(
+      /\{\s*(?:s|state|match)\?\.clock\s*\}|\{state\.clock\}/.test(src),
+      false,
+      `${file} renders the raw Arabic clock string`,
     );
   }
 });

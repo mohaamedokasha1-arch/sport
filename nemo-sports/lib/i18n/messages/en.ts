@@ -1684,6 +1684,25 @@ const en: Record<keyof typeof ar, string> = {
   "legal.copyright.reportTitle": "Reporting an infringement",
   "legal.copyright.reportBody": "No public contact channel is currently available for reports or ownership documents. We will not ask you to send sensitive documents to an unwired form; a verified channel will be published here once enabled.",
 
+
+  /* ── live clock (lib/live.ts clockParts) ─────────────────── */
+  "clock.postponed": "Postponed",
+  "clock.cancelled": "Cancelled",
+  "clock.notStarted": "Not started",
+  "clock.final": "Final",
+  "clock.finished": "Full time",
+  "clock.boutEnded": "Bout over",
+  "clock.halfTime": "Half-time",
+  "clock.minute": "{value}'",
+  "clock.stoppage": "90+{value}'",
+  "clock.period.quarter": "Q{index}",
+  "clock.period.set": "Set {index}",
+  "clock.period.half": "Half {index}",
+  "clock.period.period": "P{index}",
+  "clock.period.inning": "Inning {index}",
+  "clock.period.round": "Round {index}",
+  "clock.periodWithTime": "{period} · {time}",
+
   /* ── errors ─────────────────────────────────────────────── */
   "error.dataReadFailed": "The data could not be read",
   "error.dataReadBody": "The data service may be unavailable. That does not mean there are no matches.",

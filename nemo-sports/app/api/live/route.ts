@@ -103,6 +103,10 @@ function demoRail(now: number): RailFixture[] {
         compCode: competition?.code ?? "",
         status: live ? (state.status === "HT" ? "halftime" : "live") : "scheduled",
         clock: live ? state.clock : null,
+        // Additive: the language-neutral form of `clock`. `clock` itself is
+        // untouched so the existing API contract still holds for any consumer
+        // reading the Arabic string.
+        clockParts: live ? state.clockParts : null,
         minute: live ? state.minute : null,
         homeScore: live || state.status === "FINISHED" ? state.homeScore : null,
         awayScore: live || state.status === "FINISHED" ? state.awayScore : null,

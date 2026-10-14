@@ -6,6 +6,8 @@ import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
 import { isLiveStatus } from "@/lib/match-state";
 import { useT, useLocale } from "@/lib/i18n/context";
+import { clockLabel } from "@/lib/i18n/clock";
+import type { ClockParts } from "@/lib/live";
 import { formatClock } from "@/lib/i18n/dates";
 
 type RailMatch = {
@@ -20,6 +22,7 @@ type RailMatch = {
   compCode: string;
   status: string;
   clock: string | null;
+  clockParts?: ClockParts | null;
   minute: number | null;
   homeScore: number | null;
   awayScore: number | null;
@@ -106,7 +109,13 @@ export default function ScoreRail() {
                   <span dir="auto" className="max-w-[96px] truncate text-[11px] font-semibold" title={match.awayName}>{match.awayName}</span>
                   <ProviderCrest name={match.awayName} logoUrl={match.awayLogoUrl} size={20} />
                   <span className={`num text-[10px] font-bold ${live ? "text-live" : "text-white/45"}`} dir="ltr">
-                    {isPreview ? tr("rail.demo") : live ? match.clock ?? tr("status.LIVE") : finished ? tr("status.FINISHED") : ""}
+                    {isPreview
+                      ? tr("rail.demo")
+                      : live
+                        ? clockLabel(locale, match.clockParts) || tr("status.LIVE")
+                        : finished
+                          ? tr("status.FINISHED")
+                          : ""}
                   </span>
                 </Link>
               );

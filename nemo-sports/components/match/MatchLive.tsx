@@ -12,6 +12,7 @@ import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, homeTeam, number, relative } from "@/lib/format";
 import { hasMessage } from "@/lib/i18n/translate";
+import { clockLabel } from "@/lib/i18n/clock";
 import { useT, useLocale } from "@/lib/i18n/context";
 import { countryName } from "@/lib/i18n/names";
 import { formatDate, formatTime } from "@/lib/i18n/dates";
@@ -63,7 +64,7 @@ export default function MatchLive({
             </span>
             <span className="flex items-center gap-2">
               {isLive ? <span className="live-dot" aria-hidden /> : null}
-              <span className="num font-bold">{state.clock}</span>
+              <span className="num font-bold">{clockLabel(locale, state.clockParts)}</span>
               <span className="text-white/45">
                 {isLive ? tr("ml.autoRefresh") : isDone ? formatDate(locale, match.kickoff) : relative(match.kickoff)}
               </span>
@@ -93,7 +94,10 @@ export default function MatchLive({
                 </>
               )}
               <span className="mt-3">
-                <StatusBadge status={state.status} clock={isLive ? state.clock : undefined} />
+                <StatusBadge
+                  status={state.status}
+                  clock={isLive ? clockLabel(locale, state.clockParts) : undefined}
+                />
               </span>
             </div>
 
