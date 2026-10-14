@@ -7,8 +7,11 @@ import type { MatchStreamSource } from "@/lib/match-streams";
 import LiveStreams from "@/components/public/LiveStreams";
 import LiveMatchCard, { type LiveCardData } from "@/components/live/LiveMatchCard";
 import DataUnavailable from "@/components/ui/DataUnavailable";
-import { matchStateOf, MATCH_STATE_LABEL_AR, UNCONFIRMED_NOTE_AR } from "@/lib/match-state";
-import { LIVE_SPORT_SLUGS, SPORT_NAME_AR, liveBoard, liveScope, scopeLabelAr } from "@/lib/live-board";
+import { matchStateOf } from "@/lib/match-state";
+import { matchStateLabel } from "@/lib/i18n/match-state";
+import { sportName, scopeLabel as scopeLabelFor } from "@/lib/i18n/names";
+import { t } from "@/lib/i18n/translate";
+import { LIVE_SPORT_SLUGS, liveBoard, liveScope } from "@/lib/live-board";
 import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
 import type { NormalizedFixture } from "@/packages/sdl/src";
@@ -19,15 +22,15 @@ export type ViewProps = { searchParams: Promise<Record<string, string | string[]
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "البث المباشر ومواعيد المباريات",
-  description: "تابع المباريات الجارية الآن في كل الرياضات المتاحة، والبث الرسمي المرخّص عند توفره، بتوقيت مكة والقاهرة.",
+  title: t(locale, "live.metaTitle"),
+  description: t(locale, "live.metaDescription"),
   alternates: { canonical: "/live" },
 };
 }
 
 export const revalidate = 30;
 
-function cardFromFixture(f: NormalizedFixture, stream: MatchStreamSource | null, mixedSports: boolean): LiveCardData {
+function cardFromFixture(locale: Locale, f: NormalizedFixture, stream: MatchStreamSource | null, mixedSports: boolean): LiveCardData {
   return {
     id: f.providerId,
     slug: f.providerId,
@@ -39,7 +42,7 @@ function cardFromFixture(f: NormalizedFixture, stream: MatchStreamSource | null,
     scheduledAt: f.scheduledAt,
     status: f.status,
     sport: f.sport,
-    sportLabel: mixedSports ? SPORT_NAME_AR[f.sport] ?? null : null,
+    sportLabel: mixedSports ? sportName(locale, f.sport) || null : null,
     homeScore: f.homeScore,
     awayScore: f.awayScore,
     minute: f.minute,
@@ -51,7 +54,8 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
   const sp = await searchParams;
   const requestedSport = typeof sp.sport === "string" ? sp.sport : "";
   const scope = liveScope(requestedSport);
-  const scopeLabel = scopeLabelAr(scope);
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
+  const scopeLabel = scopeLabelFor(locale, scope, LIVE_SPORT_SLUGS.length);
   const now = Date.now();
 
   // ONE live board for every public sport (chip counts need all of them); the
@@ -75,10 +79,10 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
   const mixed = scope.length > 1;
   const scopeBoards = board.boards.filter((b) => scope.includes(b.sport));
   const scopeAnswered = scopeBoards.some((b) => b.ok);
-  const scopeFailed = scopeBoards.filter((b) => !b.ok).map((b) => SPORT_NAME_AR[b.sport] ?? b.sport);
+  const scopeFailed = scopeBoards.filter((b) => !b.ok).map((b) => sportName(locale, b.sport) || b.sport);
   const liveFixtures = board.live.filter((f) => scope.includes(f.sport));
   const liveSlugs = new Set(liveFixtures.map((f) => f.providerId));
-  const liveItems = liveFixtures.map((f) => cardFromFixture(f, streamBySlug.get(f.providerId) ?? null, mixed));
+  const liveItems = liveFixtures.map((f) => cardFromFixture(locale, f, streamBySlug.get(f.providerId) ?? null, mixed));
 
   // Editorial (admin) matches that are not in play: upcoming / finished /
   // interrupted / unconfirmed sections. Live editorial matches already come
@@ -89,7 +93,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
     .filter((m) => !liveSlugs.has(m.slug))
     .map((m) => {
       const f = adminMatchToFixture(m);
-      return { ...cardFromFixture(f, streamBySlug.get(m.slug) ?? null, mixed), id: m.id, slug: m.slug, competitionSlug: m.competitionSlug };
+      return { ...cardFromFixture(locale, f, streamBySlug.get(m.slug) ?? null, mixed), id: m.id, slug: m.slug, competitionSlug: m.competitionSlug };
     });
   // An operator-entered "live" match the board does not carry (e.g. during a
   // provider outage) is still an editorial claim the page must show.
@@ -110,7 +114,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
       key={href}
       href={href}
       aria-current={active ? "page" : undefined}
-      title={failed ? "تعذّر التحقق من هذه الرياضة في آخر محاولة" : undefined}
+      title={failed ? tr("live.sportUnverified") : undefined}
       className={`inline-flex min-h-11 items-center gap-1.5 rounded-[3px] px-3 py-1.5 text-[12px] font-bold transition focus-ring ${
         active ? "bg-navy-850 text-white" : "border border-line bg-surface text-muted hover:border-gold-500"
       }`}
@@ -123,18 +127,18 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-4">
         <div>
-          <p className="eyebrow mb-1">مباشر الآن — مركز المباريات</p>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">البث المباشر والمباريات</h1>
+          <p className="eyebrow mb-1">{tr("live.eyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{tr("live.heading")}</h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3">
           <p className="text-[12px] text-muted">
-            <span className="num font-bold text-live">{liveItems.length}</span> جارية الآن · {scopeLabel}
+            <span className="num font-bold text-live">{liveItems.length}</span> {tr("live.countLive")} · {scopeLabel}
             {" · "}
-            <span className="num font-bold text-gold-500">{streamsLiveNow}</span> بث مباشر
+            <span className="num font-bold text-gold-500">{streamsLiveNow}</span> {tr("live.countStreams")}
             {streamsSoon > 0 ? (
               <>
                 {" "}
-                (+<span className="num font-bold">{streamsSoon}</span> قريبًا)
+                (+<span className="num font-bold">{streamsSoon}</span> {tr("live.countSoon")})
               </>
             ) : null}
           </p>
@@ -142,11 +146,11 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
         </div>
       </header>
 
-      <nav aria-label="تصفية حسب الرياضة" className="mb-6 flex flex-wrap gap-2">
-        {chip("/live", "كل الرياضات", board.total, scope.length === LIVE_SPORT_SLUGS.length, !board.complete && board.total === 0)}
+      <nav aria-label={tr("live.filterAria")} className="mb-6 flex flex-wrap gap-2">
+        {chip("/live", tr("live.allSports"), board.total, scope.length === LIVE_SPORT_SLUGS.length, !board.complete && board.total === 0)}
         {PUBLIC_SPORTS.map((s) => {
           const b = board.boards.find((x) => x.sport === s.slug);
-          return chip(`/live?sport=${s.slug}`, `${s.icon} ${s.name}`, board.bySport[s.slug] ?? 0, scope.length === 1 && scope[0] === s.slug, !b?.ok);
+          return chip(`/live?sport=${s.slug}`, `${s.icon} ${sportName(locale, s.slug)}`, board.bySport[s.slug] ?? 0, scope.length === 1 && scope[0] === s.slug, !b?.ok);
         })}
       </nav>
 
@@ -155,17 +159,17 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
 
       {/* Live matches section */}
       {liveItems.length > 0 ? (
-        <section aria-label="المباريات الجارية الآن" className="mb-10">
+        <section aria-label={tr("live.liveSectionAria")} className="mb-10">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
             <h2 className="flex items-center gap-2 text-base font-extrabold text-live">
               <span className="live-dot !bg-live-red" aria-hidden />
               <span>
-                مباشر الآن ({liveItems.length}) · {scopeLabel}
+                {tr("live.liveHeading", { n: liveItems.length })} · {scopeLabel}
               </span>
             </h2>
             {scopeFailed.length > 0 ? (
               <p role="status" className="text-[11px] font-bold text-warn-600 dark:text-warn-400">
-                تعذّر التحقق من: {scopeFailed.join("، ")} — العدد لا يشملها.
+                {tr("live.scopeFailed", { list: scopeFailed.join(locale === "ar" ? "، " : ", ") })}
               </p>
             ) : null}
           </div>
@@ -177,27 +181,27 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
         </section>
       ) : scopeAnswered ? (
         <div className="mb-8 rounded-[6px] border border-line bg-navy-850/40 p-4 text-center">
-          <p className="text-[13px] font-bold text-muted">لا توجد مباريات مباشرة الآن في {scopeLabel} وفق آخر تحديث للمصدر</p>
+          <p className="text-[13px] font-bold text-muted">{tr("live.noLive", { scope: scopeLabel })}</p>
           <p className="mt-1 text-[11px] text-muted">
-            {scopeFailed.length > 0 ? `تعذّر التحقق من: ${scopeFailed.join("، ")}. ` : ""}
-            تظهر المباريات الجارية هنا تلقائيًا مع انطلاقها.{" "}
-            <Link href="/matches?date=today" className="font-bold text-gold-600 dark:text-gold-400">مباريات اليوم</Link>
+            {scopeFailed.length > 0 ? `${tr("live.scopeFailedInline", { list: scopeFailed.join(locale === "ar" ? "، " : ", ") })} ` : ""}
+            {tr("live.autoAppears")}{" "}
+            <Link href="/matches?date=today" className="font-bold text-gold-600 dark:text-gold-400">{tr("live.todayMatches")}</Link>
           </p>
         </div>
       ) : (
         <DataUnavailable
-          title="تعذّر التحقق من المباريات المباشرة الآن"
-          message="لم يُرجع مصدر النتائج المباشرة استجابة صالحة في آخر محاولة. هذا لا يعني عدم وجود مباريات جارية، ولا نعرض نتائج تقديرية."
+          title={tr("live.unavailableTitle")}
+          message={tr("live.unavailableMessage")}
           actionHref="/matches?date=today"
-          actionLabel="مباريات اليوم"
+          actionLabel={tr("live.todayMatches")}
         />
       )}
 
       {upcomingItems.length > 0 ? (
-        <section aria-label="المباريات القادمة" className="mb-10">
+        <section aria-label={tr("live.upcomingAria")} className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-ink">مباريات تحريرية قادمة ({upcomingItems.length})</h2>
-            <span className="text-[12px] text-muted">التوقيت معتمد بتوقيت مكة المكرمة والقاهرة</span>
+            <h2 className="text-base font-extrabold text-ink">{tr("live.upcomingHeading", { n: upcomingItems.length })}</h2>
+            <span className="text-[12px] text-muted">{tr("live.tzNote")}</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {upcomingItems.map((match) => (
@@ -208,9 +212,9 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
       ) : null}
 
       {finishedItems.length > 0 ? (
-        <section aria-label="المباريات المنتهية" className="mb-10">
+        <section aria-label={tr("live.finishedAria")} className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">المباريات المكتملة مؤخرًا ({finishedItems.length})</h2>
+            <h2 className="text-base font-extrabold text-muted">{tr("live.finishedHeading", { n: finishedItems.length })}</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {finishedItems.map((match) => (
@@ -221,15 +225,15 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
       ) : null}
 
       {interruptedItems.length > 0 ? (
-        <section aria-label="مباريات مؤجلة أو ملغاة" className="mb-10">
+        <section aria-label={tr("live.interruptedAria")} className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">مباريات مؤجَّلة أو ملغاة ({interruptedItems.length})</h2>
+            <h2 className="text-base font-extrabold text-muted">{tr("live.interruptedHeading", { n: interruptedItems.length })}</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {interruptedItems.map((match) => (
               <div key={match.id}>
                 <LiveMatchCard match={match} now={now} />
-                <p className="mt-1 text-[11px] font-bold text-muted">{MATCH_STATE_LABEL_AR[stateOf(match)]}</p>
+                <p className="mt-1 text-[11px] font-bold text-muted">{matchStateLabel(locale, stateOf(match))}</p>
               </div>
             ))}
           </div>
@@ -240,11 +244,11 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           upcoming nor finished as far as we can verify — labelled as such, and
           their broadcasts are never offered as playable. */}
       {unconfirmedItems.length > 0 ? (
-        <section aria-label="مباريات حالتها غير مؤكدة" className="mb-10">
+        <section aria-label={tr("live.unconfirmedAria")} className="mb-10">
           <div className="mb-4 flex items-center justify-between border-b border-line pb-2">
-            <h2 className="text-base font-extrabold text-muted">مباريات حالتها غير مؤكدة ({unconfirmedItems.length})</h2>
+            <h2 className="text-base font-extrabold text-muted">{tr("live.unconfirmedHeading", { n: unconfirmedItems.length })}</h2>
           </div>
-          <p className="mb-3 text-[12px] leading-6 text-muted">{UNCONFIRMED_NOTE_AR}</p>
+          <p className="mb-3 text-[12px] leading-6 text-muted">{t(locale, "state.unconfirmedNote")}</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unconfirmedItems.map((match) => (
               <LiveMatchCard key={match.id} match={match} now={now} />
@@ -255,10 +259,10 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
 
       {nothingAtAll && scopeAnswered ? (
         <DataUnavailable
-          title="لا توجد مباريات مسجلة حاليًا"
-          message="سيتم تحديث جدول المباريات والبث فور ورود التحديثات الرسمية."
+          title={tr("live.emptyTitle")}
+          message={tr("live.emptyMessage")}
           actionHref="/fixtures"
-          actionLabel="مراجعة جدول المباريات"
+          actionLabel={tr("live.reviewSchedule")}
         />
       ) : null}
 
