@@ -1467,6 +1467,8 @@ const en: Record<keyof typeof ar, string> = {
   "legal.copyright.reportBody": "No public contact channel is currently available for reports or ownership documents. We will not ask you to send sensitive documents to an unwired form; a verified channel will be published here once enabled.",
 
   /* ── errors ─────────────────────────────────────────────── */
+  "error.dataReadFailed": "The data could not be read",
+  "error.dataReadBody": "The data service may be unavailable. That does not mean there are no matches.",
   "error.notFoundTitle": "Page not found",
   "error.notFoundMetaTitle": "Page not found (404)",
   "error.notFoundBody": "The match link may have changed after the season ended, or the page may have moved. Try searching, or head back to the home page.",
