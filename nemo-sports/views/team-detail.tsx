@@ -375,7 +375,7 @@ async function TeamPageBody({ locale, params }: { locale: Locale; params: Promis
             disabled: !table,
             content: table ? (
               <div className="space-y-3">
-                <StandingsTable rows={table} />
+                <StandingsTable rows={table} locale={locale} />
                 {teamRow ? (
                   <p className="text-[12px] text-muted">
                     {tr("td.standingLine1", { name: team.name })} <span className="num font-bold text-ink">{teamRow.pos}</span> {tr("td.standingPoints")}{" "}

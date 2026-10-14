@@ -197,7 +197,7 @@ export default async function StandingsPage({ locale }: { locale: Locale }) {
               <section key={comp}>
                 <SectionHead eyebrow={`${c?.country} · ${c?.season}`} title={c?.name ?? comp} href={`/competitions/${comp}`} />
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <StandingsTable rows={rows} />
+                  <StandingsTable rows={rows} locale={locale} />
                   {scorers ? (
                     <div className="card overflow-hidden">
                       <header className="border-b border-line bg-navy-850 px-3 py-2.5 text-white dark:bg-navy-850">

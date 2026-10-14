@@ -176,7 +176,7 @@ async function CompetitionPageBody({ locale, params }: { locale: Locale; params:
             label: tr("cd.tabTable"),
             disabled: !table,
             content: table ? (
-              <StandingsTable rows={table} />
+              <StandingsTable rows={table} locale={locale} />
             ) : (
               <p className="card px-4 py-10 text-center text-[13px] text-muted">
                 {tr("cd.noTable")}
