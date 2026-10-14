@@ -159,8 +159,64 @@ async function detailRoutes() {
   return routes;
 }
 
+/**
+ * Chrome-only Arabic scan, for the demo-data pass.
+ * ──────────────────────────────────────────────
+ * With data on screen, English pages legitimately contain Arabic DATA — team,
+ * player, competition and broadcaster names that no source provides in English.
+ * A whole-page scan cannot tell those from a UI bug, so this checks only the
+ * elements that are pure chrome: the status pill and the live clock inside it.
+ *
+ * These are exactly the places three real leaks were found (the status label,
+ * the broadcast notice and the clock), and none of them can be reached without
+ * data — which is why an empty-data smoke run missed all three.
+ */
+async function demoChromeScan() {
+  console.log(`\n  demo-data pass (NEXT_PUBLIC_DEMO_CONTENT=1) — chrome only`);
+  const ARABIC = /[\u0600-\u06FF]/;
+  for (const page of ["/en/matches", "/en/live", "/en"]) {
+    const html = await (await fetch(`${BASE}${page}`)).text();
+    const body = html.replace(/<script[\s\S]*?<\/script>/g, "");
+
+    // The status pill: everything inside it must be Latin or numeric.
+    const pills = [...body.matchAll(/<span[^>]*class="inline-flex items-center gap-1\.5[^"]*"[^>]*>(.*?)<\/span><\/span>/g)]
+      .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
+      .filter(Boolean);
+    const arabicPills = [...new Set(pills.filter((t) => ARABIC.test(t)))];
+    const pillOk = arabicPills.length === 0;
+    console.log(`  ${pillOk ? "✓" : "✗"} ${page} → ${pills.length} status pill(s), none in Arabic${pillOk ? "" : `: ${arabicPills.join(" | ")}`}`);
+    if (pillOk) ok.push(`${page} (pills clean)`); else failures++;
+
+    // The scoreboard clock on a match page: "الشوط 2 · 12:40" is the bug shape.
+    if (page === "/en/matches") {
+      const slugs = [...new Set([...html.matchAll(/href="\/en\/matches\/([^"?#]+)"/g)].map((m) => m[1]))].slice(0, 4);
+      for (const slug of slugs) {
+        const detail = (await (await fetch(`${BASE}/en/matches/${slug}`)).text()).replace(/<script[\s\S]*?<\/script>/g, "");
+        const clock = /<span class="num font-bold">([^<]*)<\/span>/.exec(detail)?.[1] ?? "";
+        const clockOk = !ARABIC.test(clock);
+        console.log(`  ${clockOk ? "✓" : "✗"} /en/matches/${slug.slice(0, 34)} → scoreboard clock "${clock}"`);
+        if (clockOk) ok.push(`clock ${slug.slice(0, 20)}`); else failures++;
+      }
+    }
+  }
+}
+
 async function main() {
   console.log(`\nNEMO Sports smoke check → ${BASE}\n`);
+
+  /* Demo-data mode is a separate, focused pass.
+   *
+   * Every assertion below assumes empty-data mode: whole pages must contain no
+   * Arabic (impossible once real team names render), and /api/live must be empty.
+   * Running them with data on would fail for the wrong reason and hide the
+   * signal. So when NEMO_SMOKE_DEMO=1 the run does the chrome-only scan and
+   * stops — its job is to inspect the components that only exist once data is
+   * present, which is where three separate Arabic leaks were found. */
+  if (process.env.NEMO_SMOKE_DEMO === "1") {
+    await demoChromeScan();
+    console.log(`\n${failures === 0 ? "✅ ALL GREEN" : `❌ ${failures} FAILURE(S)`} — ${ok.length} chrome checks\n`);
+    process.exit(failures === 0 ? 0 : 1);
+  }
 
   for (const p of pages) await check(p);
 

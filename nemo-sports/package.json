@@ -47,6 +47,7 @@
     "search:test": "tsx scripts/verify-search.ts",
     "seo:test": "tsx --test scripts/verify-seo-surfaces.test.ts",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:demo": "NEMO_SMOKE_DEMO=1 node scripts/smoke.mjs",
     "sports:test": "tsx --test scripts/verify-sports-links.test.ts",
     "standings-guard:test": "tsx --test scripts/verify-standings-guard.test.ts",
     "start": "next start -H 0.0.0.0 -p 3000",
