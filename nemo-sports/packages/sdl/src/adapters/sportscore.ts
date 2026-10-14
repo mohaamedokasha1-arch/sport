@@ -317,6 +317,16 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     "health",
   ];
   readonly supportedSports = ["football", "basketball", "cricket", "tennis"];
+  /**
+   * The documented REST v1 `fixtures/` endpoint answers "every competition
+   * for one UTC calendar day" (see getFixtures/dayFixtures), so the
+   * sports-sync engine may plan unscoped day-by-day upcoming/results tasks
+   * for this provider — that is how competitions nobody listed by hand are
+   * discovered from real fixtures. Without this flag the engine only ever
+   * asked about competitions already in its store, which this provider
+   * (no `competitions`/`competition_seasons` capability) could never seed.
+   */
+  readonly syncFixturesAreUnscoped = true;
 
   private baseUrlOverride: string | null;
   private src: string;

@@ -7,7 +7,7 @@
     "admin:test": "tsx scripts/verify-admin.ts",
     "ads:test": "tsx --test scripts/verify-ads.test.ts",
     "build": "next build",
-    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run news:quality:test && npm run news:cycle:test && npm run news:google:test && npm run news:google-cycle:test && npm run ads:test && npm run links:test && npm run seo:test && npm run discover:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run match-resolution:test && npm run competitions:test && npm run stream-policy:test && npm run news:classify:test && npm run cron:test && npm run consistency:test && npm run scenarios:test && npm run pipeline:config:check && npm run pipeline:test && npm run standings-guard:test && npm run sports-sync:test && npm run i18n:test && npm run i18n:parity:test && npm run lint",
+    "check": "npm run typecheck && npm run sdl:test && npm run repairs:test && npm run admin:test && npm run news:test && npm run news:quality:test && npm run news:cycle:test && npm run news:google:test && npm run news:google-cycle:test && npm run ads:test && npm run links:test && npm run seo:test && npm run discover:test && npm run search:test && npm run freshness:test && npm run sports:test && npm run match-resolution:test && npm run competitions:test && npm run discovery:test && npm run stream-policy:test && npm run news:classify:test && npm run cron:test && npm run consistency:test && npm run scenarios:test && npm run pipeline:config:check && npm run pipeline:test && npm run standings-guard:test && npm run sports-sync:test && npm run i18n:test && npm run i18n:parity:test && npm run lint",
     "competitions:report": "tsx scripts/report-competition-coverage.ts docs/competition-coverage.json",
     "competitions:test": "tsx --test scripts/verify-competition-sync.test.ts",
     "consistency:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-consistency.test.ts",
@@ -60,7 +60,9 @@
     "sports-sync:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-sports-sync.test.tsx",
     "sports-sync": "tsx scripts/sports-sync.ts",
     "i18n:parity:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-i18n-parity.test.ts",
-    "i18n:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-i18n.test.ts"
+    "i18n:test": "tsx --tsconfig scripts/tsconfig.jsx-tests.json --test scripts/verify-i18n.test.ts",
+    "discovery:test": "tsx --test scripts/verify-fixture-discovery.test.ts",
+    "coverage:report": "tsx scripts/coverage-report.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
