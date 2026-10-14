@@ -6,7 +6,9 @@
  * `/api/cron/update-matches` is OPEN on purpose: no Bearer, no `?token=` —
  * any visitor triggers the real pipeline `matches` job directly and the route
  * answers 200 OK with the honest `outcomeFor` body (never an auth refusal,
- * never a bare `{status:"success"}` without a `run`). The other cron surfaces
+ * never a bare `{status:"success"}` without a `run`, and never a 500: the
+ * status line says "the request completed", the body says what the run did).
+ * The other cron surfaces
  * (`/api/cron/fetch-news`, `/api/cron/pipeline/[job]`, …) still share the
  * `authorizeCron` gate (lib/cron-auth.ts) and refuse anonymous callers.
  *
@@ -72,7 +74,7 @@ function run(over: Partial<JobRunSummary> = {}): JobRunSummary {
   };
 }
 
-test("a run that touched a source and succeeded is the only 200 / \"success\"", () => {
+test("a run that touched a source and succeeded is the only \"success\" verdict", () => {
   const outcome = outcomeFor(run());
   assert.equal(outcome.http, 200);
   assert.equal(outcome.body.ok, true);
@@ -92,7 +94,10 @@ test("a run where every source was skipped is a failure, never \"success\"", () 
     totals: { fetched: 0, created: 0, updated: 0, conflicts: 0, failed: 0, skipped: 0 },
   });
   const outcome = outcomeFor(skipped);
-  assert.equal(outcome.http, 500);
+  // HTTP 200 with `ok:false`: the run completed and reported honestly. A 5xx
+  // here was indistinguishable from an unhandled crash and made every
+  // keyless/cron-less deployment look broken.
+  assert.equal(outcome.http, 200);
   assert.equal(outcome.body.ok, false);
   assert.equal(outcome.body.status, "error");
   assert.match(String(outcome.body.message), /no source was called/);
@@ -104,12 +109,12 @@ test("a run where every source was skipped is a failure, never \"success\"", () 
 
 test("a job with no sources at all (unknown job name) is a failure too", () => {
   const outcome = outcomeFor(run({ job: "matchs", ok: false, sources: [], errors: ["unknown job «matchs»"] }));
-  assert.equal(outcome.http, 500);
+  assert.equal(outcome.http, 200);
   assert.equal(outcome.body.status, "error");
   assert.ok(!JSON.stringify(outcome.body).includes("\"success\""));
 });
 
-test("some sources updated and one failed is a 207 partial, not an ok", () => {
+test("some sources updated and one failed is a partial verdict, not an ok", () => {
   const outcome = outcomeFor(
     run({
       ok: false,
@@ -117,7 +122,7 @@ test("some sources updated and one failed is a 207 partial, not an ok", () => {
       errors: ["football-data: every configured fetch failed"],
     }),
   );
-  assert.equal(outcome.http, 207);
+  assert.equal(outcome.http, 200);
   assert.equal(outcome.body.ok, false);
   assert.equal(outcome.body.status, "partial");
   assert.match(String(outcome.body.message), /partially/);
@@ -139,10 +144,16 @@ test("/api/cron/update-matches is open: any visitor runs the job and gets 200", 
     assert.ok(body.run, "the pipeline actually ran");
     assert.ok(Array.isArray(body.run.sources) && body.run.sources.length > 0);
     // Offline every source is gated off (no keys), so the BODY stays honest —
-    // it reports why nothing ran instead of claiming a fake "success".
+    // it reports why nothing ran instead of claiming a fake "success". The
+    // status line is 200 either way: the run happened and reported.
     assert.equal(body.ok, false);
     assert.equal(body.status, "error");
     assert.match(String(body.message), /no source was called/);
+    // A database whose canonical tables are missing (`relation "sports" does
+    // not exist`) can no longer turn this route into a 500 either: the pipeline
+    // prepares the schema itself (`lib/db/canonical-schema.ts`) and any
+    // remaining failure is reported in the body — see verify-db-selfheal.test.ts.
+    assert.equal(body.run.job, "matches");
 
     // A configured secret changes nothing: there is no gate left to pass.
     process.env.CRON_SECRET = "test-cron-secret";
