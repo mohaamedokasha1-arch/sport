@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import SearchBox from "@/components/layout/SearchBox";
 import Crest from "@/components/ui/Crest";
 import { canonicalCompetitions } from "@/lib/competition-catalog";

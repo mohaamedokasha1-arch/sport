@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import type { Metadata } from "next";
 import ScoutWorkspace from "@/components/scout/ScoutWorkspace";
 import DataSourceNote from "@/components/data/DataSourceNote";

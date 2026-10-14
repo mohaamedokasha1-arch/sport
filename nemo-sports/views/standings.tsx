@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import SectionHead from "@/components/ui/SectionHead";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import DataSourceNote from "@/components/data/DataSourceNote";

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import type { Metadata } from "next";
 import { syncedRecords } from "@/lib/sports-sync/read";
 import { classification, type Kind } from "@/lib/sports-sync/model";

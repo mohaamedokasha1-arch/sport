@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import LiveAutoRefresh from "@/components/data/LiveAutoRefresh";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { listAdminMatches, adminMatchToFixture, type AdminMatch } from "@/lib/admin-matches";

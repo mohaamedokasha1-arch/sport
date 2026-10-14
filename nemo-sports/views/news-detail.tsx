@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { serializeJsonLd } from "@/lib/json-ld";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { notFound } from "next/navigation";
 import Crest from "@/components/ui/Crest";
 import NewsCard from "@/components/news/NewsCard";

@@ -1,6 +1,6 @@
 import ShareMatch from "@/components/match/ShareMatch";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { cache } from "react";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import DataUnavailable from "@/components/ui/DataUnavailable";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import Crest from "@/components/ui/Crest";
 import SectionHead from "@/components/ui/SectionHead";
 import { allMatches, broadcastPartners } from "@/lib/data";

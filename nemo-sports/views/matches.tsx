@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { Suspense } from "react";
 import MatchesFilters from "@/components/match/MatchesFilters";
 import MatchesBrowser from "@/components/match/MatchesBrowser";

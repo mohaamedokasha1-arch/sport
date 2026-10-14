@@ -1,7 +1,7 @@
 import { SyncedFixtureHighlights } from "@/components/data/SyncedSports";
 import { isFinishedStatus } from "@/lib/match-state";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import MatchCard from "@/components/match/MatchCard";
 import SectionHead from "@/components/ui/SectionHead";

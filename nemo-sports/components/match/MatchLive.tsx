@@ -1,7 +1,7 @@
 "use client";
 
 import ScorePair from "@/components/ui/ScorePair";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import Crest from "@/components/ui/Crest";
 import Tabs from "@/components/ui/Tabs";
 import StatusBadge from "@/components/ui/StatusBadge";

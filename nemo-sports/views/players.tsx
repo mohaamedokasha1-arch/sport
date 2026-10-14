@@ -4,7 +4,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { cache } from "react";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import DataSourceNote from "@/components/data/DataSourceNote";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import SectionHead from "@/components/ui/SectionHead";
 import { players, teamBySlug } from "@/lib/core-data";
 import { demoContentVisible, hasProviderKeys } from "@/lib/site";

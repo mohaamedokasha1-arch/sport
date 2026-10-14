@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { notFound } from "next/navigation";
 import Tabs from "@/components/ui/Tabs";
 import Crest from "@/components/ui/Crest";

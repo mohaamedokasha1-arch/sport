@@ -1,6 +1,6 @@
 import { SyncedCompetitionDirectory } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import CompetitionCard from "@/components/competition/CompetitionCard";
 import SectionHead from "@/components/ui/SectionHead";
 import { competitions, sports } from "@/lib/core-data";

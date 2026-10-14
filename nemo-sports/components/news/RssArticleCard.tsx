@@ -1,5 +1,5 @@
 import { reportKind } from "@/lib/news/relevance";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
 import { cleanText, displayHeadline } from "@/lib/news/normalize";

@@ -2,7 +2,7 @@ import { syncedBySlug, syncedRecords } from "@/lib/sports-sync/read";
 import { indexWorthy } from "@/lib/sports-sync/model";
 import { SyncedCompetitionDetail } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { notFound, permanentRedirect } from "next/navigation";
 import Tabs from "@/components/ui/Tabs";
 import MatchCard from "@/components/match/MatchCard";

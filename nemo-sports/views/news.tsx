@@ -1,6 +1,6 @@
 import { groupSimilarStories } from "@/lib/news/group";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import NewsCard from "@/components/news/NewsCard";
 import RssArticleCard from "@/components/news/RssArticleCard";
