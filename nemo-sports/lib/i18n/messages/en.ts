@@ -1231,6 +1231,9 @@ const en: Record<keyof typeof ar, string> = {
   "ac.faq": "Frequently asked questions",
 
   /* ── scout ──────────────────────────────────────────────── */
+  "sc.matchesFailed": "The competition fixtures could not be loaded. We do not substitute them with synthetic results.",
+  "sc.lead": "Neutral statistical context — no betting tips and no guaranteed predictions.",
+  "sc.show": "Show the data",
   "sc.metaTitle": "NEMO Scout — a comparison from the available data",
   "sc.eyebrow": "NEMO Scout",
   "sc.heading": "A comparison from the available data",
