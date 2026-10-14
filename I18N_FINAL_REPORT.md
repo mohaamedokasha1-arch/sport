@@ -394,6 +394,35 @@ change.
 Locked in by 4 further tests (i18n suite now 20), mutation-verified: the raw prop
 was reintroduced and **both** the i18n guard and sports-sync test 21 went red.
 
+### E2c. Systematic source sweep — result
+
+To be sure E2 and E2b were not isolated, every file under `components/` and
+`views/` (excluding admin) was scanned for Arabic in **non-comment** code lines —
+15 files matched, and each was classified individually. **All 15 are
+legitimate**, in five groups:
+
+| Group | Examples | Why it is correct |
+|---|---|---|
+| Locale-conditional punctuation | `join(locale === "ar" ? "، " : ", ")` in `home`, `live`, `matches`, `watch`, `MatchLive` | The Arabic comma is the correct list separator for Arabic |
+| Bilingual value pairs | `locale === "ar" ? "تحليلات" : "Analysis"` in `Footer` | Both branches present; English renders English |
+| API contract values | `TYPE_ORDER` and the position/`?category=` maps in `SearchBox`, `search`, `players`, `team-detail` | The Arabic token is the API's own value, mapped to a `labelKey` at render, so `/api/search` stays untouched |
+| The switcher label | `العربية` in `LanguageSwitcher` | A language is always written in itself |
+| Data comparisons / comments | `c.format === "بطولة فردية"` in `CompetitionCard`; JSX comments | Comparing against provider data, not rendering copy |
+
+Two supporting claims were verified rather than assumed:
+
+- The English footer emits `/en/news?category=Analysis` and `?category=Transfers`;
+  both return **HTTP 200**. `canonicalCategoryParam` was executed directly and
+  maps `Analysis`, `Transfers`, `تحليلات`, `انتقالات` and `الانتقالات` to the
+  stored English names, and passes an unknown value through unchanged — 7/7.
+- `lib/scout.ts` still exports Arabic maps (`TEAM_SELECTION_MESSAGE_AR`,
+  `PLAYER_METRICS`), but its only public consumer, `ScoutWorkspace.tsx`, imports
+  the *code*-returning functions and renders every label through its own key
+  tables. That file contains **zero** Arabic in code lines.
+
+**Conclusion: no further Arabic leaks remain in the public rendered UI.** The
+remaining Arabic on `/en/live` and `/en/watch` is data, per E1.
+
 ### E3. `/admin` returns 404 to anonymous visitors
 
 This is **pre-existing, intentional behaviour**, not a regression. `middleware.ts`
