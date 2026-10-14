@@ -31,6 +31,7 @@ import { isBracketSlotFixture } from "@/lib/match-identity";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { formatClock, formatDate } from "@/lib/i18n/dates";
+import { countryName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -748,7 +749,7 @@ async function DemoMatchView({ locale, slug }: { locale: Locale; slug: string })
     sport: comp.nameEn,
     url: `/matches/${match.slug}`,
     location: match.venue
-      ? { "@type": "Place", name: match.venue, address: { "@type": "PostalAddress", addressCountry: home.country } }
+      ? { "@type": "Place", name: match.venue, address: { "@type": "PostalAddress", addressCountry: countryName(locale, home.country) } }
       : undefined,
     homeTeam: { "@type": "SportsTeam", name: home.nameEn },
     awayTeam: { "@type": "SportsTeam", name: away.nameEn },

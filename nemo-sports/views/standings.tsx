@@ -12,7 +12,7 @@ import { competitionBySlug, playerBySlug, teamBySlug } from "@/lib/core-data";
 import StandingsTable from "@/components/competition/StandingsTable";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
-import { entityName } from "@/lib/i18n/names";
+import { countryName, entityName } from "@/lib/i18n/names";
 
 export type ViewProps = Record<string, never>;
 
@@ -195,7 +195,7 @@ export default async function StandingsPage({ locale }: { locale: Locale }) {
             const scorers = demoTopScorers[comp];
             return (
               <section key={comp}>
-                <SectionHead eyebrow={`${c?.country} · ${c?.season}`} title={c?.name ?? comp} href={`/competitions/${comp}`} />
+                <SectionHead eyebrow={`${countryName(locale, c?.country)} · ${c?.season}`} title={c?.name ?? comp} href={`/competitions/${comp}`} />
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <StandingsTable rows={rows} locale={locale} />
                   {scorers ? (

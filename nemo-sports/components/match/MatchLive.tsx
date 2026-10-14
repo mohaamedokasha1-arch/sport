@@ -12,6 +12,7 @@ import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, homeTeam, number, relative } from "@/lib/format";
 import { useT, useLocale } from "@/lib/i18n/context";
+import { countryName } from "@/lib/i18n/names";
 import { formatDate, formatTime } from "@/lib/i18n/dates";
 import type { Match } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
@@ -75,7 +76,7 @@ export default function MatchLive({
                 <Link href={`/teams/${home.slug}`} className="block text-base font-extrabold transition hover:text-gold-400">
                   {home.name}
                 </Link>
-                <span className="text-[11px] text-white/50">{home.country}</span>
+                <span className="text-[11px] text-white/50">{countryName(locale, home.country)}</span>
               </div>
             </div>
 
@@ -101,7 +102,7 @@ export default function MatchLive({
                 <Link href={`/teams/${away.slug}`} className="block text-base font-extrabold transition hover:text-gold-400">
                   {away.name}
                 </Link>
-                <span className="text-[11px] text-white/50">{away.country}</span>
+                <span className="text-[11px] text-white/50">{countryName(locale, away.country)}</span>
               </div>
             </div>
           </div>
@@ -528,7 +529,7 @@ function TeamPanel({ slug }: { slug: string }) {
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-extrabold">{team.name}</span>
           <span className="block text-[11px] text-muted">
-            {team.country} · {tr("ml.teamFounded")} <span className="num">{team.founded}</span>
+            {countryName(locale, team.country)} · {tr("ml.teamFounded")} <span className="num">{team.founded}</span>
           </span>
         </span>
       </span>

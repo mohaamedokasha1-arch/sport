@@ -30,6 +30,7 @@ import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { formatDate, formatDateTime } from "@/lib/i18n/dates";
+import { countryName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -270,7 +271,7 @@ async function TeamPageBody({ locale, params }: { locale: Locale; params: Promis
               <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{team.name}</h1>
               <p className="mt-1 text-[12px] text-white/70">
-                {team.country} · {comp?.name} · {tr("td.founded")} <span className="num">{team.founded}</span>
+                {countryName(locale, team.country)} · {comp?.name} · {tr("td.founded")} <span className="num">{team.founded}</span>
               </p>
             </div>
           </div>

@@ -33,6 +33,7 @@ import { decodeSlug } from "@/lib/slug";
 import { isLiveStatus, matchStateOf, isFinishedStatus } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { countryName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -147,7 +148,7 @@ async function CompetitionPageBody({ locale, params }: { locale: Locale; params:
               <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{comp.name}</h1>
               <p className="mt-1 text-[12px] text-white/60">
-                {comp.country} · {tr("cd.seasonRounds", { season: comp.season, format: comp.format, rounds: comp.rounds })}
+                {countryName(locale, comp.country)} · {tr("cd.seasonRounds", { season: comp.season, format: comp.format, rounds: comp.rounds })}
               </p>
             </div>
           </div>
