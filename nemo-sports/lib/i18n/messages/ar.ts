@@ -497,6 +497,9 @@ const ar = {
   /* ── match detail ───────────────────────────────────────── */
   "md.status.live": "مباشر الآن",
   "md.status.halftime": "استراحة بين الشوطين",
+  /* The compact clock line under the score uses the short form the site has
+     always printed; md.status.halftime is the longer status label. */
+  "md.clock.halftime": "استراحة",
   "md.status.extra_time": "وقت إضافي",
   "md.status.extra_time_halftime": "استراحة الوقت الإضافي",
   "md.status.penalty_shootout": "ركلات الترجيح",

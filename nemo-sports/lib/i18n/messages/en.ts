@@ -492,6 +492,7 @@ const en: Record<keyof typeof ar, string> = {
   /* ── match detail ───────────────────────────────────────── */
   "md.status.live": "Live now",
   "md.status.halftime": "Half-time",
+  "md.clock.halftime": "Half-time",
   "md.status.extra_time": "Extra time",
   "md.status.extra_time_halftime": "Extra-time break",
   "md.status.penalty_shootout": "Penalty shoot-out",

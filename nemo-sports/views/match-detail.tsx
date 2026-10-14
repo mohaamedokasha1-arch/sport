@@ -231,13 +231,21 @@ function eventDescription(locale: Locale, description: string | null): string | 
  * still genuinely upcoming (lib/match-state.ts); past that we say the state is
  * unconfirmed rather than implying a fixture still to come.
  */
-function clockOf(locale: Locale, f: NormalizedFixture, now = Date.now()): string {
-  if (f.status === "halftime") return t(locale, "md.status.halftime");
+/** Exported so scripts/verify-i18n-parity.test.ts can run the real function
+ *  against the published Arabic instead of a copy of it. */
+export function clockOf(locale: Locale, f: NormalizedFixture, now = Date.now()): string {
+  // Short form on purpose: the clock line has always read «استراحة», not the
+  // longer status label STATUS_AR.halftime ("استراحة بين الشوطين") that the
+  // status badge above it carries.
+  if (f.status === "halftime") return t(locale, "md.clock.halftime");
   if (f.minute !== null && ["live", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
   if (f.status === "finished") return t(locale, "state.finished");
   const state = matchStateOf(f.status, f.scheduledAt, now);
   if (state === "upcoming") return formatClock(locale, f.scheduledAt);
   if (state === "unconfirmed") return matchStateLabel(locale, "unconfirmed");
+  // STATUS_AR here is this file's own map (lowercase MatchStatus → message
+  // key), not the UPPERCASE provider-status map in lib/format.ts. It resolves
+  // for every legal status; the state label is only the theoretical fallback.
   const k = STATUS_AR[f.status];
   return k ? t(locale, k) : matchStateLabel(locale, state);
 }
