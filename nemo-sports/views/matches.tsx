@@ -13,7 +13,9 @@ import { fixtures as sdlFixtures, fixturesForCairoDate } from "@/lib/sdl-gateway
 import { applyDemoOverrides } from "@/lib/match-overrides";
 import { demoContentVisible } from "@/lib/site";
 import { dateScopeIncludesToday, filterProviderMatches, providerMatchCounts, sortProviderMatches } from "@/lib/provider-match-filter";
-import { liveBoard, reconcileResult, scopeLabelAr, SPORT_NAME_AR } from "@/lib/live-board";
+import { liveBoard, reconcileResult } from "@/lib/live-board";
+import { scopeLabel as scopeLabelFor, sportName } from "@/lib/i18n/names";
+import { t } from "@/lib/i18n/translate";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
 import { validateMatchStatus } from "@/lib/match-query";
 import { competitionByPath } from "@/lib/competition-catalog";
@@ -26,8 +28,8 @@ export type ViewProps = { searchParams: Promise<Record<string, string | string[]
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "المباريات — مواعيد ونتائج الرياضات المتاحة",
-  description: "جدول المباريات بحسب الرياضة والبطولة والتاريخ والحالة، مع روابط تعمل إلى تفاصيل المباراة.",
+  title: t(locale, "mt.metaTitle"),
+  description: t(locale, "mt.metaDescription"),
   alternates: { canonical: "/matches" },
 };
 }
@@ -35,6 +37,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
 export const revalidate = 60;
 
 export default async function MatchesPage({ locale, searchParams, }: ViewProps & { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const sp = await searchParams;
   const query = {
     sport: typeof sp.sport === "string" ? sp.sport : "",
@@ -49,10 +52,10 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <DataUnavailable
-          title="فلتر الحالة غير مدعوم"
-          message="اختر حالة من الفلاتر المتاحة أو امسح الفلاتر. لم نعرض جميع المباريات بدلًا من الحالة المطلوبة."
+          title={tr("mt.badStatusTitle")}
+          message={tr("mt.badStatusMessage")}
           actionHref="/matches"
-          actionLabel="مسح الفلاتر"
+          actionLabel={tr("mt.clearFilters")}
         />
       </div>
     );
@@ -88,7 +91,7 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
   // Matches in play that the dated feed did not carry (e.g. a 23:30 kickoff
   // still running after midnight) are part of today.
   if (board) for (const fixture of board.live) if (!byId.has(fixture.providerId)) byId.set(fixture.providerId, fixture);
-  const liveFailed = board ? board.failedSports.map((sport) => SPORT_NAME_AR[sport] ?? sport) : [];
+  const liveFailed = board ? board.failedSports.map((sport) => sportName(locale, sport) || sport) : [];
 
   if (successfulFeeds.length > 0 || board?.ok) {
     const fixtures = [...byId.values()];
@@ -111,23 +114,23 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
       });
     }
     const activeResult = successfulFeeds[0] ?? null;
-    const scopeLabel = scopeLabelAr(requestedSports);
+    const scopeLabel = scopeLabelFor(locale, requestedSports, PUBLIC_SPORTS.length);
 
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
-        <nav aria-label="مسار التنقل" className="mb-3 text-[12px] text-muted">
-          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+        <nav aria-label={tr("mt.breadcrumbAria")} className="mb-3 text-[12px] text-muted">
+          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("mt.home")}</Link>
           <span aria-hidden> / </span>
-          <span className="font-semibold text-ink">المباريات</span>
+          <span className="font-semibold text-ink">{tr("mt.pageName")}</span>
         </nav>
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">جدول المباريات</p>
-            <h1 className="text-2xl font-extrabold tracking-tight">المباريات</h1>
+            <p className="eyebrow mb-1">{tr("mt.eyebrow")}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{tr("mt.heading")}</h1>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <p className="text-[12px] text-muted">
-              <span className="num font-bold">{filtered.length}</span> مباراة مطابقة · {scopeLabel} · توقيت القاهرة
+              <span className="num font-bold">{filtered.length}</span> {tr("mt.countLine")} · {scopeLabel} · {tr("mt.tzCairo")}
             </p>
             <LiveAutoRefresh intervalSeconds={60} />
           </div>
@@ -147,19 +150,17 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
           />
         </Suspense>
 
-        {successfulFeeds.some((r) => r.ok && (r.stale || r.degraded)) && <p role="status" className="mt-4 text-sm text-muted">بعض البيانات قديمة أو التغطية غير مكتملة. لا تعتبر هذه القائمة جدولًا كاملًا.</p>}
-        {liveFailed.length > 0 && <p role="status" className="mt-2 text-sm text-warn-600 dark:text-warn-400">تعذّر التحقق من الحالة المباشرة لـ: {liveFailed.join("، ")}.</p>}
+        {successfulFeeds.some((r) => r.ok && (r.stale || r.degraded)) && <p role="status" className="mt-4 text-sm text-muted">{tr("mt.someStale")}</p>}
+        {liveFailed.length > 0 && <p role="status" className="mt-2 text-sm text-warn-600 dark:text-warn-400">{tr("mt.liveFailed")} {liveFailed.join(locale === "ar" ? "، " : ", ")}.</p>}
         <div className="mt-5">
           {filtered.length > 0 ? (
             <ProviderMatchList fixtures={filtered} view={query.view} />
           ) : (
             <DataUnavailable
-              title={isSupportedSport ? "لا توجد مباريات تطابق هذه الفلاتر" : "بيانات هذه الرياضة غير متاحة حاليًا"}
-              message={isSupportedSport
-                ? "لم يُرجع مصدر المباريات نتائج ضمن التاريخ والحالة المحددين. غيّر الفلاتر أو اعرض كل المباريات المتاحة."
-                : "لا نعرض نتائج رياضة أخرى بدلًا منها. اختر رياضة تتوفر لها بيانات أو تصفح جميع المباريات."}
+              title={isSupportedSport ? tr("mt.noMatchesTitle") : tr("mt.sportUnavailableTitle")}
+              message={isSupportedSport ? tr("mt.noMatchesMessage") : tr("mt.sportUnavailableMessage")}
               actionHref={isSupportedSport ? "/matches?date=week" : "/matches"}
-              actionLabel={isSupportedSport ? "عرض مباريات الأسبوع" : "عرض الرياضات المتاحة"}
+              actionLabel={isSupportedSport ? tr("mt.weekMatches") : tr("mt.availableSports")}
             />
           )}
         </div>
@@ -175,16 +176,16 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
   if (!demoMode) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
-        <nav aria-label="مسار التنقل" className="mb-3 text-[12px] text-muted">
-          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+        <nav aria-label={tr("mt.breadcrumbAria")} className="mb-3 text-[12px] text-muted">
+          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("mt.home")}</Link>
           <span aria-hidden> / </span>
-          <span className="font-semibold text-ink">المباريات</span>
+          <span className="font-semibold text-ink">{tr("mt.pageName")}</span>
         </nav>
         <header className="mb-5 border-b-2 border-line pb-3">
-          <p className="eyebrow mb-1">جدول المباريات</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">المباريات</h1>
+          <p className="eyebrow mb-1">{tr("mt.eyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tr("mt.heading")}</h1>
         </header>
-        <DataUnavailable title="تعذّر تحميل المباريات حاليًا" message="مصدر المباريات لم يُرجع بيانات قابلة للتحقق. لا نعرض مباريات أو نتائج غير مؤكدة." actionHref="/live" actionLabel="صفحة المباريات المباشرة" />
+        <DataUnavailable title={tr("mt.loadFailedTitle")} message={tr("mt.loadFailedMessage")} actionHref="/live" actionLabel={tr("nav.live")} />
         <div className="mt-4 flex justify-end"><LiveAutoRefresh intervalSeconds={60} /></div>
       </div>
     );
@@ -193,22 +194,23 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
   const demoCounts = matchCounts();
   const demoCompetitionOptions = competitions.map((competition) => ({ id: competition.slug, name: competition.name, sport: competition.sport }));
   const demoSportOptions = sports.map(({ slug, name, icon }) => ({ slug, name, icon }));
-  const sportName = sports.find((sport) => sport.slug === query.sport)?.name;
+  const selectedSportName = sports.find((sport) => sport.slug === query.sport);
+  const selectedSportLabel = selectedSportName ? sportName(locale, selectedSportName.slug) : undefined;
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
-      <nav aria-label="مسار التنقل" className="mb-3 text-[12px] text-muted">
-        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+      <nav aria-label={tr("mt.breadcrumbAria")} className="mb-3 text-[12px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("mt.home")}</Link>
         <span aria-hidden> / </span>
-        <span className="font-semibold text-ink">المباريات</span>
-        {sportName ? <><span aria-hidden> / </span><span className="font-semibold text-ink">{sportName}</span></> : null}
+        <span className="font-semibold text-ink">{tr("mt.pageName")}</span>
+        {selectedSportLabel ? <><span aria-hidden> / </span><span className="font-semibold text-ink">{selectedSportLabel}</span></> : null}
       </nav>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">معاينة تطوير</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">المباريات</h1>
+          <p className="eyebrow mb-1">{tr("mt.demoEyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tr("mt.heading")}</h1>
         </div>
-        <p className="text-[12px] text-muted">بيانات المعاينة ليست نتائج حية ولا تُستخدم في الإنتاج.</p>
+        <p className="text-[12px] text-muted">{tr("mt.demoNotice")}</p>
       </header>
       <Suspense fallback={<div className="card h-36" aria-hidden />}>
         <MatchesFilters
@@ -224,7 +226,7 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
         />
       </Suspense>
       <div className="mt-5"><MatchesBrowser matches={demoMatches} /></div>
-      <p className="mt-4 text-[11px] text-muted">يظهر هذا المحتوى في بيئة المعاينة فقط.</p>
+      <p className="mt-4 text-[11px] text-muted">{tr("mt.demoOnly")}</p>
     </div>
   );
 }
