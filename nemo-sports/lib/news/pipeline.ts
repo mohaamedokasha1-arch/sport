@@ -22,12 +22,14 @@ import {
   publicExcerpt,
   extractDomain,
   fingerprint,
+  isGoogleNewsWrapper,
   resolvePublisherUrl,
   sourceBadge,
   toIsoDate,
   validateArticle,
 } from "./normalize";
-import { checkDuplicate, type DedupCandidate } from "./dedup";
+import { resolveGoogleWrapperUrls } from "./google-news";
+import { checkCrossIdentityDuplicate, checkDuplicate, type DedupCandidate } from "./dedup";
 import { sportsRelevanceDetail } from "./relevance";
 import { AUTO_MODERATOR, autoModerationEnabled, moderatePublished } from "./moderation";
 import { categorizeArticle } from "./categorize";
@@ -39,6 +41,7 @@ import {
   listSources,
   logFetch,
   recentByDomain,
+  recentStoriesGlobal,
   recordSourceFailure,
   recordSourceSuccess,
 } from "./store";
@@ -74,6 +77,8 @@ export interface SourceRunResult {
   validationFailures: number;
   parseErrors: number;
   entityMatches: number;
+  /** Google News wrapper links resolved to original publisher URLs this run */
+  decodedUrls: number;
   notModified?: boolean;
   error?: string;
   ms: number;
@@ -162,6 +167,7 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
     validationFailures: 0,
     parseErrors: 0,
     entityMatches: 0,
+    decodedUrls: 0,
   };
 
   if (!opts.force) {
@@ -186,24 +192,36 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
     const parsed = parseRss(feed.xml, source.query);
     base.processed = parsed.items.length;
     base.parseErrors = parsed.errors.length + parsed.skipped;
-    // One dedup window per domain per run (Google News items all share
-    // news.google.com): it used to be re-read from the database for EVERY item,
-    // which is what kept a once-a-day job from finishing all sources in time.
+    // One dedup window per domain per run: it used to be re-read from the
+    // database for EVERY item, which is what kept a once-a-day job from
+    // finishing all sources in time. The cross-identity window (Google items
+    // only) is likewise read once, on first use.
     const windows = new Map<string, NewsArticle[]>();
+    let globalWindow: NewsArticle[] | null = null;
+
+    // RESOLVE REDIRECTS — Google News items arrive as news.google.com wrapper
+    // links that bounce readers through Google. Resolve them to the original
+    // publisher URL BEFORE dedup: the canonical key then points at the
+    // publisher, so the same story aggregated under different wrapper ids (or
+    // different queries) collapses into one record instead of many. Bounded
+    // by item cap + time budget; every failure keeps the wrapper link.
+    const linkResolution = await resolveGoogleWrapperUrls(parsed.items.slice(0, 100).map((item) => item.link));
 
     for (const raw of parsed.items.slice(0, 100)) {
       if (Date.now() - started > 35_000) throw new Error("source processing budget reached; remaining items deferred");
       try {
         // NORMALIZE
         const title = cleanText(raw.title).slice(0, 300);
-        const resolvedUrl = await resolvePublisherUrl(raw.link);
+        const fromGoogle = isGoogleNewsWrapper(raw.link);
+        const resolvedUrl = linkResolution.urls.get(raw.link) ?? (await resolvePublisherUrl(raw.link));
+        if (fromGoogle && resolvedUrl !== raw.link) base.decodedUrls++;
         const canonical = canonicalizeUrl(resolvedUrl);
         if (!canonical) {
           base.validationFailures++;
           continue;
         }
         const publicationDate = toIsoDate(raw.pubDate);
-        const domain = isGoogleWrapper(resolvedUrl) ? "news.google.com" : extractDomain(resolvedUrl);
+        const domain = isGoogleNewsWrapper(resolvedUrl) ? "news.google.com" : extractDomain(resolvedUrl);
         const sourceName = cleanText(raw.sourceName ?? domain).slice(0, 120) || domain;
 
         // VALIDATE
@@ -228,7 +246,14 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
         if (relevance === "reject") { base.validationFailures++; continue; }
 
         // DEDUPLICATE — L1/L2 global, L3–L5 against the domain window
-        const existing = await findByCanonicalUrl(canonical);
+        let existing = await findByCanonicalUrl(canonical);
+        if (!existing && fromGoogle && resolvedUrl !== raw.link) {
+          // The same story may already be stored under its WRAPPER key from a
+          // run that could not decode yet — recognising that key prevents a
+          // second record of one article under two identities.
+          const wrapperCanonical = canonicalizeUrl(raw.link);
+          if (wrapperCanonical) existing = await findByCanonicalUrl(wrapperCanonical);
+        }
         if (existing) {
           base.duplicates++;
           continue;
@@ -252,6 +277,18 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
           if (check.isDuplicate) {
             dupOf = w.id;
             break;
+          }
+        }
+        if (!dupOf && fromGoogle) {
+          // The same wrapper story may already be stored under the OTHER
+          // identity (publisher key ↔ wrapper key) from a run with a different
+          // decode outcome — the domain is not a story key for these items.
+          globalWindow ??= await recentStoriesGlobal(3, 120);
+          for (const w of globalWindow) {
+            if (checkCrossIdentityDuplicate(candidate, w).isDuplicate) {
+              dupOf = w.id;
+              break;
+            }
           }
         }
         if (dupOf) {
@@ -301,6 +338,7 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
         base.inserted++;
         window.unshift(article);
         if (window.length > 60) window.length = 60;
+        if (globalWindow) globalWindow.unshift(article);
       } catch (error) {
         if (error instanceof StoreWriteError) throw error;
         base.validationFailures++;
@@ -339,14 +377,6 @@ export async function runSource(source: RSSSource, opts: { force?: boolean } = {
   }
 }
 
-function isGoogleWrapper(url: string): boolean {
-  try {
-    return new URL(url).hostname === "news.google.com";
-  } catch {
-    return false;
-  }
-}
-
 /** Run every enabled source in priority order. Skips are cheap (no fetch). */
 async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {}): Promise<IngestStats> {
   const startedAt = new Date().toISOString();
@@ -359,6 +389,7 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
       validationFailures: 0,
       parseErrors: 0,
       entityMatches: 0,
+      decodedPublisherUrls: 0,
       avgProcessingMs: 0,
       perSource: [],
       startedAt,
@@ -378,6 +409,7 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
   let validationFailures = 0;
   let parseErrors = 0;
   let entityMatches = 0;
+  let decodedPublisherUrls = 0;
   let totalFetches = 0;
 
   // A few sources in parallel (default 3, NEMO_NEWS_CONCURRENCY 1–4): the
@@ -404,6 +436,7 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
     validationFailures += r.validationFailures;
     parseErrors += r.parseErrors;
     entityMatches += r.entityMatches;
+    decodedPublisherUrls += r.decodedUrls;
     perSource.push({
       sourceId: r.sourceId,
       query: r.query,
@@ -436,6 +469,7 @@ async function ingestSources(opts: { force?: boolean; sourceIds?: string[] } = {
     validationFailures,
     parseErrors,
     entityMatches,
+    decodedPublisherUrls,
     avgProcessingMs: totalProcessed ? Math.round(ms / Math.max(1, totalProcessed)) : 0,
     ...(moderation ? { moderation } : {}),
     perSource,

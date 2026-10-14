@@ -49,6 +49,8 @@ const ALIASES: Record<string, string[]> = {
   "Paris Saint-Germain": ["باريس سان جيرمان"],
   "Al Ahly": ["الأهلي", "الاهلي"],
   "Zamalek": ["الزمالك"],
+  "Al Masry": ["المصري", "المصري البورسعيدي"],
+  "Al Qanah": ["القناة", "قناة"],
   "Al Nassr": ["النصر"],
   "Al Hilal": ["الهلال"],
 };
@@ -62,4 +64,22 @@ for (const [english, arabic] of Object.entries(ALIASES)) {
 export function arabicAliasesFor(name: string | null | undefined): string[] {
   if (!name) return [];
   return INDEX.get(normalizeSearchText(name)) ?? [];
+}
+
+/**
+ * The reverse lookup: normalized English KEYS whose curated Arabic spellings
+ * include this Arabic name («الزمالك» → ["zamalek"]). Same rule as the
+ * forward direction: only well-established spellings, nothing generated.
+ * Used by match-link resolution (lib/match-resolution.ts) so an Arabic
+ * partner slug can reach a fixture that carries only a latin club name (and
+ * vice versa) — without inventing transliterations for clubs nobody curated.
+ */
+export function englishKeysForArabic(name: string | null | undefined): string[] {
+  const normalized = normalizeSearchText(String(name ?? ""));
+  if (!normalized) return [];
+  const out: string[] = [];
+  for (const [key, arabic] of INDEX) {
+    if (arabic.some((a) => normalizeSearchText(a) === normalized)) out.push(key);
+  }
+  return out;
 }

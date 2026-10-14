@@ -20,6 +20,7 @@ export type RelevanceReason =
   | "commercial" // business / property / finance / education vocabulary
   | "non-sport-entity" // a company that shares a club's name (Al Ahly Sabbour, Al Ahly Bank…)
   | "non-article" // a score page, profile/stadium page or a bare section title
+  | "link-farm" // a pirate-stream / result-scraper page, never an editorial story
   | "no-sports-signal"; // nothing indicates sport
 
 export interface RelevanceDetail {
@@ -71,6 +72,19 @@ const SCORELINE = /(?<![\d:])\d{1,2}\s?[-–]\s?\d{1,2}(?![\d:])/u;
  */
 const NON_ARTICLE = /(?:\blive scores?\b|\s-\s(?:stadium|squad|profile|fixtures|results|table|standings)\s-\s|^\s*(?:news|home|latest news|results|fixtures)\s*$)/u;
 
+/**
+ * Pirate-stream and result-scraper pages. They pack match names into a
+ * headline to catch search clicks («مشاهدة مباراة الأهلي والزمالك بث مباشر»,
+ * "Al Ahly vs Zamalek live stream free"), but they carry no reporting at all —
+ * these are the "rejected links" the news section must never surface.
+ *
+ * Matched on the normalized text (hamza/ة/ى already folded: «مباراه», «كوره»).
+ * An editorial match REPORT never phrases itself this way, so the verdict is
+ * a straight reject — stronger sports vocabulary does not rescue it.
+ */
+const LINK_FARM =
+  /(?:بث مباشر|البث المباشر|بث حي|مشاهده مبارا|مشاهده بث|مشاهده اونلاين|اونلاين مباشر|ينقل مباشر|يلا شوت|يالا شوت|كوره لايف|الكوره لايف|كوره اونلاين|كوره اكسترا|بين ماتش|bein[ -]?match|yalla[ -]?shoot|koo?ra[ -]?(?:live|online|extra|4live)|live[ -]?stream(?:ing)?|watch (?:the )?(?:match|game) (?:live|online)|free (?:live )?stream|بث مجاني)/u;
+
 /** "Headline - Publisher" → "Headline" (Google News titles carry the publisher). */
 function headlineOf(title: string): string {
   const idx = title.lastIndexOf(" - ");
@@ -87,6 +101,10 @@ export function sportsRelevanceDetail(title: string, description = ""): Relevanc
   const strong = STRONG.test(text);
   const context = CONTEXT.test(text) || SPORTS_SOURCE.test(normalizeSearchText(title)) || SCORELINE.test(rawHeadline);
   const nonArticle = NON_ARTICLE.test(title.toLowerCase()) || NON_ARTICLE.test(rawHeadline.toLowerCase()) || headlineWords < 3;
+
+  // Pirate-stream / link-farm pages first: they bundle real club names and
+  // league words (so `strong` fires), but they are never editorial news.
+  if (LINK_FARM.test(text)) return { verdict: "reject", reason: "link-farm" };
 
   if (commercial) {
     if (strong || context) return { verdict: "review", reason: nonSportEntity ? "non-sport-entity" : "commercial" };
@@ -105,13 +123,17 @@ export function sportsRelevance(title: string, description = ""): RelevanceVerdi
 
 /**
  * Should an ALREADY PUBLISHED article be quarantined automatically?
- * Only clear non-sports content qualifies — commercial vocabulary or a
- * non-sport namesake company with no sports signal at all. Weak or missing
- * sports vocabulary alone never does (a real injury story may lack it); those
- * are reported for an editor instead.
+ * Only clear non-sports content qualifies — commercial vocabulary, a
+ * non-sport namesake company with no sports signal at all, or a pirate-stream
+ * link-farm page (never editorial). Weak or missing sports vocabulary alone
+ * never does (a real injury story may lack it); those are reported for an
+ * editor instead.
  */
 export function shouldAutoQuarantine(detail: RelevanceDetail): boolean {
-  return detail.verdict === "reject" && (detail.reason === "commercial" || detail.reason === "non-sport-entity");
+  return (
+    detail.verdict === "reject" &&
+    (detail.reason === "commercial" || detail.reason === "non-sport-entity" || detail.reason === "link-farm")
+  );
 }
 
 /** Strip non-sport namesakes before category/entity matching ("Al Ahly Sabbour" ≠ the club). */

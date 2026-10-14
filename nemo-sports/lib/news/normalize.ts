@@ -6,6 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { isGoogleNewsWrapperUrl, resolveGoogleWrapperLocally } from "./google-news-decode";
 
 const ENTITY_MAP: Record<string, string> = {
   "&amp;": "&",
@@ -203,20 +204,23 @@ export function fingerprint(canonicalUrl: string, title: string): string {
 
 /** Google News wraps publisher URLs in news.google.com/articles/… links. */
 export function isGoogleNewsWrapper(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" && u.hostname === "news.google.com" && !u.username && !u.password && !u.port;
-  } catch {
-    return false;
-  }
+  return isGoogleNewsWrapperUrl(url);
 }
 
-/** Keep the public RSS link. Never chase publisher redirects server-side:
- * feeds can point to private addresses and a redirect is not an SSRF boundary.
- * Google wrappers remain visibly attributed discovery links, not verified URLs.
+/**
+ * Resolve the publisher URL behind a Google News wrapper — LOCALLY ONLY.
+ *
+ * The old payload format embeds the publisher URL inside the base64url
+ * protobuf of the article id, and lib/news/google-news-decode.ts extracts it
+ * without any network traffic. Wrappers whose payload does not embed the URL
+ * (the newer format) come back unchanged; the ingestion batch resolver
+ * (lib/news/google-news.ts) takes those through the pinned, rate-limited RPC
+ * exchange. This function NEVER fetches: a caller may await it in a hot loop
+ * with a mocked global fetch and no request escapes.
  */
 export async function resolvePublisherUrl(url: string): Promise<string> {
-  return url;
+  const local = resolveGoogleWrapperLocally(url);
+  return local ?? url;
 }
 
 export interface ValidationResult {
