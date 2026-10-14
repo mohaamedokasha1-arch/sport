@@ -235,10 +235,10 @@ sandbox.
 
 | Command | Result |
 |---|---|
-| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **461 tests, 0 failures** |
+| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **465 tests, 0 failures** |
 | `npm run build` | **PASS** — exit 0 |
 | `npm run typecheck` | **PASS** — exit 0 |
-| `npm run i18n:test` | **PASS** — 20/20 |
+| `npm run i18n:test` | **PASS** — 24/24 |
 | `npm run i18n:parity:test` | **PASS** — 5/5 |
 | `npm run sports-sync:test` | **PASS** — 21/21 |
 | `npm run seo:test` | **PASS** — 9/9 |
@@ -290,7 +290,7 @@ review, and both worth recording:
 
 ### D1. New tests written for this work
 
-- **`scripts/verify-i18n.test.ts` (20 tests):** English canonical equals its own
+- **`scripts/verify-i18n.test.ts` (24 tests):** English canonical equals its own
   URL; Arabic canonicals byte-identical to baseline; reciprocal absolute hreflang
   with `x-default` → Arabic and identical clusters; noindex pages get a canonical
   but no hreflang; `localeAlternates` returns no `languages` for `/admin`,
@@ -464,6 +464,60 @@ Two supporting claims were verified rather than assumed:
 
 **Conclusion: no further Arabic leaks remain in the public rendered UI.** The
 remaining Arabic on `/en/live` and `/en/watch` is data, per E1.
+
+### E2d. A third leak, found by finally rendering the app with data
+
+The sweep in E2c read source, and the runtime scans ran without a database. Both
+are blind to the same thing: a component that only renders when data is present.
+The app has a supported demo-content path (`NEXT_PUBLIC_DEMO_CONTENT=1`), so the
+build was re-run with it and every English page re-scanned with real cards,
+scoreboards and rails on screen.
+
+That immediately exposed a **third leak of the same family**: English match cards
+reading `المجموعة 3` and `الشوط 2 · 14:18`. The `StatusBadge` fix in E2 translated
+the *status label* but not the *clock*. `clockFor()` in `lib/live.ts` bakes Arabic
+into the clock string for every non-football sport — quarter, set, half, period,
+inning, round — and `MatchCard`, `MatchLive` and `ScoreRail` all rendered it
+verbatim. `ScoreRail` sits in the site header, so it was on every page.
+
+The clock could not simply be translated: `LiveState.clock` is part of the
+`/api/live` payload, which is a public API contract that client components poll.
+So the same information is now *also* exposed structurally as
+`LiveState.clockParts`, and `lib/i18n/clock.ts` renders it per locale. The API's
+`clock` field is untouched; `/api/live` gains `clockParts` additively, which is
+backwards compatible.
+
+The stored `Match.clock` field turned out to be free-form — providers and
+operators put kickoff times (`21:00`), minutes (`67'`) and the site's own Arabic
+clock words (`انتهت`, `المجموعة 3`) in it. `partsForStoredClock()` recognises the
+strings this codebase itself emits and passes anything else through verbatim,
+because guessing at an unknown operator string would fabricate meaning.
+
+Verified across all 44 live states: **Arabic byte-identical to the legacy clock
+string (0 diffs), English with no Arabic (0)**. At runtime `/en/matches` renders
+`Set 3`, `Half 2 · 16:53`, `Full time`; `/matches` is unchanged. 4 further tests
+(15 clock shapes × 2 languages, plus the raw passthrough), mutation-verified.
+
+### E2e. Full re-scan with data rendering — final state
+
+| English page | Arabic strings | Classification |
+|---|---|---|
+| `/en`, `/en/results`, `/en/fixtures`, `/en/standings`, `/en/competitions`, `/en/my-day`, `/en/scout`, `/en/sports`, `/en/about`, `/en/contact`, `/en/faq`, `/en/learn`, `/en/privacy`, `/en/terms`, `/en/copyright`, `/en/broadcast-rights`, `/en/account` | **0** | clean |
+| `/en/teams` (112), `/en/players` (43), `/en/search` (9) | team and player names | **data** — `lib/core-data.ts` has no `nameEn` for teams |
+| `/en/news` (56) | article titles, excerpts, authors, category names | **data** — Arabic feed content |
+| `/en/matches` (43), `/en/live` (14), `/en/watch` (17) | team, competition, broadcaster, region names; `match.round` | **data** — provider- and operator-supplied |
+
+Two strings were checked individually because they *looked* like chrome and would
+have been easy to mis-file:
+
+- `الجولة 24` on `/en/matches` is `Match.round`, a provider data field rendered
+  verbatim (`round?: string`), not a constructed UI label.
+- `الأولى` on `/en/news` sits inside an Arabic article excerpt, not in the page
+  furniture.
+
+**All remaining Arabic on English pages is data.** No UI chrome leak remains.
+Note that `/en/standings` went from 31 Arabic strings to **0** as a side effect of
+the clock fix — those were period labels in the standings rows.
 
 ### E3. `/admin` returns 404 to anonymous visitors
 
