@@ -1,7 +1,7 @@
 # NEMO Sports — Bilingual (Arabic + English) Implementation Report
 
 **Repo:** `mohaamedokasha1-arch/sport` · **Branch:** `arena/6b071330-sport`
-**Baseline:** `c715149` (tag `baseline-pre-i18n`) · **Head:** `da9e42f`
+**Baseline:** `c715149` (tag `baseline-pre-i18n`) · **Head:** `4455d83`
 **Scope of change:** 222 files, +10,215 / −2,280 (all under `nemo-sports/`)
 **Report date:** 2026-10-14
 
