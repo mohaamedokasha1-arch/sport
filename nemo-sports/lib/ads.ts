@@ -53,13 +53,26 @@ export const ADSTERRA_BANNER_INVOKE_URL = `${ADSTERRA_BANNER.host}/${ADSTERRA_BA
 export const ADSTERRA_SOCIAL_BAR_URL =
   "https://pl31820082.profitableratecpmnetwork.com/16/cb/ec/16cbeca9d360e0f7e35b94c803572b23.js";
 
-/** Adsterra Popunder (fires from a user interaction, loaded once per page view). */
+/**
+ * Adsterra Popunder — Anti-Adblock code (fires from a user interaction,
+ * loaded once per page view). Replaces the former
+ * `pl31820082.profitableratecpmnetwork.com` tag: the script path/key is
+ * unchanged, only the Anti-Adblock host serves it now. Injected as
+ * `<script src="https://furydonkeypharmacy.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js"></script>`
+ * by components/ads/AdScripts.tsx via injectAdScriptOnce (never pasted raw
+ * into a page/layout, which would double-load it).
+ */
 export const ADSTERRA_POPUNDER_URL =
-  "https://pl31820082.profitableratecpmnetwork.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js";
+  "https://furydonkeypharmacy.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js";
 
-/** Adsterra Smartlink — the monetised landing page used for watch intents. */
+/**
+ * Adsterra Smartlink — the monetised landing page used for watch intents.
+ * Same path/key as before, now on the Anti-Adblock host: every watch CTA
+ * (components/ads/useSmartlink.ts) opens this URL, and no other file may
+ * hardcode it.
+ */
 export const ADSTERRA_SMARTLINK_URL =
-  "https://www.profitableratecpmnetwork.com/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc";
+  "https://furydonkeypharmacy.com/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc";
 
 /**
  * Every host the tags above fetch from, in the syntax a CSP source list wants.
@@ -71,8 +84,14 @@ export const ADSTERRA_SMARTLINK_URL =
 export const AD_SCRIPT_HOSTS = [
   "https://highrevenueformat.com",
   "https://*.highrevenueformat.com",
+  // Still needed: the Social Bar above is served from this host.
   "https://profitableratecpmnetwork.com",
   "https://*.profitableratecpmnetwork.com",
+  // Anti-Adblock host: serves the Popunder script (and is the Smartlink
+  // landing host). Without this entry the CSP would block the Popunder tag
+  // on every public page, so it must move together with the two URLs above.
+  "https://furydonkeypharmacy.com",
+  "https://*.furydonkeypharmacy.com",
 ] as const;
 
 /* ── switches (NEXT_PUBLIC_*, inlined at build time — rebuild after editing) ─ */

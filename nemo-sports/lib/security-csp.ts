@@ -9,9 +9,9 @@
  * caching instead.
  *
  * Ads (lib/ads.ts) need three things from this file, and nothing more:
- *   · the two Adsterra hosts in `script-src` (the Social Bar, Popunder and
- *     banner `invoke.js` are all external scripts) and in `connect-src` (their
- *     beacons);
+ *   · the Adsterra hosts in `script-src` (the Social Bar, the Anti-Adblock
+ *     Popunder on furydonkeypharmacy.com and the banner `invoke.js` are all
+ *     external scripts) and in `connect-src` (their beacons);
  *   · `frame-src` already lists `https:`, which covers the ad creatives the
  *     banner frame nests;
  *   · `AD_FRAME_PATH` must be embeddable BY US, so that one route answers with

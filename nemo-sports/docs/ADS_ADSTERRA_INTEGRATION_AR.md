@@ -5,6 +5,15 @@
 هذا المستند يشرح *أين* وُزّع كل كود أرسلته الشبكة، و*لماذا* وُزّع بهذه الطريقة، وكيف تتحقق من أنه
 يعمل فعلًا في الإنتاج. لا يوجد في المشروع أي ملف آخر يحتوي مفتاحًا أو رابطًا من روابط الشبكة.
 
+> **تحديث Anti-Adblock (2026-10-14):** استُبدل سكربت الـ Popunder القديم ورابط الـ
+> Smartlink القديم (وكانا على نطاق `profitableratecpmnetwork.com`) بالكامل بنسختي Anti-Adblock على
+> `furydonkeypharmacy.com` (نفس المسار والمفتاح، مضيف جديد فقط)، وأُضيف المضيف الجديد إلى
+> `AD_SCRIPT_HOSTS` حتى لا تحجبه الـ CSP. نطاق `profitableratecpmnetwork.com` باقٍ في المشروع
+> لغرض واحد فقط: البار الاجتماعي (Social Bar) الذي لم يتغيّر كوده. وسكربت الـ Popunder الجديد
+> يُحقن برمجيًا مرة واحدة عبر `components/ads/AdScripts.tsx` (يُنتج وسم
+> `<script src="https://furydonkeypharmacy.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js"></script>`
+> في `<head>`) — لا يُلصق خامًا في أي صفحة أو قالب حتى لا يُحمَّل مرتين.
+
 ---
 
 ## 1) ملخص التوزيع
@@ -13,8 +22,8 @@
 | --- | --- | --- | --- |
 | Banner 300×250 (iframe) | مفتاح `d7e3e208e423e33ed9dd4297709d102a` | صفحة تفاصيل المباراة `/matches/<slug>` **فوق** قسم «البث المباشر» و**تحته** — في فرعي الصفحة: فرع بيانات المزوّد (`app/matches/[slug]/page.tsx`) وفرع بيانات المعاينة (`components/match/MatchLive.tsx`) | `components/ads/AdsterraBanner.tsx` + `app/ad-frame/route.ts` |
 | Social Bar | `…/16/cb/ec/16cbeca9d360e0f7e35b94c803572b23.js` | كل الصفحات العامة، من القالب الرئيسي | `components/ads/AdScripts.tsx` (مركّب في `app/layout.tsx`) |
-| Popunder | `…/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js` | نفس الموضع، ويُحمَّل بعد اكتمال الصفحة + خمول المتصفح | `components/ads/AdScripts.tsx` |
-| Smartlink | `…/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc` | أزرار المشاهدة: «فتح في نافذة جديدة ↗» في مشغّل البث، وزر «مشاهدة على {الناقل} ↗» | `components/ads/useSmartlink.ts` |
+| Popunder (Anti-Adblock) | `https://furydonkeypharmacy.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js` | نفس الموضع، ويُحمَّل بعد اكتمال الصفحة + خمول المتصفح | `components/ads/AdScripts.tsx` |
+| Smartlink | `https://furydonkeypharmacy.com/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc` | أزرار المشاهدة: «فتح في نافذة جديدة ↗» في مشغّل البث، وزر «مشاهدة على {الناقل} ↗» | `components/ads/useSmartlink.ts` |
 
 الملفات المعدَّلة/المضافة: `lib/ads.ts` (جديد)، `app/ad-frame/route.ts` (جديد)،
 `components/ads/*` (جديد)، `lib/security-csp.ts`، `next.config.ts`، `app/layout.tsx`،
@@ -61,9 +70,11 @@
 
 `lib/security-csp.ts` هو المصدر الوحيد للسياسة، ويستخدمه `next.config.ts` و`middleware.ts`:
 
-- `script-src` و`connect-src` يضيفان نطاقَي الشبكة فقط:
+- `script-src` و`connect-src` يضيفان نطاقات الشبكة فقط:
   `https://highrevenueformat.com` و`https://*.highrevenueformat.com` و
-  `https://profitableratecpmnetwork.com` و`https://*.profitableratecpmnetwork.com`.
+  `https://profitableratecpmnetwork.com` و`https://*.profitableratecpmnetwork.com` (ما زال
+  مطلوبًا للبار الاجتماعي) و`https://furydonkeypharmacy.com` و`https://*.furydonkeypharmacy.com`
+  (مضيف Anti-Adblock: سكربت الـ Popunder ووجهة الـ Smartlink — بدونه تحجب الـ CSP السكربت الجديد).
 - `frame-src 'self' https:` يسمح بإطار البانر وبإطارات مشغّلات البث القائمة على حالها.
 - **صفحات الزوار تبقى `frame-ancestors 'none'` + `X-Frame-Options: DENY`** كما كانت.
 - المسار الوحيد المسموح بتضمينه من الموقع نفسه هو `/ad-frame`، ويستبدل فيه الزوجان بـ
