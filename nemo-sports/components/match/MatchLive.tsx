@@ -12,7 +12,7 @@ import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, homeTeam, number, relative } from "@/lib/format";
 import { useT, useLocale } from "@/lib/i18n/context";
-import { formatClock, formatDate } from "@/lib/i18n/dates";
+import { formatDate, formatTime } from "@/lib/i18n/dates";
 import type { Match } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
 
@@ -85,7 +85,7 @@ export default function MatchLive({
               ) : (
                 <>
                   <span className="num text-4xl font-extrabold leading-none text-gold-400" dir="ltr">
-                    {formatClock(locale, match.kickoff)}
+                    {formatTime(locale, match.kickoff)}
                   </span>
                   <span className="mt-1 text-[11px] text-white/60">{formatDate(locale, match.kickoff)}</span>
                 </>
@@ -291,7 +291,7 @@ function Summary({ match, state }: { match: Match; state: LiveState }) {
     { k: tr("ml.factVenue"), v: match.venue ?? "—" },
     { k: tr("ml.factReferee"), v: match.referee ?? "—" },
     { k: tr("ml.factAttendance"), v: match.attendance ? number(match.attendance) : "—" },
-    { k: tr("ml.factKickoff"), v: `${formatDate(locale, match.kickoff)} · ${formatClock(locale, match.kickoff)}` },
+    { k: tr("ml.factKickoff"), v: `${formatDate(locale, match.kickoff)} · ${formatTime(locale, match.kickoff)}` },
   ];
 
   return (

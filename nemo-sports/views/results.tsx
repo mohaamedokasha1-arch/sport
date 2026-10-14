@@ -152,4 +152,4 @@ function FilterLinks({ locale, active }: { locale: Locale; active: DayFilter }) 
   );
 }
 
-export default async function ResultsPage(props: ViewProps & { locale: Locale }) { return <><ResultsPageBody {...props} /><SyncedFixtureHighlights state="completed" /></>; }
+export default async function ResultsPage(props: ViewProps & { locale: Locale }) { return <><ResultsPageBody {...props} /><SyncedFixtureHighlights state="completed" locale={props.locale} /></>; }

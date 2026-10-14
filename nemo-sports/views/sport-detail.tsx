@@ -27,5 +27,5 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
 export default async function Page({ locale, params }: ViewProps & { locale: Locale }) {
   const r = await entity(params);
   if (!r) notFound();
-  return <SyncedEntityDetail record={r} />;
+  return <SyncedEntityDetail record={r} locale={locale} />;
 }

@@ -123,4 +123,4 @@ async function FixturesPageBody({ locale }: { locale: Locale }) {
   );
 }
 
-export default async function FixturesPage({ locale }: { locale: Locale }) { return <><FixturesPageBody locale={locale} /><SyncedFixtureHighlights state="upcoming" /></>; }
+export default async function FixturesPage({ locale }: { locale: Locale }) { return <><FixturesPageBody locale={locale} /><SyncedFixtureHighlights state="upcoming" locale={locale} /></>; }

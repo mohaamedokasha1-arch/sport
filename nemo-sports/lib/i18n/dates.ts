@@ -13,7 +13,7 @@
 
 import { t } from "./translate";
 import { LOCALE_INTL, type Locale } from "./locales";
-import { siteDay, siteParts } from "@/lib/tz";
+import { SITE_TZ, siteDay, siteParts } from "@/lib/tz";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -57,13 +57,49 @@ export function formatShortDate(locale: Locale, iso: string): string {
   return `${pad(p.date)}/${pad(p.month)}`;
 }
 
-/** Wall-clock string in the site timezone, spelled for the locale. */
+/**
+ * Wall-clock string in the site timezone, spelled for the locale.
+ *
+ * The 12/24-hour choice is deliberately left to each locale's own convention
+ * (no `hour12` override): the published Arabic surfaces rendered
+ * «٠٩:٠٠ م» through `toLocaleTimeString("ar-EG", …)` and must keep doing so,
+ * while `en-GB` defaults to the 24-hour «21:00».
+ */
 export function formatClock(locale: Locale, iso: string): string {
   return new Date(iso).toLocaleTimeString(LOCALE_INTL[locale], {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
-    timeZone: "Africa/Cairo",
+    timeZone: SITE_TZ,
+  });
+}
+
+/**
+ * Full date + clock, e.g. «الأربعاء، ١٤ أكتوبر في ٠٩:٠٠ م» / «Wed 14 October at 21:00».
+ * Replaces the page-local `arabicDateTime` helper; `null` for an unparseable instant.
+ */
+export function formatDateTime(locale: Locale, iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString(LOCALE_INTL[locale], {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: SITE_TZ,
+  });
+}
+
+/**
+ * Compact date + clock, e.g. «١٤‏/١٠‏/٢٠٢٦، ٩:٠٠ م» / «14/10/2026, 21:00».
+ * The 24-hour form is forced for English only; Arabic keeps its own default.
+ */
+export function formatDateTimeShort(locale: Locale, iso: string): string {
+  return new Date(iso).toLocaleString(LOCALE_INTL[locale], {
+    dateStyle: "short",
+    timeStyle: "short",
+    ...(locale === "ar" ? {} : { hour12: false }),
+    timeZone: SITE_TZ,
   });
 }
 

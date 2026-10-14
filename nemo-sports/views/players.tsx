@@ -235,7 +235,7 @@ export default async function PlayersPage({ locale }: { locale: Locale }) {
     <>
       <AdminPlayersSection />
       <PlayersPageBody locale={locale} />
-      <SyncedEntityDirectory kind="player" />
+      <SyncedEntityDirectory kind="player" locale={locale} />
     </>
   );
 }

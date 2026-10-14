@@ -29,7 +29,7 @@ import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { localeAlternates } from "@/lib/i18n/metadata";
 import { sportName } from "@/lib/i18n/names";
-import { formatClock } from "@/lib/i18n/dates";
+import { formatDateTimeShort } from "@/lib/i18n/dates";
 
 export type ViewProps = Record<string, never>;
 
@@ -261,7 +261,7 @@ async function HomePageBody({ locale }: { locale: Locale }) {
           </section>
           <section>
             <SectionHead eyebrow={tr("home.previewEyebrow")} title={tr("home.previewUpcoming")} href="/fixtures" />
-            {demoUpcoming.length ? <div className="card divide-y divide-line overflow-hidden">{demoUpcoming.map((match) => <Link key={match.id} href={`/matches/${match.slug}`} className="flex min-h-12 items-center justify-between gap-3 px-4 py-3 text-[13px] font-bold transition hover:bg-navy-850/[0.03] focus-ring dark:hover:bg-white/[0.04]"><span className="truncate">{match.home} × {match.away}</span><span className="num shrink-0 text-muted">{formatClock(locale, match.kickoff)}</span></Link>)}</div> : <p className="card px-4 py-6 text-center text-[13px] text-muted">{tr("home.previewNoFixtures")}</p>}
+            {demoUpcoming.length ? <div className="card divide-y divide-line overflow-hidden">{demoUpcoming.map((match) => <Link key={match.id} href={`/matches/${match.slug}`} className="flex min-h-12 items-center justify-between gap-3 px-4 py-3 text-[13px] font-bold transition hover:bg-navy-850/[0.03] focus-ring dark:hover:bg-white/[0.04]"><span className="truncate">{match.home} × {match.away}</span><span className="num shrink-0 text-muted">{formatDateTimeShort(locale, match.kickoff)}</span></Link>)}</div> : <p className="card px-4 py-6 text-center text-[13px] text-muted">{tr("home.previewNoFixtures")}</p>}
           </section>
           <section>
             <SectionHead eyebrow={tr("home.previewEyebrow")} title={tr("home.previewResults")} href="/results" />
@@ -279,4 +279,4 @@ async function HomePageBody({ locale }: { locale: Locale }) {
   );
 }
 
-export default async function HomePage({ locale }: { locale: Locale }) { return <><HomePageBody locale={locale} /><SyncedFixtureHighlights /></>; }
+export default async function HomePage({ locale }: { locale: Locale }) { return <><HomePageBody locale={locale} /><SyncedFixtureHighlights locale={locale} /></>; }

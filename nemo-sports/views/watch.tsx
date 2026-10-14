@@ -10,7 +10,7 @@ import { listBroadcasters } from "@/lib/broadcasts";
 import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
 import { broadcastBadgeKey, broadcastNoticeKey } from "@/lib/i18n/broadcast";
 import { t } from "@/lib/i18n/translate";
-import { formatDate, formatClock } from "@/lib/i18n/dates";
+import { formatDate, formatTime } from "@/lib/i18n/dates";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -214,7 +214,7 @@ function StreamSchedule({
               </span>
 
               <span className="flex items-center justify-end gap-2">
-                {r.kickoff ? <span className="num text-[12px] font-extrabold">{formatClock(locale, r.kickoff)}</span> : null}
+                {r.kickoff ? <span className="num text-[12px] font-extrabold">{formatTime(locale, r.kickoff)}</span> : null}
                 <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`} title={r.note}>
                   {r.badge}
                 </span>
@@ -377,7 +377,7 @@ function Schedule({
 
               <span className="flex items-center justify-end gap-2">
                 <span className="text-[11px] font-bold text-muted">{m.broadcast?.provider}</span>
-                <span className="num text-[12px] font-extrabold">{formatClock(locale, m.kickoff)}</span>
+                <span className="num text-[12px] font-extrabold">{formatTime(locale, m.kickoff)}</span>
                 <span className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold ${badge}`}>
                   {tone === "live" ? tr("watch.toneLive") : tone === "soon" ? tr("watch.toneSoonShort") : tr("watch.toneEnded")}
                 </span>

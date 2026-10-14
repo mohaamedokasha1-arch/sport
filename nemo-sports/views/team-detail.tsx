@@ -29,7 +29,7 @@ import { coveredFootballCompetitionIds, findTeamRow, teamHasFixtureInWindow } fr
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
-import { formatClock, formatDate } from "@/lib/i18n/dates";
+import { formatDate, formatDateTime } from "@/lib/i18n/dates";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -459,11 +459,8 @@ const STATUS_KEYS: Record<string, string> = {
 // Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 const FINAL_STATUSES = new Set(["finished", "awarded", "walkover"]);
 
-const fixtureDateTime = (locale: Locale, iso: string) => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${formatDate(locale, iso)} · ${formatClock(locale, iso)}`;
-};
+/** Mirrors the page-local `arabicDateTime` this replaced; null for an unparseable instant. */
+const fixtureDateTime = (locale: Locale, iso: string) => formatDateTime(locale, iso);
 
 function ProviderTeamFixtureList({ locale, fixtures, showScore = false }: { locale: Locale; fixtures: NormalizedFixture[]; showScore?: boolean }) {
   return (

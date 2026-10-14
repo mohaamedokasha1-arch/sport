@@ -220,7 +220,7 @@ export default async function TeamsPage({ locale }: { locale: Locale }) {
     <>
       <AdminTeamsSection />
       <TeamsPageBody locale={locale} />
-      <SyncedEntityDirectory kind="team" />
+      <SyncedEntityDirectory kind="team" locale={locale} />
     </>
   );
 }

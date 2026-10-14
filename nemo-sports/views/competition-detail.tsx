@@ -487,6 +487,6 @@ export default async function CompetitionPage({ locale, params }: ViewProps & { 
   const adminComp = await getAdminCompetitionBySlug(slug);
   if (adminComp?.isPublished) return <AdminCompetitionDetail competition={adminComp} />;
   const synced = await syncedBySlug("competition", slug);
-  if (synced) return <SyncedCompetitionDetail record={synced} />;
+  if (synced) return <SyncedCompetitionDetail record={synced} locale={locale} />;
   return <CompetitionPageBody locale={locale} params={params} />;
 }
