@@ -11,6 +11,7 @@ import AdsterraBanner from "@/components/ads/AdsterraBanner";
 import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, homeTeam, number, relative } from "@/lib/format";
+import { hasMessage } from "@/lib/i18n/translate";
 import { useT, useLocale } from "@/lib/i18n/context";
 import { countryName } from "@/lib/i18n/names";
 import { formatDate, formatTime } from "@/lib/i18n/dates";
@@ -368,6 +369,11 @@ function Events({ match, state }: { match: Match; state: LiveState }) {
     <ol className="card divide-y divide-line">
       {events.map((e) => {
         const meta = EVENT_LABEL[e.type];
+        // glyph/tone stay in EVENT_LABEL (presentation); only the words are
+        // translated. hasMessage keeps the same "unknown type shows the raw
+        // token" behaviour the direct map lookup had.
+        const eventKey = `event.${e.type}`;
+        const eventLabel = hasMessage(locale, eventKey) ? tr(eventKey) : e.type;
         const isHome = e.side === "home";
         const team = isHome ? home : away;
         return (
@@ -389,7 +395,7 @@ function Events({ match, state }: { match: Match; state: LiveState }) {
                   {e.player}
                 </span>
                 <span className="mt-0.5 block text-[11px] text-muted">
-                  {meta.label}
+                  {eventLabel}
                   {e.detail ? ` · ${e.detail}` : ""}
                   {e.side !== "neutral" ? ` · ${team.short}` : ""}
                 </span>

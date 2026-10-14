@@ -26,6 +26,12 @@ import type { Metadata } from "next";
 import { EN_ROUTE_ROOTS, equivalentPathFor } from "@/lib/i18n/paths";
 import { readFileSync } from "node:fs";
 import { localeAlternates } from "@/lib/i18n/metadata";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { LocaleProvider } from "@/lib/i18n/context";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { hasMessage, t } from "@/lib/i18n/translate";
+import { STATUS_AR, EVENT_LABEL } from "@/lib/format";
 import { EN_PREFIX } from "@/lib/i18n/locales";
 import { SITE_URL } from "@/lib/site";
 import sitemap from "@/app/sitemap";
@@ -202,4 +208,101 @@ test("the switcher renders real anchors in server HTML, not a null fallback", ()
   // English regardless of a previous choice, and crawlers must see both trees.
   const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
   assert.ok(!middleware.includes("LOCALE_COOKIE"), "middleware must not redirect on the locale cookie");
+});
+
+/* ── status pill + match-event labels ───────────────────────────────────────
+ * StatusBadge and the match event timeline rendered STATUS_AR / EVENT_LABEL
+ * from lib/format.ts directly, so English match cards showed Arabic status
+ * pills. The Arabic-leak scan of /en pages did not catch this: with no
+ * DATABASE_URL in the test environment no match card renders at all, so the
+ * page looked clean. These tests render the real components instead.
+ */
+
+function renderBadge(status: string, locale: "ar" | "en"): string {
+  return renderToStaticMarkup(
+    React.createElement(
+      // LocaleProvider derives dir from the locale itself, so only the locale
+      // is passed. The cast keeps createElement happy about `children`, which
+      // arrives as the trailing argument rather than in the props object.
+      LocaleProvider as React.ComponentType<{ locale: "ar" | "en" }>,
+      { locale },
+      React.createElement(StatusBadge, { status }),
+    ),
+  );
+}
+
+/** The text the pill actually shows — the innermost span. */
+function badgeLabel(html: string): string {
+  return html.match(/<span>([^<]*)<\/span><\/span>/)?.[1] ?? "";
+}
+
+test("StatusBadge renders the Arabic label byte-identical to STATUS_AR", () => {
+  for (const status of Object.keys(STATUS_AR)) {
+    const html = renderBadge(status, "ar");
+    assert.equal(badgeLabel(html), STATUS_AR[status], `ar badge for ${status}`);
+    assert.match(html, /dir="rtl"/, `ar badge for ${status} must stay rtl`);
+  }
+});
+
+test("StatusBadge renders English for every status, in ltr, with no Arabic left", () => {
+  for (const status of Object.keys(STATUS_AR)) {
+    const html = renderBadge(status, "en");
+    const shown = badgeLabel(html);
+    assert.ok(shown.length > 0, `en badge for ${status} rendered nothing`);
+    assert.equal(
+      /[\u0600-\u06FF]/.test(shown),
+      false,
+      `en badge for ${status} still shows Arabic: ${shown}`,
+    );
+    assert.match(html, /dir="ltr"/, `en badge for ${status} must be ltr`);
+  }
+});
+
+test("StatusBadge falls back to the raw provider token for an unlabelled status", () => {
+  // t() degrades to the key, which would leak "status.NOTAKICK" onto the page.
+  // The old code did STATUS_AR[status] ?? status; this must behave the same.
+  for (const status of ["NOTAKICK", "SOMETHING_NEW"]) {
+    assert.equal(hasMessage("en", `status.${status}`), false);
+    assert.equal(badgeLabel(renderBadge(status, "en")), status);
+    assert.equal(badgeLabel(renderBadge(status, "ar")), status);
+  }
+});
+
+test("every match-event type has an English label and an unchanged Arabic one", () => {
+  for (const type of Object.keys(EVENT_LABEL)) {
+    const expected = EVENT_LABEL[type as keyof typeof EVENT_LABEL]!.label;
+    assert.equal(t("ar", `event.${type}`), expected, `ar label for ${type}`);
+    const en = t("en", `event.${type}`);
+    assert.equal(/[\u0600-\u06FF]/.test(en), false, `en label for ${type} has Arabic: ${en}`);
+    assert.notEqual(en, `event.${type}`, `en label for ${type} fell through to the key`);
+  }
+});
+
+test("MatchLive no longer renders EVENT_LABEL.label directly", () => {
+  const src = readFileSync("components/match/MatchLive.tsx", "utf8");
+  assert.equal(
+    /\{meta\.label\}/.test(src),
+    false,
+    "MatchLive must render the translated event label, not EVENT_LABEL.label",
+  );
+  assert.match(src, /hasMessage\(locale, eventKey\)/);
+});
+
+test("StatusBadge no longer reads STATUS_AR from lib/format", () => {
+  const src = readFileSync("components/ui/StatusBadge.tsx", "utf8");
+  // Strip comments first: the doc comment explains what used to be wrong and
+  // legitimately names STATUS_AR. What must not survive is the dependency.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  assert.equal(
+    /from "@\/lib\/format"/.test(code),
+    false,
+    "StatusBadge must read status labels from the message catalogue, not lib/format",
+  );
+  assert.equal(
+    /STATUS_AR/.test(code),
+    false,
+    "StatusBadge must not reference STATUS_AR in code",
+  );
+  assert.match(code, /hasMessage\(locale, key\)/, "unknown statuses must fall back safely");
+  assert.match(code, /dir=\{dir\}/, "StatusBadge must not hardcode dir=\"rtl\"");
 });

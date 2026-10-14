@@ -118,7 +118,7 @@ loading/error/toast states, contact/about/FAQ/privacy/terms/copyright/broadcast-
 forms + validation + accessibility labels, the 404 and error boundaries.
 
 `components/public/AdminPublished.tsx` (admin-published blocks) is localised, as
-are ad slot labels.
+are ad slot labels, the match status pill and the match-event timeline.
 
 **The admin panel stays Arabic** (925 lines), by design — it is operator-facing.
 
@@ -235,10 +235,10 @@ sandbox.
 
 | Command | Result |
 |---|---|
-| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **453 tests, 0 failures** |
+| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **457 tests, 0 failures** |
 | `npm run build` | **PASS** — exit 0 |
 | `npm run typecheck` | **PASS** — exit 0 |
-| `npm run i18n:test` | **PASS** — 10/10 |
+| `npm run i18n:test` | **PASS** — 16/16 |
 | `npm run i18n:parity:test` | **PASS** — 5/5 |
 | `npm run sports-sync:test` | **PASS** — 21/21 |
 | `npm run seo:test` | **PASS** — 9/9 |
@@ -248,7 +248,7 @@ sandbox.
 
 ### D1. New tests written for this work
 
-- **`scripts/verify-i18n.test.ts` (10 tests):** English canonical equals its own
+- **`scripts/verify-i18n.test.ts` (16 tests):** English canonical equals its own
   URL; Arabic canonicals byte-identical to baseline; reciprocal absolute hreflang
   with `x-default` → Arabic and identical clusters; noindex pages get a canonical
   but no hreflang; `localeAlternates` returns no `languages` for `/admin`,
@@ -257,6 +257,8 @@ sandbox.
   matching metadata and no duplicates; **query strings survive a switch both ways**;
   **English falls back to `/en`** for `/admin` and `/api/search`; **the Suspense
   fallback renders real anchors** and **middleware must not read `LOCALE_COOKIE`**.
+  The last 6 of these render the real `StatusBadge` component and assert the
+  status pill and match-event labels in both languages (see E2).
 - **`scripts/verify-i18n-parity.test.ts` (5 tests):** calls the *real* exported
   `clockOf`, matched against baseline on **78/78** status × kickoff × minute
   combinations; every mapped status has a dictionary entry in both languages.
@@ -284,6 +286,12 @@ navigation, language switching, loading/error/empty states, contact and legal pa
   environment, so visual RTL/LTR layout, mobile viewport behaviour, long translated
   strings wrapping, focus order and contrast were verified by reading code and by
   curling server HTML — **not** by looking at a rendered page.
+- **Caveat on the Arabic-leak scan.** It curls rendered pages, and it runs with no
+  database, so any component that only renders when data is present was never
+  exercised. It missed the status-pill and event-label leak described in E2.
+  Component-level tests now cover that gap, but the same blind spot applies to any
+  other data-gated component: **re-run the leak scan against a preview environment
+  with real data before deploying.**
 - **NOT TESTED against a live database.** `DATABASE_URL` is unset in this sandbox,
   so data-gated pages render their empty states. Entity detail pages
   (`/teams/[slug]`, `/matches/[slug]`) return 404 here for that reason, and the
@@ -314,12 +322,45 @@ of entry. **Reported, not fabricated.**
 Every other `/en` page is clean: **21 of 23 English pages contain no Arabic at
 all** apart from the `العربية` switcher label, which is correct by design.
 
-### E2. Two internal label maps are not localised
+### E2. Two internal label maps — found, fixed, and a correction to an earlier claim
 
-`lib/format.ts` still holds `STATUS_AR` (uppercase provider keys) and
-`EVENT_LABEL` in Arabic only. These are not rendered on the public English pages
-tested — `views/match-detail.tsx` uses its own localised map — but they remain an
-open gap for any future consumer.
+`lib/format.ts` holds `STATUS_AR` (7 uppercase provider status keys) and
+`EVENT_LABEL` (12 match-event types) in Arabic only. **An earlier draft of this
+report claimed these "are not rendered on the public English pages tested." That
+claim was false.** `components/ui/StatusBadge.tsx` imported `STATUS_AR` and
+`components/match/MatchLive.tsx` rendered `EVENT_LABEL.label` — both public
+components reached from match cards and the match detail timeline, so English
+match pages would have shown Arabic status pills and Arabic event labels.
+
+The leak survived the Arabic-leak scan of `/en` pages because **that scan runs
+with no `DATABASE_URL`, so no match card renders at all** and the pages looked
+clean. A content scan cannot find a bug in a component that never rendered.
+
+Fixed:
+
+- `StatusBadge` now reads the `status.*` message keys and its `dir` follows the
+  document (`dir="rtl"` was hardcoded, which renders an English pill
+  right-to-left).
+- `MatchLive` renders the `event.*` keys; `EVENT_LABEL` keeps only the glyph and
+  tone, which are presentation, not copy.
+- `lib/i18n/translate.ts` gained `hasMessage(locale, key)`, so an unlabelled
+  provider status still falls through to the raw token — preserving the previous
+  `STATUS_AR[status] ?? status` contract instead of leaking `status.NOTAKICK`.
+
+The dictionary already held both key families with the **exact** Arabic strings
+the code maps used, so **Arabic output is unchanged** — verified byte-for-byte
+across all 7 statuses and all 12 event types. English now renders `Live`,
+`Half-time`, `Not started`, `Full time`, `Postponed`, `Cancelled`, `Suspended`,
+and `Goal` / `Own goal` / `Penalty` / `Penalty missed` / `Yellow card` /
+`Red card` / `Red card (second yellow)` / `Substitution (on)` /
+`Substitution (off)` / `Injury` / `VAR review` / `End of period`.
+
+Locked in by 6 tests in `scripts/verify-i18n.test.ts` (now 16), which render the
+real components rather than describing them, and were mutation-verified — the
+original bug was reintroduced and 3 of the 6 confirmed to go red.
+
+`lib/format.ts` itself is unmodified; it stays on the byte-for-byte baseline
+guard list, and its maps remain in use by the Arabic admin panel.
 
 ### E3. `/admin` returns 404 to anonymous visitors
 

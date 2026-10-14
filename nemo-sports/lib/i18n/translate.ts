@@ -44,6 +44,20 @@ export function t(locale: Locale, key: MessageKey | string, vars?: TranslateVars
   return interpolate(value, vars);
 }
 
+/**
+ * Does the catalogue actually hold `key`?
+ *
+ * Needed by callers that receive values from a provider and must fall back to
+ * the raw value when it is not a known one — e.g. a match status the feed sends
+ * that the site has never labelled. `t()` deliberately degrades to the key,
+ * which would leak "status.NOTAKICK" onto the page; these callers want the
+ * provider's own token instead.
+ */
+export function hasMessage(locale: Locale, key: MessageKey | string): boolean {
+  const dictionary = DICTIONARIES[locale] ?? DICTIONARIES[DEFAULT_LOCALE]!;
+  return key in dictionary || key in DICTIONARIES[DEFAULT_LOCALE]!;
+}
+
 export type Translator = (key: MessageKey | string, vars?: TranslateVars) => string;
 
 /** Bound translator — `const tr = translator(locale); tr("nav.home")`. */
