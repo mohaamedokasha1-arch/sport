@@ -1127,6 +1127,14 @@ const ar = {
   "nd.readAlso": "اقرأ أيضًا",
 
   /* ── search ─────────────────────────────────────────────── */
+  "sr.type.team": "فريق",
+  "sr.type.player": "لاعب",
+  "sr.type.competition": "بطولة",
+  "sr.type.match": "مباراة",
+  "sr.type.news": "خبر",
+  "sr.resultCount": "من أصل",
+  "sr.resultsFor": "نتيجة لـ «{query}»",
+  "sr.demoNotice": "قد تشمل نتائج البحث في هذه البيئة بيانات معاينة للتطوير فقط.",
   "sr.metaTitle": "البحث",
   "sr.metaDescription": "ابحث في الفرق واللاعبين والبطولات والمباريات والأخبار باللغة العربية أو الإنجليزية.",
   "sr.eyebrow": "البحث الموحد",

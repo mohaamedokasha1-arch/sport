@@ -1129,6 +1129,14 @@ const en: Record<keyof typeof ar, string> = {
   "nd.readAlso": "Read next",
 
   /* ── search ─────────────────────────────────────────────── */
+  "sr.type.team": "Team",
+  "sr.type.player": "Player",
+  "sr.type.competition": "Competition",
+  "sr.type.match": "Match",
+  "sr.type.news": "News",
+  "sr.resultCount": "of",
+  "sr.resultsFor": "results for “{query}”",
+  "sr.demoNotice": "Search results in this environment may include development preview data only.",
   "sr.metaTitle": "Search",
   "sr.metaDescription": "Search teams, players, competitions, matches and news in Arabic or English.",
   "sr.eyebrow": "Unified search",
