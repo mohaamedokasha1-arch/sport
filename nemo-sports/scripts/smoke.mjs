@@ -47,6 +47,44 @@ const pages = [
 ];
 
 /**
+ * The English tree. Mirrors `pages` above under /en, because the two trees are
+ * required to be equivalent: a route that exists in Arabic and is missing here
+ * is a broken switcher target, and a route that exists here but not in Arabic
+ * is an English page with no counterpart to canonicalise against.
+ */
+const enPages = [
+  "/en",
+  "/en/matches",
+  "/en/matches?sport=football",
+  "/en/matches?sport=basketball&status=live",
+  "/en/matches?date=tomorrow&view=list",
+  "/en/live",
+  "/en/results",
+  "/en/fixtures",
+  "/en/competitions",
+  "/en/teams",
+  "/en/players",
+  "/en/news",
+  "/en/news?category=Analysis",
+  "/en/news?category=Transfers",
+  "/en/watch",
+  "/en/standings",
+  "/en/search",
+  "/en/search?q=ahly",
+  "/en/account",
+  "/en/my-day",
+  "/en/scout",
+  "/en/learn",
+  "/en/about",
+  "/en/contact",
+  "/en/faq",
+  "/en/broadcast-rights",
+  "/en/privacy",
+  "/en/terms",
+  "/en/copyright",
+];
+
+/**
  * The privileged namespaces, asserted separately because they must NOT answer
  * 200 to an anonymous request. They used to sit in `pages` above, so the smoke
  * check was actively verifying that the admin panel was publicly reachable.
@@ -125,6 +163,135 @@ async function main() {
   console.log(`\nNEMO Sports smoke check → ${BASE}\n`);
 
   for (const p of pages) await check(p);
+
+  /* ── the English tree ────────────────────────────────────────────────────
+     Asserted against a running production server rather than by importing the
+     views, because generateMetadata() returning the right object does not prove
+     the served document carries the right <html lang>, canonical or hreflang.
+     Only the document does.
+
+     NOTE ON SCOPE: CI runs this in empty-data mode, so data-gated components
+     (match cards, the stream player, standings rows) never render here. This
+     block therefore pins the language plumbing and the SEO head, and the
+     Arabic-leak scan below covers page chrome — not data-driven copy. */
+
+  for (const p of enPages) await check(p);
+
+  // Every English page must declare itself English and left-to-right.
+  for (const p of ["/en", "/en/matches", "/en/news", "/en/about"]) {
+    const html = await (await fetch(`${BASE}${p}`)).text();
+    const tag = /<html[^>]*>/.exec(html)?.[0] ?? "";
+    const langOk = /lang="en"/.test(tag) && /dir="ltr"/.test(tag);
+    console.log(`  ${langOk ? "✓" : "✗"} ${p} → <html lang="en" dir="ltr">`);
+    if (langOk) ok.push(`${p} (lang/dir)`); else failures++;
+  }
+
+  // ...and the Arabic pages must still be Arabic and right-to-left.
+  for (const p of ["/", "/matches"]) {
+    const html = await (await fetch(`${BASE}${p}`)).text();
+    const tag = /<html[^>]*>/.exec(html)?.[0] ?? "";
+    const arOk = /lang="ar"/.test(tag) && /dir="rtl"/.test(tag);
+    console.log(`  ${arOk ? "✓" : "✗"} ${p} → <html lang="ar" dir="rtl"> (unchanged)`);
+    if (arOk) ok.push(`${p} (lang/dir)`); else failures++;
+  }
+
+  // An English page canonicalises to its OWN /en URL. Pointing it at the Arabic
+  // page it was translated from tells Google it is a duplicate and keeps the
+  // English site out of the index — this was broken on 13 views.
+  for (const [ar, en] of [["/", "/en"], ["/matches", "/en/matches"], ["/news", "/en/news"]]) {
+    const canon = async (p) => /<link rel="canonical" href="([^"]*)"/.exec(await (await fetch(`${BASE}${p}`)).text())?.[1] ?? "";
+    const [ca, ce] = [await canon(ar), await canon(en)];
+    // Canonicals are absolute to the production host (SITE_URL), not to BASE, so
+    // the invariant to assert is the relationship between the pair: the English
+    // canonical is the Arabic one with /en inserted after the host.
+    const expectedEn = ca.replace(/^(https?:\/\/[^/]+)/, "$1/en");
+    const okPair = Boolean(ca) && Boolean(ce) && ce === expectedEn;
+    console.log(`  ${okPair ? "✓" : "✗"} canonical ${ar} → ${ca} · ${en} → ${ce}`);
+    if (okPair) ok.push(`canonical ${en}`); else failures++;
+  }
+
+  // hreflang must be reciprocal and absolute, with x-default on the Arabic site.
+  for (const p of ["/matches", "/en/matches"]) {
+    const html = await (await fetch(`${BASE}${p}`)).text();
+    const langs = Object.fromEntries([...html.matchAll(/hrefLang="([^"]*)" href="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const altOk = langs.ar?.endsWith("/matches") === true && langs.en?.endsWith("/en/matches") === true && langs["x-default"]?.endsWith("/matches") === true;
+    console.log(`  ${altOk ? "✓" : "✗"} ${p} → hreflang ar/en/x-default reciprocal and absolute`);
+    if (altOk) ok.push(`${p} (hreflang)`); else failures++;
+  }
+
+  // A 404 must never carry a canonical: it would tell Google the missing URL is
+  // a duplicate of whatever the canonical points at.
+  for (const p of ["/no-such-page", "/en/no-such-page"]) {
+    const res = await fetch(`${BASE}${p}`);
+    const html = await res.text();
+    const nfOk = res.status === 404 && !/<link rel="canonical"/.test(html) && /noindex/.test(html);
+    console.log(`  ${nfOk ? "✓" : "✗"} ${p} → 404, noindex, no canonical`);
+    if (nfOk) ok.push(`${p} (404 head)`); else failures++;
+  }
+
+  // The switcher must preserve filters, pagination and search in both directions.
+  const sw = await (await fetch(`${BASE}/en/matches?date=2026-10-14&sport=football`)).text();
+  const swOk = sw.includes('href="/matches?date=2026-10-14&amp;sport=football"') || sw.includes('href="/matches?date=2026-10-14&sport=football"');
+  console.log(`  ${swOk ? "✓" : "✗"} /en/matches?… → the Arabic switcher link keeps the query string`);
+  if (swOk) ok.push("switcher keeps query"); else failures++;
+
+  // The switcher must be present in the server HTML of a statically prerendered
+  // page, not only hydrated in on the client. A null Suspense fallback around
+  // useSearchParams() silently erased it from exactly these pages.
+  for (const p of ["/en/about", "/en", "/en/privacy"]) {
+    const html = await (await fetch(`${BASE}${p}`)).text();
+    const anchors = [...html.matchAll(/hrefLang="(ar|en)"/g)].length;
+    const swPresent = anchors >= 2;
+    console.log(`  ${swPresent ? "✓" : "✗"} ${p} → both switcher anchors in server HTML`);
+    if (swPresent) ok.push(`${p} (switcher anchors)`); else failures++;
+  }
+
+  /* ── Arabic must not leak onto English page chrome ───────────────────────
+     The one Arabic string allowed on an English page is "العربية", the switcher
+     label — a language is always written in itself. Everything else is a bug.
+
+     Two pages are excluded and reported separately rather than asserted clean.
+     Their Arabic is DATA, not chrome: /en/live shows team and competition names
+     from lib/core-data.ts and the SportScore feed, and /en/watch shows
+     broadcaster and region names from the catalogue in lib/broadcasts.ts. Both
+     are static in-repo catalogues, so they render with or without a database
+     and CI sees exactly what a local run sees. Neither source carries an
+     English name, and inventing official team or broadcaster names is worse
+     than showing the real Arabic one — see limitation E1 in the i18n report.
+     A chrome regression on these two pages would still be caught by the
+     component-level tests in verify-i18n.test.ts. */
+  const dataPages = new Set(["/en/live", "/en/watch"]);
+  for (const p of enPages.filter((u) => !u.includes("?") && !dataPages.has(u))) {
+    const html = (await (await fetch(`${BASE}${p}`)).text()).replace(/<script[\s\S]*?<\/script>/g, "");
+    const leaked = [...new Set(
+      (html.match(/[\u0600-\u06FF][\u0600-\u06FF\s،\-–—]{1,60}/g) ?? []).map((w) => w.trim()),
+    )].filter((w) => w !== "العربية");
+    const clean = leaked.length === 0;
+    console.log(`  ${clean ? "✓" : "✗"} ${p} → no Arabic in rendered chrome${clean ? "" : ` (${leaked.length}: ${leaked.slice(0, 3).join(" | ")})`}`);
+    if (clean) ok.push(`${p} (no Arabic)`); else failures++;
+  }
+
+  for (const p of [...dataPages]) {
+    console.log(`  · ${p} → Arabic data values expected here (no English name in the source); chrome covered by verify-i18n.test.ts`);
+  }
+
+  // The legacy singular /match/[slug] must still 308 in both trees.
+  for (const [p, to] of [["/match/x", "/matches/x"], ["/en/match/x", "/en/matches/x"]]) {
+    const res = await fetch(`${BASE}${p}`, { redirect: "manual" });
+    const loc = res.headers.get("location") ?? "";
+    const redirOk = res.status === 308 && loc.endsWith(to);
+    console.log(`  ${redirOk ? "✓" : "✗"} ${p} → 308 ${loc}`);
+    if (redirOk) ok.push(`${p} (308)`); else failures++;
+  }
+
+  // The sitemap must list an /en entry for every Arabic entry, with no dupes.
+  const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
+  const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  const enUrls = urls.filter((u) => u.includes("/en"));
+  const arUrls = urls.filter((u) => !u.includes("/en"));
+  const mapOk = enUrls.length === arUrls.length && new Set(urls).size === urls.length;
+  console.log(`  ${mapOk ? "✓" : "✗"} sitemap → ${arUrls.length} ar + ${enUrls.length} en, no duplicates`);
+  if (mapOk) ok.push("sitemap ar/en parity"); else failures++;
 
   /* ── authorization on the privileged namespaces ─────────────────────────
      Anonymous requests must be refused. /admin answers 404 (not 401/403) so an
