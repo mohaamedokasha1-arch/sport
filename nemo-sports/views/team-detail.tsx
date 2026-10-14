@@ -631,6 +631,6 @@ export default async function TeamPage({ locale, params }: ViewProps & { locale:
   const { slug: rawSlug } = await params;
   const slug = decodeSlug(rawSlug);
   const adminTeam = await getAdminTeamBySlug(slug);
-  if (adminTeam?.isPublished) return <AdminTeamDetail team={adminTeam} />;
+  if (adminTeam?.isPublished) return <AdminTeamDetail team={adminTeam} locale={locale} />;
   return <TeamPageBody locale={locale} params={params} />;
 }

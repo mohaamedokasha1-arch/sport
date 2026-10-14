@@ -431,6 +431,6 @@ export default async function PlayerPage({ locale, params }: ViewProps & { local
   const { slug: rawSlug } = await params;
   const slug = decodeSlug(rawSlug);
   const adminPlayer = await getAdminPlayerBySlug(slug);
-  if (adminPlayer?.isPublished) return <AdminPlayerDetail player={adminPlayer} />;
+  if (adminPlayer?.isPublished) return <AdminPlayerDetail player={adminPlayer} locale={locale} />;
   return <PlayerPageBody locale={locale} params={params} />;
 }

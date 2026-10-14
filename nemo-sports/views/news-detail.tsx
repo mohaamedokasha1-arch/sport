@@ -311,7 +311,7 @@ export default async function ArticlePage({ locale, params }: ViewProps & { loca
       editorialInternalLinks({ relatedCompetition: manual.relatedCompetition, relatedTeam: manual.relatedTeam }),
       listManualNews({ publishedOnly: true, limit: 100 }),
     ]);
-    return <AdminNewsDetail article={manual} links={links} related={relatedEditorialNews(manual, all, 5)} />;
+    return <AdminNewsDetail article={manual} links={links} related={relatedEditorialNews(manual, all, 5)} locale={locale} />;
   }
   return <ArticlePageBody locale={locale} params={params} />;
 }

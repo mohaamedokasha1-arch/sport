@@ -14,11 +14,19 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ADSTERRA_BANNER, BANNER_SLOT_LABEL_AR, adFrameSrc, adsEnabled, type BannerSlot } from "@/lib/ads";
-import { useT, useDir, useLocale } from "@/lib/i18n/context";
+import { ADSTERRA_BANNER, adFrameSrc, adsEnabled, type BannerSlot } from "@/lib/ads";
+import { useT } from "@/lib/i18n/context";
+
+/** Slot ids stay machine-canonical (they travel in the frame URL); only the
+ *  human label is translated. */
+const BANNER_SLOT_KEY: Record<BannerSlot, "ads.slotAboveStream" | "ads.slotBelowStream"> = {
+  "match-above-stream": "ads.slotAboveStream",
+  "match-below-stream": "ads.slotBelowStream",
+};
 
 export default function AdsterraBanner({ slot, className = "" }: { slot: BannerSlot; className?: string }) {
   const tr = useT();
+  const slotLabel = tr(BANNER_SLOT_KEY[slot]);
   const holder = useRef<HTMLDivElement | null>(null);
   const [load, setLoad] = useState(false);
   const enabled = adsEnabled();
@@ -55,7 +63,7 @@ export default function AdsterraBanner({ slot, className = "" }: { slot: BannerS
   return (
     <aside
       className={`my-5 flex flex-col items-center ${className}`}
-      aria-label={BANNER_SLOT_LABEL_AR[slot]}
+      aria-label={slotLabel}
       data-ad-slot={slot}
     >
       {/* Disclosure: the repository's own ad rules (/admin/ads) require every
@@ -71,7 +79,7 @@ export default function AdsterraBanner({ slot, className = "" }: { slot: BannerS
         {load ? (
           <iframe
             src={adFrameSrc(slot)}
-            title={tr("ads.title", { slot: BANNER_SLOT_LABEL_AR[slot] })}
+            title={tr("ads.title", { slot: slotLabel })}
             width={width}
             height={height}
             frameBorder={0}

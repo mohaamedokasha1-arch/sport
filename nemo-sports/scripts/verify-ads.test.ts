@@ -181,7 +181,16 @@ test("④ the match page frames the live-stream block with two 300×250 placemen
   assert.ok(sandbox.includes("allow-scripts") && sandbox.includes("allow-same-origin"), "the network's tag still runs");
   assert.ok(sandbox.includes("allow-popups"), "ad clicks must be able to open their landing page");
   assert.ok(!sandbox.includes("allow-top-navigation"), "a creative must never navigate the reader's tab");
-  assert.ok(banner.includes("إعلان"), "every placement stays visibly marked as advertising");
+  // The disclosure label is localised now, so the rule is asserted in two
+  // halves: the component must render the shared label, and the Arabic
+  // dictionary must still say "إعلان" — so an Arabic reader still sees the
+  // placement marked as advertising.
+  assert.match(banner, /\{tr\("ads\.label"\)\}/, "every placement stays visibly marked as advertising");
+  const { default: ar } = await import("@/lib/i18n/messages/ar");
+  assert.equal(ar["ads.label"], "إعلان", "and the Arabic disclosure still reads «إعلان»");
+  const { default: en } = await import("@/lib/i18n/messages/en");
+  assert.ok(en["ads.label"].length > 0, "the English disclosure is not a placeholder");
+  assert.match(banner, /slotLabel/, "the frame title is localised too");
 });
 
 /* ── ⑤ the page-level tags ─────────────────────────────────────────────── */

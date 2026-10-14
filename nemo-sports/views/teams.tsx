@@ -218,7 +218,7 @@ async function TeamsPageBody({ locale }: { locale: Locale }) {
 export default async function TeamsPage({ locale }: { locale: Locale }) {
   return (
     <>
-      <AdminTeamsSection />
+      <AdminTeamsSection locale={locale} />
       <TeamsPageBody locale={locale} />
       <SyncedEntityDirectory kind="team" locale={locale} />
     </>

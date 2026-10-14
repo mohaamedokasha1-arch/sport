@@ -1500,6 +1500,33 @@ const en: Record<keyof typeof ar, string> = {
   "lf.status.suspended": "Suspended",
   "lf.status.abandoned": "Abandoned",
 
+  /* ── admin-published content on public pages ──────────────── */
+  "ap.eyebrowAdmin": "From the editors",
+  "ap.teamsTitle": "Manually added teams",
+  "ap.playersTitle": "Manually added players",
+  "ap.competitionsTitle": "Manually added competitions",
+  "ap.eyebrowEditorial": "NEMO editorial",
+  "ap.newsTitle": "Published stories",
+  "ap.teamEyebrow": "Team",
+  "ap.playerEyebrow": "Player",
+  "ap.country": "Country",
+  "ap.stadium": "Stadium",
+  "ap.coach": "Coach",
+  "ap.foundedYear": "Founded",
+  "ap.team": "Team",
+  "ap.position": "Position",
+  "ap.jersey": "Number",
+  "ap.nationality": "Nationality",
+  "ap.dob": "Date of birth",
+  "ap.heightCm": "Height (cm)",
+  "ap.weightKg": "Weight (kg)",
+  "ap.countryScope": "Country / scope",
+  "ap.season": "Season",
+  "ap.displayTz": "Display timezone",
+  "ap.relatedLinks": "Related links",
+  "ap.sourceLabel": "Source:",
+  "ap.readAlso": "Read next",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "View all",
   "ui.dataUnavailableTitle": "Data is not available right now",
@@ -1603,6 +1630,8 @@ const en: Record<keyof typeof ar, string> = {
   "ads.label": "Advertisement",
   "ads.title": "Advertisement — {slot}",
   "ads.placeholder": "Advertising space",
+  "ads.slotAboveStream": "Match page — above the live stream",
+  "ads.slotBelowStream": "Match page — below the live stream",
 
   /* ── legal ──────────────────────────────────────────────── */
   "legal.lastUpdated": "Last updated: {date}",

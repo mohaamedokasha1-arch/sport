@@ -86,7 +86,7 @@ export default async function CompetitionsPage({ locale, searchParams }: ViewPro
   const filters = await searchParams;
   return (
     <>
-      <AdminCompetitionsSection />
+      <AdminCompetitionsSection locale={locale} />
       <SyncedCompetitionDirectory sport={filters.sport} country={filters.country} locale={locale} />
       <CompetitionsPageBody locale={locale} />
     </>

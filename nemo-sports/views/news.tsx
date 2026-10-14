@@ -278,6 +278,7 @@ export default async function NewsPage(props: ViewProps & { locale: Locale }) {
     <>
       <ManualNewsSection
         category={canonicalCategoryParam(typeof sp.category === "string" ? sp.category.slice(0, 120) : "") || undefined}
+        locale={props.locale}
       />
       <NewsPageBody {...props} />
     </>

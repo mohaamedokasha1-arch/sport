@@ -1505,6 +1505,33 @@ const ar = {
   "lf.status.suspended": "موقوفة",
   "lf.status.abandoned": "متوقفة",
 
+  /* ── admin-published content on public pages ──────────────── */
+  "ap.eyebrowAdmin": "من الإدارة",
+  "ap.teamsTitle": "فرق مضافة يدويًا",
+  "ap.playersTitle": "لاعبون مضافون يدويًا",
+  "ap.competitionsTitle": "بطولات مضافة يدويًا",
+  "ap.eyebrowEditorial": "تحرير نيمو",
+  "ap.newsTitle": "أخبار منشورة",
+  "ap.teamEyebrow": "فريق",
+  "ap.playerEyebrow": "لاعب",
+  "ap.country": "البلد",
+  "ap.stadium": "الملعب",
+  "ap.coach": "المدرب",
+  "ap.foundedYear": "سنة التأسيس",
+  "ap.team": "الفريق",
+  "ap.position": "المركز",
+  "ap.jersey": "الرقم",
+  "ap.nationality": "الجنسية",
+  "ap.dob": "تاريخ الميلاد",
+  "ap.heightCm": "الطول (سم)",
+  "ap.weightKg": "الوزن (كجم)",
+  "ap.countryScope": "الدولة / النطاق",
+  "ap.season": "الموسم",
+  "ap.displayTz": "المنطقة الزمنية للعرض",
+  "ap.relatedLinks": "روابط ذات صلة",
+  "ap.sourceLabel": "المصدر:",
+  "ap.readAlso": "اقرأ أيضًا",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "عرض الكل",
   "ui.dataUnavailableTitle": "البيانات غير متوفرة حاليًا",
@@ -1608,6 +1635,8 @@ const ar = {
   "ads.label": "إعلان",
   "ads.title": "إعلان — {slot}",
   "ads.placeholder": "مساحة إعلانية",
+  "ads.slotAboveStream": "صفحة المباراة — فوق البث المباشر",
+  "ads.slotBelowStream": "صفحة المباراة — تحت البث المباشر",
 
   /* ── legal ──────────────────────────────────────────────── */
   "legal.lastUpdated": "آخر تحديث: {date}",
