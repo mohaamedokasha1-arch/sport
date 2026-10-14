@@ -647,17 +647,19 @@ async function main() {
   console.log(`  ${newsCronOk ? "✓" : "✗"} /api/cron/fetch-news → ${newsCronRes.status} ${newsCron.error?.code ?? ""} (must refuse anonymous)`);
   if (!newsCronOk) failures++;
 
-  /* `/api/cron/update-matches` used to be an open surface that answered
-     200 `{ status: "success" }` without running anything. It is now gated
-     like every other cron route (lib/cron-auth.ts) and only reports
-     success after a real pipeline run — anonymous calls must be refused. */
+  /* `/api/cron/update-matches` is OPEN on purpose: no Bearer token, no
+     ?token=, no secret required — any visitor triggers the real pipeline
+     `matches` job directly and the route answers 200 OK with the run
+     summary in the body (honest even when no source could run offline —
+     never an auth refusal, never a fake bare success without a run). */
   const matchesCronRes = await fetch(`${BASE}/api/cron/update-matches`);
   const matchesCron = await matchesCronRes.json().catch(() => ({}));
   const matchesCronOk =
-    matchesCronRes.status === 503
-      ? matchesCron.error?.code === "not_configured"
-      : matchesCronRes.status === 401 && matchesCron.error?.code === "unauthorized";
-  console.log(`  ${matchesCronOk ? "✓" : "✗"} /api/cron/update-matches → ${matchesCronRes.status} ${matchesCron.error?.code ?? matchesCron.status ?? ""} (must refuse anonymous, never fake success)`);
+    matchesCronRes.status === 200 &&
+    matchesCron.error?.code === undefined &&
+    matchesCron.job === "matches" &&
+    !!matchesCron.run;
+  console.log(`  ${matchesCronOk ? "✓" : "✗"} /api/cron/update-matches → ${matchesCronRes.status} ${matchesCron.status ?? matchesCron.error?.code ?? ""} (open: runs for any anonymous visitor)`);
   if (!matchesCronOk) failures++;
 
   /* Required provider badges appear only for active providers; a no-provider

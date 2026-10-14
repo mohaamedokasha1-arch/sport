@@ -7,16 +7,25 @@
  * because this decision is the one worth testing: it is the difference between
  * "matches were updated" and "matches were not updated, and here is why".
  *
- * The rule: `run.ok` (the runner's own verdict — no source errored and at least
- * one source completed) is the ONLY route to 200 / "success". Everything else
- * answers with a non-success status and carries `run.sources[].reason` or
- * `run.errors` so the human reading the alert can act on it.
+ * The route is OPEN (no auth — any visitor may trigger it) and answers
+ * **HTTP 200 for every visitor once the run finishes**; this function's
+ * verdict travels in the response BODY (`ok` / `status` / `message` / `run`).
+ * Only an exception in the run itself turns the answer into 500. The `http`
+ * codes below remain for callers that still map outcome to status; the route
+ * deliberately does not — its status line is always 200 after the run.
  *
- *   200 success   every source that was supposed to run, ran
- *   207 partial   some sources updated, at least one failed
- *   500 error     no source was called at all (gate closed, source disabled,
- *                 unknown job) — nothing was updated, so nothing claims to be
- *   401 / 503     refused before the run (lib/cron-auth.ts)
+ * The rule: `run.ok` (the runner's own verdict — no source errored and at least
+ * one source completed) is the ONLY route to a `"success"` body. Everything
+ * else reports honestly what happened and why, and carries
+ * `run.sources[].reason` or `run.errors` so the human reading the body can act
+ * on it:
+ *
+ *   ok:true, "success"  every source that was supposed to run, ran
+ *   "partial"           some sources updated, at least one failed
+ *   "error"             no source was called at all (gate closed, source
+ *                       disabled, unknown job) — nothing was updated, so
+ *                       nothing claims to be. This is what an offline run
+ *                       (no keys / no DB) reports, still with HTTP 200.
  */
 import type { JobRunSummary } from "@/lib/pipeline";
 

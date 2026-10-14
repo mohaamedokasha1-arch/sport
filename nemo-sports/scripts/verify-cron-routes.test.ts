@@ -3,11 +3,12 @@
  * run→response mapping in lib/matches-update.ts, and the gate the other cron
  * routes share (lib/cron-auth.ts).
  * ─────────────────────────────────────────────────────────────────────────
- * `/api/cron/update-matches` used to be an OPEN, unauthenticated surface
- * that answered 200 `{ status: "success" }` without running anything.
- * That fake success is fixed: it now shares the `authorizeCron` gate with
- * `/api/cron/pipeline/[job]` and `/api/cron/fetch-news` and runs the real
- * pipeline `matches` job (its run→response mapping is `outcomeFor`).
+ * `/api/cron/update-matches` is OPEN on purpose: no Bearer, no `?token=` —
+ * any visitor triggers the real pipeline `matches` job directly and the route
+ * answers 200 OK with the honest `outcomeFor` body (never an auth refusal,
+ * never a bare `{status:"success"}` without a `run`). The other cron surfaces
+ * (`/api/cron/fetch-news`, `/api/cron/pipeline/[job]`, …) still share the
+ * `authorizeCron` gate (lib/cron-auth.ts) and refuse anonymous callers.
  *
  * Offline by design: no network, no database, no provider key.
  *
@@ -21,6 +22,7 @@ process.env.NEMO_TEST_MEMORY_ONLY = "1";
 // No provider network calls from tests: SportScore disabled, no keys.
 process.env.NEMO_SPORTSCORE_ENABLED = "0";
 delete process.env.FOOTBALL_DATA_API_KEY;
+delete process.env.THESPORTSDB_API_KEY;
 
 import { GET as updateMatchesGET } from "@/app/api/cron/update-matches/route";
 import { GET as newsCronGET } from "@/app/api/cron/fetch-news/route";
@@ -121,21 +123,34 @@ test("some sources updated and one failed is a 207 partial, not an ok", () => {
   assert.match(String(outcome.body.message), /partially/);
 });
 
-test("/api/cron/update-matches is gated: anonymous calls never answer fake success", async () => {
+test("/api/cron/update-matches is open: any visitor runs the job and gets 200", async () => {
   clearSecrets();
   try {
-    // No secret configured: 503 not_configured — and crucially NOT the old
-    // unconditional 200 {status:"success"} that claimed work had happened.
+    // No Authorization header, no ?token=, no secret configured at all: the
+    // route must NOT refuse (no 401/503, no "a valid bearer token is
+    // required"). It processes the request directly — runs the pipeline
+    // `matches` job — and answers 200 OK with the real run summary.
     const anonymous = await updateMatchesGET(new Request(UPDATE_URL));
-    assert.equal(anonymous.status, 503);
-    assert.equal((await anonymous.json()).error.code, "not_configured");
+    assert.equal(anonymous.status, 200);
 
-    // A secret configured but not presented (or wrong): 401, still no run.
+    const body = await anonymous.json();
+    assert.equal(body.error?.code, undefined, "must not answer an auth refusal");
+    assert.equal(body.job, "matches");
+    assert.ok(body.run, "the pipeline actually ran");
+    assert.ok(Array.isArray(body.run.sources) && body.run.sources.length > 0);
+    // Offline every source is gated off (no keys), so the BODY stays honest —
+    // it reports why nothing ran instead of claiming a fake "success".
+    assert.equal(body.ok, false);
+    assert.equal(body.status, "error");
+    assert.match(String(body.message), /no source was called/);
+
+    // A configured secret changes nothing: there is no gate left to pass.
     process.env.CRON_SECRET = "test-cron-secret";
-    const ungated = await updateMatchesGET(new Request(`${UPDATE_URL}?token=nope`));
-    assert.equal(ungated.status, 401);
-    assert.equal((await ungated.json()).error.code, "unauthorized");
-    assert.equal((await updateMatchesGET(new Request(UPDATE_URL))).status, 401);
+    const withSecret = await updateMatchesGET(new Request(UPDATE_URL));
+    assert.equal(withSecret.status, 200);
+    const wrongToken = await updateMatchesGET(new Request(`${UPDATE_URL}?token=nope`));
+    assert.equal(wrongToken.status, 200);
+    assert.equal((await wrongToken.json()).error?.code, undefined);
   } finally {
     clearSecrets();
   }
@@ -160,10 +175,10 @@ test("the gate is one gate: the gated cron surfaces refuse — and accept — id
 
     // Authorization itself is asserted through `authorizeCron`: calling a
     // surface with a valid secret would spend real provider quota.
-    assert.equal(authorizeCron(new Request(UPDATE_URL, { headers: { authorization: "Bearer test-cron-secret" } })), true);
-    assert.equal(authorizeCron(new Request(`${UPDATE_URL}?token=test-cron-secret`)), true);
-    assert.equal(authorizeCron(new Request(UPDATE_URL, { headers: { authorization: "Bearer wrong" } })), false);
-    assert.equal(authorizeCron(new Request(UPDATE_URL)), false);
+    assert.equal(authorizeCron(new Request(NEWS_URL, { headers: { authorization: "Bearer test-cron-secret" } })), true);
+    assert.equal(authorizeCron(new Request(`${NEWS_URL}?token=test-cron-secret`)), true);
+    assert.equal(authorizeCron(new Request(NEWS_URL, { headers: { authorization: "Bearer wrong" } })), false);
+    assert.equal(authorizeCron(new Request(NEWS_URL)), false);
   } finally {
     clearSecrets();
   }
