@@ -17,7 +17,9 @@ export default function robots(): MetadataRoute.Robots {
         // /live , /news …) stay crawlable so Google can always see their
         // robots meta (a demo build marks them noindex instead of hiding
         // behind robots.txt, which would leave the index stale forever).
-        disallow: ["/admin", "/account", "/api/"],
+        // /ad-frame is the 300×250 banner document the match page embeds
+        // (app/ad-frame/route.ts) — an ad, not a page: no index, no crawl.
+        disallow: ["/admin", "/account", "/api/", "/ad-frame"],
       },
     ],
     sitemap: [`${SITE_URL}/sitemap.xml`],

@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { contentSecurityPolicy } from "./lib/security-csp";
+import { AD_FRAME_PATH, adFrameSecurityHeaders, contentSecurityPolicy } from "./lib/security-csp";
 
 /**
  * Site-wide security headers.
@@ -28,7 +28,8 @@ import { contentSecurityPolicy } from "./lib/security-csp";
  *     are added below only when a real production origin is configured.
  */
 
-const CONTENT_SECURITY_POLICY = contentSecurityPolicy(process.env.NODE_ENV === "development");
+const IS_DEV = process.env.NODE_ENV === "development";
+const CONTENT_SECURITY_POLICY = contentSecurityPolicy(IS_DEV);
 
 /** HSTS is only safe once the site is served from an origin it controls. */
 function hstsHeaders(): Record<string, string> {
@@ -69,6 +70,18 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: Object.entries(base).map(([key, value]) => ({ key, value })),
+      },
+      {
+        // The one URL this site frames itself: the 300×250 banner document
+        // (app/ad-frame/route.ts, embedded by components/ads/AdsterraBanner).
+        // It must be embeddable by its own origin, so this rule — which is
+        // matched AFTER the site-wide one, and a later rule wins for the same
+        // header key — replaces `frame-ancestors 'none'` + `X-Frame-Options:
+        // DENY` with `'self'` + SAMEORIGIN for this path only. Every reader
+        // page keeps the strict pair. The route sets the same headers itself,
+        // so the response is correct whichever layer applies last.
+        source: AD_FRAME_PATH,
+        headers: Object.entries(adFrameSecurityHeaders(IS_DEV)).map(([key, value]) => ({ key, value })),
       },
     ];
   },

@@ -6,6 +6,8 @@ import Crest from "@/components/ui/Crest";
 import Tabs from "@/components/ui/Tabs";
 import StatusBadge from "@/components/ui/StatusBadge";
 import MatchStreamPlayer, { type MatchStreamInfo, type MatchStreamPhase } from "@/components/match/MatchStreamPlayer";
+import { useWatchSmartlink } from "@/components/ads/useSmartlink";
+import AdsterraBanner from "@/components/ads/AdsterraBanner";
 import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
 import { EVENT_LABEL, awayTeam, compOf, dateAr, homeTeam, number, relative, timeOf } from "@/lib/format";
@@ -114,7 +116,12 @@ export default function MatchLive({
         {/* broadcast */}
         <BroadcastPanel match={match} isLive={isLive} isDone={isDone} />
 
-        {/* live stream player — only when a source is registered for this match */}
+        {/* live stream player — only when a source is registered for this match.
+            The 300×250 Adsterra pair frames the watch action here too, so the
+            demo branch of /matches/[slug] carries the same two placements as the
+            provider branch (app/matches/[slug]/page.tsx). Without a registered
+            source there is nothing to frame, and the pair stays out. */}
+        {stream ? <AdsterraBanner slot="match-above-stream" className="mt-6" /> : null}
         <MatchStreamPlayer
           stream={stream ?? null}
           phase={streamPhase}
@@ -130,6 +137,7 @@ export default function MatchLive({
                   : "انتهت المباراة — لم يعد البث المباشر نشطًا."
           }
         />
+        {stream ? <AdsterraBanner slot="match-below-stream" /> : null}
 
         {/* تفاصيل المباراة */}
         <div className="mt-5">
@@ -165,6 +173,10 @@ export default function MatchLive({
 
 function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boolean; isDone: boolean }) {
   const b = match.broadcast;
+  // The official broadcaster link is the other "watch" intent on this page, so
+  // the Adsterra Smartlink rides on it too (capped per session, never on a
+  // keyboard activation — components/ads/useSmartlink.ts).
+  const watchClick = useWatchSmartlink();
   const stateLabel = isLive ? "يبث الآن" : isDone ? "انتهى البث" : "يبدأ قريبًا";
 
   if (!b) {
@@ -218,6 +230,7 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
             href={b.url}
             target="_blank"
             rel="noopener noreferrer nofollow"
+            onClick={watchClick}
             className="rounded-[3px] bg-gold-500 px-4 py-2.5 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400 focus-ring"
           >
             مشاهدة على {b.provider} ↗

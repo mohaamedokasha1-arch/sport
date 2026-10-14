@@ -5,6 +5,7 @@ import { cache } from "react";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
+import AdsterraBanner from "@/components/ads/AdsterraBanner";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
@@ -530,6 +531,13 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </>
             ) : null}
           </div>
+          {/* Two 300×250 Adsterra placements frame the watch action — one above
+              the live-stream block, one below it (lib/ads.ts owns the keys). Each
+              keeps a reserved 300×250 box and only asks for its ad document once
+              it scrolls into range, so nothing here delays the page's own data
+              and the layout never shifts when the creative lands. */}
+          <AdsterraBanner slot="match-above-stream" className="mt-6" />
+
           {/* live stream — judged by the broadcast lifecycle (approval + rights
               evidence + match state + window), never by the stream record alone */}
           {broadcast && broadcast.publicVisible && stream ? (
@@ -555,6 +563,8 @@ export default async function MatchPage({ params }: { params: Promise<{ slug: st
               </div>
             </section>
           )}
+
+          <AdsterraBanner slot="match-below-stream" />
 
           {/* events timeline */}
           <section className="mt-8">
