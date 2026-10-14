@@ -11,7 +11,7 @@
  *      operator pasted from the Adsterra dashboard;
  *   ② the banner document (`/ad-frame`) carries exactly one `atOptions` built
  *      from those constants — the key exists once in the repository;
- *   ③ the CSP allows the two Adsterra hosts (and only while ads are enabled),
+ *   ③ the CSP allows the Adsterra hosts (and only while ads are enabled),
  *      keeps every reader page `frame-ancestors 'none'`, and relaxes that pair
  *      to `'self'` / SAMEORIGIN for the embedded banner route alone;
  *   ④ the match page mounts the two 300×250 placements above and below the
@@ -58,9 +58,9 @@ test("① the Adsterra account codes are exactly the ones supplied", async () =>
   );
   assert.equal(
     ADSTERRA_POPUNDER_URL,
-    "https://pl31820082.profitableratecpmnetwork.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js",
+    "https://furydonkeypharmacy.com/ef/1c/8a/ef1c8a99e819306ee5d861acb0544c45.js",
   );
-  assert.equal(ADSTERRA_SMARTLINK_URL, "https://www.profitableratecpmnetwork.com/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc");
+  assert.equal(ADSTERRA_SMARTLINK_URL, "https://furydonkeypharmacy.com/ispf2u0nr9?key=ab1a65e313a5c0034294ac768d3878cc");
 });
 
 test("① the codes live in exactly one module — no page copies them", async () => {
@@ -77,7 +77,7 @@ test("① the codes live in exactly one module — no page copies them", async (
   ];
   for (const file of files) {
     const source = read(file);
-    for (const code of [ADSTERRA_BANNER.key, "profitableratecpmnetwork.com", "highrevenueformat.com"]) {
+    for (const code of [ADSTERRA_BANNER.key, "profitableratecpmnetwork.com", "highrevenueformat.com", "furydonkeypharmacy.com"]) {
       assert.ok(!source.includes(code), `${file} must import the code from @/lib/ads instead of hardcoding ${code}`);
     }
   }
@@ -136,6 +136,7 @@ test("③ the CSP allows the ad hosts and drops them in an ad-free build", async
   process.env.NEXT_PUBLIC_ADS_ENABLED = "0";
   const withoutAds = contentSecurityPolicy(false);
   assert.ok(!withoutAds.includes("profitableratecpmnetwork.com"), "NEXT_PUBLIC_ADS_ENABLED=0 must shrink the policy too");
+  assert.ok(!withoutAds.includes("furydonkeypharmacy.com"), "the Anti-Adblock Popunder host must drop out of the policy too");
   assert.ok(!withoutAds.includes("highrevenueformat.com"));
   delete process.env.NEXT_PUBLIC_ADS_ENABLED;
 });
