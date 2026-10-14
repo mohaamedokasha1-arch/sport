@@ -1459,6 +1459,27 @@ const en: Record<keyof typeof ar, string> = {
   "sy.kindTeams": "Teams",
   "sy.kindPlayers": "Players",
 
+  /* ── matches filters (client) ─────────────────────────────── */
+  "mf.thisWeek": "This week",
+  "mf.specificDate": "Specific date (Cairo)",
+  "mf.prevDay": "Previous day",
+  "mf.nextDay": "Next day",
+  "mf.statusAll": "All",
+  "mf.statusLive": "Live",
+  "mf.statusUpcoming": "Upcoming",
+  "mf.statusFinished": "Finished",
+  "mf.statePostponed": "Postponed",
+  "mf.stateCancelled": "Cancelled",
+  "mf.stateSuspended": "Suspended",
+  "mf.stateAbandoned": "Abandoned",
+  "mf.stateUnconfirmed": "Unconfirmed",
+  "mf.team": "Team",
+  "mf.teamPlaceholder": "Type a team name…",
+  "mf.gridAria": "Grid view",
+  "mf.listAria": "List view",
+  "mf.gridButton": "▦ Grid",
+  "mf.listButton": "☰ List",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "View all",
   "ui.dataUnavailableTitle": "Data is not available right now",

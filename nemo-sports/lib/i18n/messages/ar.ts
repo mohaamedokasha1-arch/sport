@@ -1464,6 +1464,27 @@ const ar = {
   "sy.kindTeams": "فرق",
   "sy.kindPlayers": "لاعبون",
 
+  /* ── matches filters (client) ─────────────────────────────── */
+  "mf.thisWeek": "هذا الأسبوع",
+  "mf.specificDate": "تاريخ محدد (القاهرة)",
+  "mf.prevDay": "اليوم السابق",
+  "mf.nextDay": "اليوم التالي",
+  "mf.statusAll": "الكل",
+  "mf.statusLive": "مباشر",
+  "mf.statusUpcoming": "قادمة",
+  "mf.statusFinished": "منتهية",
+  "mf.statePostponed": "مؤجلة",
+  "mf.stateCancelled": "ملغاة",
+  "mf.stateSuspended": "موقوفة",
+  "mf.stateAbandoned": "متوقفة",
+  "mf.stateUnconfirmed": "غير مؤكدة",
+  "mf.team": "فريق",
+  "mf.teamPlaceholder": "اكتب اسم الفريق…",
+  "mf.gridAria": "عرض شبكي",
+  "mf.listAria": "عرض قائمة",
+  "mf.gridButton": "▦ شبكة",
+  "mf.listButton": "☰ قائمة",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "عرض الكل",
   "ui.dataUnavailableTitle": "البيانات غير متوفرة حاليًا",
