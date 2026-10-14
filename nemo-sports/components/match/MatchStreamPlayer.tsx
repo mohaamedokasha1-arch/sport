@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useWatchSmartlink } from "@/components/ads/useSmartlink";
 
 export type MatchStreamInfo = {
   embedUrl: string;
@@ -97,6 +98,10 @@ function PlayerCard({
 }) {
   const [attempt, setAttempt] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  // Adsterra Smartlink rides on the watch intent (never on the primary action:
+  // the handler does not preventDefault, so the stream still opens as before).
+  // One monetised click per session by default — components/ads/useSmartlink.ts.
+  const watchClick = useWatchSmartlink();
 
   // Every (re)mount gets a fresh loading window; if onLoad never fires the
   // source is broken/blocked → swap in the error panel instead of leaving a
@@ -167,6 +172,7 @@ function PlayerCard({
                   href={stream.embedUrl}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
+                  onClick={watchClick}
                   className="rounded-[3px] border border-white/25 px-3.5 py-2 text-[12px] font-extrabold text-white transition hover:border-gold-400 hover:text-gold-400 focus-ring"
                 >
                   فتح في نافذة جديدة ↗
@@ -196,6 +202,7 @@ function PlayerCard({
             href={stream.embedUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
+            onClick={watchClick}
             className="font-bold text-gold-600 transition hover:underline dark:text-gold-400"
           >
             فتح في نافذة جديدة ↗

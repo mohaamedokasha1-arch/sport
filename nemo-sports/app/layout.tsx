@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import AdScripts from "@/components/ads/AdScripts";
 import LiveProvider from "@/components/live/LiveProvider";
 import { getLiveStates } from "@/lib/live";
 import { robotsForDataSource } from "@/lib/sdl-gateway";
@@ -100,6 +101,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Header />
           <main id="main">{children}</main>
           <Footer />
+          {/* Adsterra Social Bar + Popunder. Rendered from the root layout so it
+              survives client navigation, and injected after load + idle, never
+              on /admin (components/ads/AdScripts.tsx). */}
+          <AdScripts />
         </LiveProvider>
       </body>
     </html>
