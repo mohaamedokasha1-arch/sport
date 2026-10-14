@@ -32,6 +32,7 @@ import { AdminCompetitionDetail } from "@/components/public/AdminPublished";
 import { decodeSlug } from "@/lib/slug";
 import { isLiveStatus, matchStateOf, isFinishedStatus } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -51,14 +52,18 @@ export function generateStaticParams() {
 }
 
 async function competitionMetadataBody({
+  locale,
   params,
 }: {
+  locale: Locale;
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
   const providerCompetition = competitionByPath(slug);
   if (providerCompetition) {
-    const title = `${providerCompetition.nameAr} | الترتيب والمباريات`;
+    const compName = locale === "ar" ? providerCompetition.nameAr : providerCompetition.name;
+    const title = t(locale, "cd.metaTitle", { name: compName });
+    const description = t(locale, "cd.metaDescription", { name: compName });
     // Thin-page rule (§9): this URL is indexable only while the provider
     // actually answers for THIS competition. The site-wide rule in
     // lib/sdl-gateway.ts (dataServable) already noindexes everything when no
@@ -77,26 +82,27 @@ async function competitionMetadataBody({
       (table.ok && (table.data?.length ?? 0) > 0) || (matches.ok && (matches.data?.length ?? 0) > 0);
     return {
       title,
-      description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`,
+      description,
       // Canonical is always the registered path, never the alias the visitor used.
       alternates: { canonical: `/competitions/${providerCompetition.canonicalSlug}` },
       // Own social title/description: without this, shared links inherit the
       // site-wide homepage title ("نيمو سبورتس | نتائج ومواعيد المباريات").
-      openGraph: { title, description: `مباريات ${providerCompetition.nameAr} ونتائجها وجدول الترتيب عند توفرها من مزود البيانات.`, type: "website" },
+      openGraph: { title, description, type: "website" },
       ...(hasData ? {} : { robots: { index: false, follow: true } }),
     };
   }
   const c = demoContentVisible() ? competitions.find((x) => x.slug === slug) : undefined;
-  if (!c) return { title: "البطولة غير موجودة", robots: { index: false, follow: true } };
+  if (!c) return { title: t(locale, "cd.notFound"), robots: { index: false, follow: true } };
   return {
-    title: `${c.name} | معاينة البطولة`,
-    description: `معلومات تجريبية عن ${c.name} لأغراض التطوير فقط.`,
+    title: t(locale, "cd.demoMetaTitle", { name: c.name }),
+    description: t(locale, "cd.demoMetaDescription", { name: c.name }),
     alternates: { canonical: `/competitions/${c.slug}` },
     robots: { index: false, follow: true },
   };
 }
 
-async function CompetitionPageBody({ params }: { params: Promise<{ slug: string }> }) {
+async function CompetitionPageBody({ locale, params }: { locale: Locale; params: Promise<{ slug: string }> }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const { slug } = await params;
   const providerCompetition = competitionByPath(slug);
   // One public URL per competition: aliases (PL, english-premier-league, ...)
@@ -104,7 +110,7 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
   if (providerCompetition && providerCompetition.canonicalSlug !== decodeSlug(slug)) {
     permanentRedirect(`/competitions/${encodeURIComponent(providerCompetition.canonicalSlug)}`);
   }
-  if (providerCompetition) return <ProviderCompetitionPage competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
+  if (providerCompetition) return <ProviderCompetitionPage locale={locale} competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
 
   const comp = demoContentVisible() ? competitions.find((c) => c.slug === slug) : undefined;
   if (!comp) notFound();
@@ -122,11 +128,11 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
-      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات بطولة توضيحية للتطوير فقط — لا تمثل جدولًا أو نتائج حقيقية.</p>
-      <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("cd.demoNotice")}</p>
+      <nav aria-label={tr("cd.breadcrumbAria")} className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.home")}</Link>
         <span aria-hidden>/</span>
-        <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">البطولات</Link>
+        <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.competitions")}</Link>
         <span aria-hidden>/</span>
         <span className="font-semibold text-ink">{comp.name}</span>
       </nav>
@@ -141,21 +147,21 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
               <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{comp.name}</h1>
               <p className="mt-1 text-[12px] text-white/60">
-                {comp.country} · موسم {comp.season} · {comp.format} · {comp.rounds} جولة
+                {comp.country} · {tr("cd.seasonRounds", { season: comp.season, format: comp.format, rounds: comp.rounds })}
               </p>
             </div>
           </div>
           <dl className="flex flex-wrap gap-6 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">الفرق</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("cd.statTeams")}</dt>
               <dd className="num text-xl font-extrabold text-gold-400">{comp.teamsCount}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">مباشر</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("cd.statLive")}</dt>
               <dd className="num text-xl font-extrabold text-live">{live.length}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">قادمة</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("cd.statUpcoming")}</dt>
               <dd className="num text-xl font-extrabold">{upcoming.length}</dd>
             </div>
           </dl>
@@ -163,33 +169,33 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
       </header>
 
       <Tabs
-        label="أقسام البطولة"
+        label={tr("cd.tabsAria")}
         items={[
           {
             id: "standings",
-            label: "الترتيب",
+            label: tr("cd.tabTable"),
             disabled: !table,
             content: table ? (
               <StandingsTable rows={table} />
             ) : (
               <p className="card px-4 py-10 text-center text-[13px] text-muted">
-                لا يتوفر جدول ترتيب لهذه البطولة (مسابقة فردية أو متعددة المراحل).
+                {tr("cd.noTable")}
               </p>
             ),
           },
           {
             id: "matches",
-            label: "المباريات والنتائج",
+            label: tr("cd.tabMatches"),
             content: (
               <div className="space-y-6">
                 {live.length > 0 ? (
-                  <Group title="مباشر الآن" list={live} />
+                  <Group title={tr("cd.liveNow")} list={live} />
                 ) : null}
-                {upcoming.length > 0 ? <Group title="القادمة" list={upcoming} /> : null}
-                {finished.length > 0 ? <Group title="النتائج" list={finished} /> : null}
+                {upcoming.length > 0 ? <Group title={tr("cd.upcomingShort")} list={upcoming} /> : null}
+                {finished.length > 0 ? <Group title={tr("cd.resultsShort")} list={finished} /> : null}
                 {matches.length === 0 ? (
                   <p className="card px-4 py-10 text-center text-[13px] text-muted">
-                    لا توجد مباريات مسجّلة لهذه البطولة في النسخة التجريبية.
+                    {tr("cd.noMatches")}
                   </p>
                 ) : null}
               </div>
@@ -197,7 +203,7 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
           },
           {
             id: "scorers",
-            label: "الهدافون",
+            label: tr("cd.tabScorers"),
             disabled: !scorers,
             content: scorers ? (
               <div className="card overflow-hidden">
@@ -205,11 +211,11 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
                   <thead>
                     <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
                       <th className="px-3 py-2.5 text-start font-semibold">#</th>
-                      <th className="px-3 py-2.5 text-start font-semibold">اللاعب</th>
-                      <th className="px-3 py-2.5 text-start font-semibold">الفريق</th>
-                      <th className="num px-3 py-2.5 font-semibold">مباريات</th>
-                      <th className="num px-3 py-2.5 font-semibold">جزائيات</th>
-                      <th className="num px-3 py-2.5 font-semibold">أهداف</th>
+                      <th className="px-3 py-2.5 text-start font-semibold">{tr("cd.thPlayer")}</th>
+                      <th className="px-3 py-2.5 text-start font-semibold">{tr("cd.thTeam")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("cd.thMatches")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("cd.thPenalties")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("cd.thGoals")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -247,7 +253,7 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
           },
           {
             id: "teams",
-            label: "الفرق المشاركة",
+            label: tr("cd.tabTeams"),
             content:
               teams.length > 0 ? (
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -270,13 +276,13 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
                 </ul>
               ) : (
                 <p className="card px-4 py-10 text-center text-[13px] text-muted">
-                  المشاركون في هذه البطولة أفراد وليسوا فرقًا.
+                  {tr("cd.individuals")}
                 </p>
               ),
           },
           {
             id: "news",
-            label: "أخبار البطولة",
+            label: tr("cd.tabNews"),
             content:
               news.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -285,7 +291,7 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
                   ))}
                 </div>
               ) : (
-                <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد أخبار مرتبطة.</p>
+                <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("cd.noNews")}</p>
               ),
           },
         ]}
@@ -294,7 +300,8 @@ async function CompetitionPageBody({ params }: { params: Promise<{ slug: string 
   );
 }
 
-async function ProviderCompetitionPage({ competition, id }: { competition: FootballDataCompetitionRef; id: string }) {
+async function ProviderCompetitionPage({ locale, competition, id }: { locale: Locale; competition: FootballDataCompetitionRef; id: string }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const [tableResult, matchesResult] = await Promise.all([
     footballStandings(id),
     footballMatches({ competitionId: id }),
@@ -321,24 +328,24 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-9 px-4 py-6">
-      <nav aria-label="مسار التنقل" className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link><span aria-hidden>/</span>
-        <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">البطولات</Link><span aria-hidden>/</span>
+      <nav aria-label={tr("cd.breadcrumbAria")} className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.home")}</Link><span aria-hidden>/</span>
+        <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.competitions")}</Link><span aria-hidden>/</span>
         <span className="font-semibold text-ink">{competition.nameAr}</span>
       </nav>
       <header className="stripes overflow-hidden rounded-[8px] border border-navy-700 bg-navy-850 text-white">
         <div className="flex flex-wrap items-center gap-4 px-5 py-5">
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-gold-500 font-display text-sm font-extrabold text-navy-900">{competition.code}</span>
           <div className="min-w-0 flex-1">
-            <p className="eyebrow !text-white/50">{competition.countryAr} · تغطية كرة القدم</p>
+            <p className="eyebrow !text-white/50">{locale === "ar" ? competition.countryAr : competition.country} · {tr("cd.coverageEyebrow")}</p>
             <h1 className="text-2xl font-extrabold tracking-tight">{competition.nameAr}</h1>
           </div>
-          <Link href={`/matches?competition=${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center rounded-[3px] bg-white/10 px-3 text-[12px] font-bold transition hover:bg-gold-500 hover:text-navy-900 focus-ring">مباريات البطولة</Link>
+          <Link href={`/matches?competition=${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center rounded-[3px] bg-white/10 px-3 text-[12px] font-bold transition hover:bg-gold-500 hover:text-navy-900 focus-ring">{tr("cd.browseMatches")}</Link>
         </div>
       </header>
 
       <section>
-        <SectionHead eyebrow="بيانات مزوّد المباريات" title="جدول الترتيب" />
+        <SectionHead eyebrow={tr("cd.tableEyebrow")} title={tr("cd.tableTitle")} />
         {rows.length > 0 ? (
           <div className="space-y-4">
             {[...tableGroups.entries()].map(([group, groupRows]) => (
@@ -346,10 +353,10 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                 {group ? <h3 className="border-b border-line px-3 py-2 text-[12px] font-bold">{group.replaceAll("_", " ")}</h3> : null}
                 <table className="w-full min-w-[580px] text-[12px]">
                   <thead><tr className="border-b border-line text-muted">
-                    <th scope="col" className="px-2 py-2 text-start">#</th><th scope="col" className="px-2 py-2 text-start">الفريق</th>
-                    <th scope="col" className="px-2 py-2 text-center">لعب</th><th scope="col" className="px-2 py-2 text-center">ف</th>
-                    <th scope="col" className="px-2 py-2 text-center">ت</th><th scope="col" className="px-2 py-2 text-center">خ</th>
-                    <th scope="col" className="px-2 py-2 text-center">له/عليه</th><th scope="col" className="px-2 py-2 text-center">نقاط</th><th scope="col" className="px-2 py-2 text-center">آخر 5</th>
+                    <th scope="col" className="px-2 py-2 text-start">{tr("cd.thPos")}</th><th scope="col" className="px-2 py-2 text-start">{tr("cd.thTeam")}</th>
+                    <th scope="col" className="px-2 py-2 text-center">{tr("cd.thPlayed")}</th><th scope="col" className="px-2 py-2 text-center">{tr("cd.thWon")}</th>
+                    <th scope="col" className="px-2 py-2 text-center">{tr("cd.thDrawn")}</th><th scope="col" className="px-2 py-2 text-center">{tr("cd.thLost")}</th>
+                    <th scope="col" className="px-2 py-2 text-center">{tr("cd.thGD")}</th><th scope="col" className="px-2 py-2 text-center">{tr("cd.thPoints")}</th><th scope="col" className="px-2 py-2 text-center">{tr("cd.thLast5")}</th>
                   </tr></thead>
                   <tbody>{groupRows.map((row) => (
                     <tr key={`${row.position}-${row.teamProviderId}`} className="border-b border-line/60 last:border-0">
@@ -372,7 +379,7 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                       <td className="num px-2 py-2 text-center">{row.played}</td><td className="num px-2 py-2 text-center">{row.won}</td>
                       <td className="num px-2 py-2 text-center">{row.drawn}</td><td className="num px-2 py-2 text-center">{row.lost}</td>
                       <td className="num px-2 py-2 text-center text-muted">{row.goalsFor}:{row.goalsAgainst}</td><td className="num px-2 py-2 text-center font-extrabold">{row.points}</td>
-                      <td className="px-2 py-2 text-center"><span className="inline-flex gap-0.5" aria-label="آخر النتائج">{row.form.slice(-5).map((value, index) => <span key={`${value}-${index}`} className={`inline-grid h-4 w-4 place-items-center rounded-[2px] text-[9px] font-extrabold ${value === "W" ? "bg-win-green/20 text-win-green" : value === "D" ? "bg-line text-muted" : "bg-live-red/15 text-live-red"}`}>{value}</span>)}</span></td>
+                      <td className="px-2 py-2 text-center"><span className="inline-flex gap-0.5" aria-label={tr("cd.formAria")}>{row.form.slice(-5).map((value, index) => <span key={`${value}-${index}`} className={`inline-grid h-4 w-4 place-items-center rounded-[2px] text-[9px] font-extrabold ${value === "W" ? "bg-win-green/20 text-win-green" : value === "D" ? "bg-line text-muted" : "bg-live-red/15 text-live-red"}`}>{value}</span>)}</span></td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -380,25 +387,25 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
             ))}
             {tableData ? <DataSourceNote className="mt-3" provider={tableData.source.provider} fromCache={tableData.source.fromCache} stale={tableData.source.stale} fetchedAt={tableData.source.fetchedAt} ttlSeconds={tableData.source.ttlSeconds} /> : null}
           </div>
-        ) : <DataUnavailable title="جدول الترتيب غير متاح من المصدر" message="لا تتوفر بيانات مؤكدة لهذا الجدول الآن. لن نستبدلها بترتيب تجريبي." actionHref="/standings" actionLabel="عرض الجداول المتاحة" />}
+        ) : <DataUnavailable title={tr("cd.tableUnavailableTitle")} message={tr("cd.tableUnavailableMessage")} actionHref="/standings" actionLabel={tr("cd.viewAvailableTables")} />}
       </section>
 
       <section>
-        <SectionHead eyebrow="المباريات والنتائج" title="مباريات البطولة" href={`/matches?competition=${encodeURIComponent(id)}`} />
+        <SectionHead eyebrow={tr("cd.matchesEyebrow")} title={tr("cd.matchesTitle")} href={`/matches?competition=${encodeURIComponent(id)}`} />
         {fixtures.length === 0 ? (
-          <DataUnavailable title={matchesData ? "لا توجد مباريات في البيانات المسترجعة" : "مباريات البطولة غير متاحة"} message={matchesData ? "لم يتضمن آخر تحديث مباريات لهذه البطولة." : "لم يصل جدول مؤكد من مصدر البيانات."} actionHref="/matches" actionLabel="تصفّح المباريات" />
+          <DataUnavailable title={matchesData ? tr("cd.noMatchesInData") : tr("cd.matchesUnavailable")} message={matchesData ? tr("cd.matchesEmptyMessage") : tr("cd.matchesUnavailableMessage")} actionHref="/matches" actionLabel={tr("cd.browseMatchesAction")} />
         ) : (
           <div className="space-y-7">
-            {live.length ? <div><SectionHead eyebrow="الآن" title="مباشر" /><ProviderMatchList fixtures={live} /></div> : null}
-            {upcoming.length ? <div><SectionHead eyebrow="المواعيد" title="قادمة" /><ProviderMatchList fixtures={upcoming} /></div> : null}
-            {results.length ? <div><SectionHead eyebrow="النتائج" title="اكتملت" /><ProviderMatchList fixtures={results} /></div> : null}
+            {live.length ? <div><SectionHead eyebrow={tr("cd.nowEyebrow")} title={tr("cd.liveTitle")} /><ProviderMatchList fixtures={live} /></div> : null}
+            {upcoming.length ? <div><SectionHead eyebrow={tr("cd.fixturesEyebrow")} title={tr("cd.upcomingTitle")} /><ProviderMatchList fixtures={upcoming} /></div> : null}
+            {results.length ? <div><SectionHead eyebrow={tr("cd.resultsEyebrow")} title={tr("cd.completedTitle")} /><ProviderMatchList fixtures={results} /></div> : null}
             {matchesData ? <DataSourceNote className="mt-3" provider={matchesData.source.provider} fromCache={matchesData.source.fromCache} stale={matchesData.source.stale} fetchedAt={matchesData.source.fetchedAt} ttlSeconds={matchesData.source.ttlSeconds} /> : null}
           </div>
         )}
       </section>
 
       <section>
-        <SectionHead eyebrow="إحصاءات البطولة" title="الهدافون" />
+        <SectionHead eyebrow={tr("cd.scorersEyebrow")} title={tr("cd.scorersTitle")} />
         {scorers.length > 0 ? (
           <div className="card divide-y divide-line overflow-hidden">
             {scorers.slice(0, 10).map((scorer) => {
@@ -413,7 +420,7 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                   {canOpenProfile ? (
                     <Link href={`/players/${encodeURIComponent(playerId)}`} className="min-w-0 flex-1 truncate text-[12.5px] font-bold hover:text-gold-600 dark:hover:text-gold-400">{name}</Link>
                   ) : (
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name || "اسم اللاعب غير متاح"}</span>
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold">{name || tr("cd.playerNameUnavailable")}</span>
                   )}
                   {(() => {
                     const teamLabel = scorer.teamName ?? "";
@@ -426,13 +433,13 @@ async function ProviderCompetitionPage({ competition, id }: { competition: Footb
                       )
                     ) : null;
                   })()}
-                  {scorerData ? <span className="num text-[11px] text-muted">{scorer.appearances ?? "—"} مباراة</span> : null}
+                  {scorerData ? <span className="num text-[11px] text-muted">{tr("cd.appearances", { n: scorer.appearances ?? "—" })}</span> : null}
                 </div>
               );
             })}
             {scorerData ? <div className="px-3 py-2"><DataSourceNote provider={scorerData.source.provider} fromCache={scorerData.source.fromCache} stale={scorerData.source.stale} fetchedAt={scorerData.source.fetchedAt} ttlSeconds={scorerData.source.ttlSeconds} /></div> : null}
           </div>
-        ) : <DataUnavailable title="قائمة الهدافين غير متاحة" message="لا تتوفر إحصاءات موثوقة للهدافين في آخر تحديث." actionHref="/standings" actionLabel="الترتيب والإحصاءات" />}
+        ) : <DataUnavailable title={tr("cd.scorersUnavailableTitle")} message={tr("cd.scorersUnavailableMessage")} actionHref="/standings" actionLabel={tr("cd.tableAndStats")} />}
       </section>
     </div>
   );
@@ -461,17 +468,17 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const c = await getAdminCompetitionBySlug(slug);
   if (c?.isPublished) {
     return {
-      title: `${c.nameAr} | البطولات`,
-      description: `${c.nameAr}${c.season ? ` — موسم ${c.season}` : ""}: تفاصيل البطولة من إدارة نيمو سبورتس.`,
+      title: t(locale, "cd.adminMetaTitle", { name: c.nameAr }),
+      description: `${c.nameAr}${c.season ? ` — ${c.season}` : ""}: ${t(locale, "cd.adminMetaDescription", { name: c.nameAr })}`,
       alternates: { canonical: `/competitions/${slug}` },
     };
   }
   const synced = await syncedBySlug("competition", slug);
   if (synced) {
     const fixtures = (await syncedRecords("fixture")).data;
-    return { title: `${String(synced.data.name)} | البطولات`, alternates: { canonical: `/competitions/${synced.slug}` }, robots: { index: indexWorthy(synced, fixtures), follow: true } };
+    return { title: t(locale, "cd.adminMetaTitle", { name: String(synced.data.name) }), alternates: { canonical: `/competitions/${synced.slug}` }, robots: { index: indexWorthy(synced, fixtures), follow: true } };
   }
-  return competitionMetadataBody({ params });
+  return competitionMetadataBody({ locale, params });
 }
 
 export default async function CompetitionPage({ locale, params }: ViewProps & { locale: Locale }) {
@@ -481,5 +488,5 @@ export default async function CompetitionPage({ locale, params }: ViewProps & { 
   if (adminComp?.isPublished) return <AdminCompetitionDetail competition={adminComp} />;
   const synced = await syncedBySlug("competition", slug);
   if (synced) return <SyncedCompetitionDetail record={synced} />;
-  return <CompetitionPageBody params={params} />;
+  return <CompetitionPageBody locale={locale} params={params} />;
 }

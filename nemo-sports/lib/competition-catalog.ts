@@ -5,8 +5,11 @@ export type CanonicalCompetition = {
   code: string;
   /** Identifier the keyless SportScore provider understands (null when it has none). */
   slug: string | null;
+  /** English competition name. */
   name: string;
   nameAr: string;
+  /** English country / region name. */
+  country: string;
   countryAr: string;
   featured: boolean;
   /** Stable public path retained for existing NEMO URLs. */
@@ -39,6 +42,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "saudi-professional-league",
     name: "Saudi Pro League",
     nameAr: "دوري روشن السعودي",
+    country: "Saudi Arabia",
     countryAr: "السعودية",
     featured: true,
     canonicalSlug: "saudi-pro-league",
@@ -50,6 +54,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "egyptian-premier-league",
     name: "Egyptian Premier League",
     nameAr: "الدوري المصري الممتاز",
+    country: "Egypt",
     countryAr: "مصر",
     featured: false,
     canonicalSlug: "egyptian-league",
@@ -60,6 +65,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "caf-champions-league",
     name: "CAF Champions League",
     nameAr: "دوري أبطال أفريقيا",
+    country: "Africa",
     countryAr: "أفريقيا",
     featured: false,
     canonicalSlug: "caf-champions-league",
@@ -70,6 +76,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "caf-confederation-cup",
     name: "CAF Confederation Cup",
     nameAr: "كأس الكونفدرالية الأفريقية",
+    country: "Africa",
     countryAr: "أفريقيا",
     featured: false,
     canonicalSlug: "caf-confederation-cup",
@@ -80,6 +87,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "uefa-europa-league",
     name: "UEFA Europa League",
     nameAr: "الدوري الأوروبي",
+    country: "Europe",
     countryAr: "أوروبا",
     featured: false,
     canonicalSlug: "uefa-europa-league",
@@ -90,6 +98,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "concacaf-league-champions-cup",
     name: "CONCACAF League Champions Cup",
     nameAr: "دوري أبطال كونكاكاف",
+    country: "North & Central America",
     countryAr: "أمريكا الشمالية والوسطى",
     featured: false,
     canonicalSlug: "concacaf-league-champions-cup",
@@ -100,6 +109,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "usl-championship",
     name: "USL Championship",
     nameAr: "دوري USL Championship",
+    country: "United States",
     countryAr: "الولايات المتحدة",
     featured: false,
     canonicalSlug: "usl-championship",
@@ -110,6 +120,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "japanese-j1-league",
     name: "Japanese J1 League",
     nameAr: "الدوري الياباني J1",
+    country: "Japan",
     countryAr: "اليابان",
     featured: false,
     canonicalSlug: "japanese-j1-league",
@@ -121,6 +132,7 @@ const EXTRA_COMPETITIONS: CanonicalCompetition[] = [
     slug: "brazilian-serie-a",
     name: "Brazilian Serie A",
     nameAr: "الدوري البرازيلي",
+    country: "Brazil",
     countryAr: "البرازيل",
     featured: false,
     canonicalSlug: "brazilian-serie-a",
@@ -135,6 +147,7 @@ export const canonicalCompetitions: CanonicalCompetition[] = [
     slug: competition.sportscoreSlug,
     name: competition.name,
     nameAr: competition.nameAr,
+    country: competition.country,
     countryAr: competition.countryAr,
     featured: competition.featured,
     canonicalSlug: SLUG_BY_CODE[competition.code] ?? competition.code.toLowerCase(),

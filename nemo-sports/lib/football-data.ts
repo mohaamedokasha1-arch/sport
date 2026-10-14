@@ -76,8 +76,11 @@ export type FootballDataResult<T> =
 export type FootballDataCompetitionRef = {
   code: string;
   slug: string | null;
+  /** English competition name (provider's own naming). */
   name: string;
   nameAr: string;
+  /** English country name (provider's own naming). */
+  country: string;
   countryAr: string;
   featured: boolean;
 };
@@ -91,6 +94,7 @@ export function footballDataCompetitions(featuredOnly = false): FootballDataComp
     slug: c.sportscoreSlug,
     name: c.name,
     nameAr: c.nameAr,
+    country: c.country,
     countryAr: c.countryAr,
     featured: c.featured,
   }));
