@@ -33,17 +33,15 @@ export async function rootMetadata(locale: Locale): Promise<Metadata> {
 
   const brand = String(base.openGraph?.siteName ?? "NEMO Sports");
   const title = `${brand} | ${EN_SUFFIX}`;
+  // No `alternates` here on purpose. The English home page sets its own
+  // canonical + hreflang through views/home.tsx (localeAlternates), exactly as
+  // the Arabic tree does. Declaring them in the root layout instead made every
+  // page under (en) that has no metadata of its own — notably the 404 — inherit
+  // a canonical pointing at the /en home page, which tells Google a missing URL
+  // is a duplicate of the home page. A noindex 404 must carry no canonical.
   return {
     ...base,
     title: { default: title, template: `%s | ${brand}` },
-    alternates: {
-      canonical: "/en",
-      languages: {
-        ar: absoluteUrl("/"),
-        en: absoluteUrl("/en"),
-        "x-default": absoluteUrl("/"),
-      },
-    },
     openGraph: {
       ...base.openGraph,
       title,
