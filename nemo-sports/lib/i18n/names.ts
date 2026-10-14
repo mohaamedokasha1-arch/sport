@@ -88,3 +88,32 @@ export function scopeLabel(locale: Locale, slugs: string[], allCount: number): s
   if (slugs.length === allCount) return t(locale, "matches.allSports");
   return slugs.map((slug) => sportName(locale, slug)).join(locale === "ar" ? "، " : ", ");
 }
+
+/**
+ * Country / region labels.
+ *
+ * Provider and catalogue records carry a single Arabic country string, and that
+ * string is a data value (it is also used for filtering), so it keeps its
+ * Arabic identity and only the rendered label changes. Unknown values fall back
+ * to what the record actually says rather than to a guess.
+ */
+const COUNTRY_EN: Record<string, string> = {
+  "مصر": "Egypt",
+  "إنجلترا": "England",
+  "إسبانيا": "Spain",
+  "ألمانيا": "Germany",
+  "إيطاليا": "Italy",
+  "فرنسا": "France",
+  "السعودية": "Saudi Arabia",
+  "الولايات المتحدة": "United States",
+  "أوروبا": "Europe",
+  "أفريقيا": "Africa",
+  "أمريكا الشمالية": "North America",
+  "دولية": "International",
+};
+
+export function countryName(locale: Locale, value: string | null | undefined): string {
+  if (!value) return "";
+  if (locale === "ar") return value;
+  return COUNTRY_EN[value] ?? value;
+}

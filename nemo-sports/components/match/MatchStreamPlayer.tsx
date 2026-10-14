@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from "react";
 import { useWatchSmartlink } from "@/components/ads/useSmartlink";
+import { useT } from "@/lib/i18n/context";
 
 export type MatchStreamInfo = {
   embedUrl: string;
@@ -54,6 +55,7 @@ export default function MatchStreamPlayer({
   sectionId?: string;
   headingLevel?: "h2" | "h3";
 }) {
+  const tr = useT();
   // Nothing registered for this match → no section at all.
   if (!stream) return null;
   const Heading = headingLevel;
@@ -61,11 +63,11 @@ export default function MatchStreamPlayer({
   return (
     <section id={sectionId} className="mt-8">
       <Heading className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b-2 border-line pb-2 text-[15px] font-extrabold">
-        <span>البث المباشر</span>
+        <span>{tr("msp.heading")}</span>
         {phase === "live" ? (
           <span className="flex items-center gap-1.5 rounded-[3px] bg-live px-2 py-1 text-[10px] font-extrabold tracking-widest text-white">
             <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-white" />
-            مباشر الآن
+            {tr("card.liveNow")}
           </span>
         ) : null}
       </Heading>
@@ -75,8 +77,8 @@ export default function MatchStreamPlayer({
           <p aria-hidden className="text-xl">
             📺
           </p>
-          <p className="mt-1.5 text-[13px] font-extrabold">{inactiveNote ?? "البث غير نشط حاليًا."}</p>
-          <p className="mt-1 text-[11.5px] text-muted">لا نعرض البث كمصدر نشط خارج نافذة المباراة أو بعد إنهائه من الإدارة.</p>
+          <p className="mt-1.5 text-[13px] font-extrabold">{inactiveNote ?? tr("msp.inactiveFallback")}</p>
+          <p className="mt-1 text-[11.5px] text-muted">{tr("msp.inactiveNote")}</p>
         </div>
       ) : (
         <PlayerCard stream={stream} phase={phase} home={home} away={away} />
@@ -96,6 +98,7 @@ function PlayerCard({
   home: string;
   away: string;
 }) {
+  const tr = useT();
   const [attempt, setAttempt] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   // Adsterra Smartlink rides on the watch intent (never on the primary action:
@@ -123,7 +126,7 @@ function PlayerCard({
           <iframe
             key={attempt}
             src={stream.embedUrl}
-            title={`بث مباشر: ${home} × ${away}`}
+            title={tr("msp.iframeTitle", { home, away })}
             className="absolute inset-0 h-full w-full border-0 bg-navy-900"
             width={640}
             height={360}
@@ -144,7 +147,7 @@ function PlayerCard({
                 aria-hidden
                 className="mx-auto mb-2 block h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-gold-500"
               />
-              <p className="text-[12px] font-bold text-white/80">جارٍ تحميل البث المباشر…</p>
+              <p className="text-[12px] font-bold text-white/80">{tr("msp.loading")}</p>
             </div>
           </div>
         ) : null}
@@ -155,10 +158,9 @@ function PlayerCard({
               <p aria-hidden className="text-2xl">
                 📡
               </p>
-              <p className="mt-1 text-[13px] font-extrabold text-white">تعذّر تحميل مصدر البث</p>
+              <p className="mt-1 text-[13px] font-extrabold text-white">{tr("msp.loadFailed")}</p>
               <p className="mt-1 text-[11.5px] leading-relaxed text-white/60">
-                قد يكون المصدر متوقفًا مؤقتًا أو محجوبًا في منطقتك. جرّب إعادة المحاولة، أو افتح المشغّل في نافذة
-                مستقلة.
+                {tr("msp.loadFailedBody")}
               </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <button
@@ -166,7 +168,7 @@ function PlayerCard({
                   onClick={retry}
                   className="rounded-[3px] bg-gold-500 px-3.5 py-2 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400 focus-ring"
                 >
-                  إعادة المحاولة
+                  {tr("common.retry")}
                 </button>
                 <a
                   href={stream.embedUrl}
@@ -175,7 +177,7 @@ function PlayerCard({
                   onClick={watchClick}
                   className="rounded-[3px] border border-white/25 px-3.5 py-2 text-[12px] font-extrabold text-white transition hover:border-gold-400 hover:text-gold-400 focus-ring"
                 >
-                  فتح في نافذة جديدة ↗
+                  {tr("msp.openNew")}
                 </a>
               </div>
             </div>
@@ -185,8 +187,8 @@ function PlayerCard({
 
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted">
         <span className="truncate">
-          {stream.label ? `المصدر: ${stream.label}` : "المصدر: مشغّل البث الخاص بالمباراة"}
-          {phase === "upcoming" ? " · يبدأ البث مع انطلاق المباراة" : ""}
+          {stream.label ? tr("msp.sourceLabel", { label: stream.label }) : tr("msp.sourceDefault")}
+          {phase === "upcoming" ? tr("msp.startsWithKickoff") : ""}
         </span>
         <span className="flex shrink-0 items-center gap-3">
           {loadState !== "error" ? (
@@ -195,7 +197,7 @@ function PlayerCard({
               onClick={() => setLoadState("error")}
               className="font-bold text-gold-600 transition hover:underline dark:text-gold-400"
             >
-              المشغّل لا يعمل؟
+              {tr("msp.playerBroken")}
             </button>
           ) : null}
           <a
@@ -205,7 +207,7 @@ function PlayerCard({
             onClick={watchClick}
             className="font-bold text-gold-600 transition hover:underline dark:text-gold-400"
           >
-            فتح في نافذة جديدة ↗
+            {tr("msp.openNew")}
           </a>
         </span>
       </div>

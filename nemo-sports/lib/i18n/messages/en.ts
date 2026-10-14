@@ -1300,6 +1300,20 @@ const en: Record<keyof typeof ar, string> = {
   "br.demoNotice": "Broadcaster data in the preview environment may be illustrative and does not prove that a licence or agreement exists.",
   "br.closingNote": "Publishing this policy does not mean a broadcaster or a match is available to watch; the information is shown only when it is documented and available.",
 
+  /* ── match stream player (client) ─────────────────────────── */
+  "msp.heading": "Live stream",
+  "msp.inactiveFallback": "The stream is not active right now.",
+  "msp.inactiveNote": "We never show a stream as an active source outside the match window or after the editors end it.",
+  "msp.iframeTitle": "Live stream: {home} × {away}",
+  "msp.loading": "Loading the live stream…",
+  "msp.loadFailed": "The stream source could not be loaded",
+  "msp.loadFailedBody": "The source may be temporarily down or blocked in your region. Try again, or open the player in a separate window.",
+  "msp.openNew": "Open in a new window ↗",
+  "msp.sourceLabel": "Source: {label}",
+  "msp.sourceDefault": "Source: the match's own stream player",
+  "msp.startsWithKickoff": " · the stream starts at kick-off",
+  "msp.playerBroken": "Player not working?",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "View all",
   "ui.dataUnavailableTitle": "Data is not available right now",
