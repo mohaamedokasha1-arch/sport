@@ -5,7 +5,8 @@ import MatchCard from "@/components/match/MatchCard";
 import SectionHead from "@/components/ui/SectionHead";
 import ProviderMatchList from "@/components/data/ProviderMatchList";
 import { postponed, upcomingNext, upcomingToday } from "@/lib/data";
-import { dateAr, dayLabel } from "@/lib/format";
+import { formatDate, formatDayLabel, timeZoneLabel } from "@/lib/i18n/dates";
+import { t } from "@/lib/i18n/translate";
 import { fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { demoContentVisible } from "@/lib/site";
@@ -18,8 +19,8 @@ export type ViewProps = Record<string, never>;
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "المباريات القادمة — جدول المواعيد",
-  description: "مواعيد المباريات القادمة مرتبة حسب اليوم من مصادر البيانات المتاحة.",
+  title: t(locale, "fx.metaTitle"),
+  description: t(locale, "fx.metaDescription"),
   alternates: { canonical: "/fixtures" },
 };
 }
@@ -40,7 +41,8 @@ function groupFixturesByDay(fixtures: NormalizedFixture[]) {
   }));
 }
 
-async function FixturesPageBody() {
+async function FixturesPageBody({ locale }: { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const now = Date.now();
   const real = await sdlFixtures({ sport: "football" });
   const realData = real.ok && real.source === "provider" ? real : null;
@@ -57,18 +59,18 @@ async function FixturesPageBody() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">المواعيد</p>
-            <h1 className="text-2xl font-extrabold tracking-tight">المباريات القادمة</h1>
+            <p className="eyebrow mb-1">{tr("fx.eyebrow")}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{tr("fx.heading")}</h1>
           </div>
-          <p className="text-[12px] text-muted"><span className="num font-bold">{realUpcoming.length}</span> مباراة مؤكدة · توقيت القاهرة</p>
+          <p className="text-[12px] text-muted"><span className="num font-bold">{realUpcoming.length}</span> {tr("fx.countConfirmed")} · {timeZoneLabel(locale)}</p>
         </header>
         {groups.length === 0 ? (
-          <DataUnavailable title="لا توجد مباريات قادمة في الجدول المتاح" message="لا يتضمن آخر تحديث مباريات لم تبدأ بعد. يمكنك مراجعة قائمة المباريات أو النتائج." actionHref="/matches" actionLabel="عرض كل المباريات" />
+          <DataUnavailable title={tr("fx.emptyTitle")} message={tr("fx.emptyMessage")} actionHref="/matches" actionLabel={tr("mt.pageName")} />
         ) : (
           <div className="space-y-8">
             {groups.map(({ key, list }) => (
               <section key={key}>
-                <SectionHead eyebrow={dateAr(list[0].scheduledAt)} title={`${dayLabel(list[0].scheduledAt)} · ${list.length} مباراة`} />
+                <SectionHead eyebrow={formatDate(locale, list[0].scheduledAt)} title={`${formatDayLabel(locale, list[0].scheduledAt)} · ${tr("fx.dayMatches", { n: list.length })}`} />
                 <ProviderMatchList fixtures={list} />
               </section>
             ))}
@@ -92,18 +94,18 @@ async function FixturesPageBody() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">المواعيد</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">المباريات القادمة</h1>
+          <p className="eyebrow mb-1">{tr("fx.eyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tr("fx.heading")}</h1>
         </div>
-        {showDemo ? <p className="text-[12px] text-muted"><span className="num font-bold">{all.length}</span> مباراة في المعاينة</p> : null}
+        {showDemo ? <p className="text-[12px] text-muted"><span className="num font-bold">{all.length}</span> {tr("fx.demoCount")}</p> : null}
       </header>
       {days.length === 0 ? (
-        <DataUnavailable title="لا توجد مواعيد مؤكدة حاليًا" message="لا يتوفر جدول قادم من مصدر بيانات قابل للتحقق. سنعيد المحاولة عند التحديث القادم." actionHref="/matches" actionLabel="تصفّح المباريات" />
+        <DataUnavailable title={tr("fx.emptyTitle2")} message={tr("fx.emptyMessage2")} actionHref="/matches" actionLabel={tr("rs.browseMatches")} />
       ) : (
         <div className="space-y-9">
           {days.map(([, list]) => (
             <section key={list[0].id}>
-              <SectionHead eyebrow={dateAr(list[0].kickoff)} title={`${dayLabel(list[0].kickoff)} · ${list.length} مباراة`} />
+              <SectionHead eyebrow={formatDate(locale, list[0].kickoff)} title={`${formatDayLabel(locale, list[0].kickoff)} · ${tr("fx.dayMatches", { n: list.length })}`} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {list.sort((a, b) => +new Date(a.kickoff) - +new Date(b.kickoff)).map((match) => <MatchCard key={match.id} match={match} />)}
               </div>
@@ -113,7 +115,7 @@ async function FixturesPageBody() {
       )}
       {showDemo && postponed.length > 0 ? (
         <section className="mt-10">
-          <SectionHead eyebrow="حالة المباراة" title="مؤجلة وملغاة" accent={false} />
+          <SectionHead eyebrow={tr("fx.statusEyebrow")} title={tr("fx.interruptedTitle")} accent={false} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{postponed.map((match) => <MatchCard key={match.id} match={match} />)}</div>
         </section>
       ) : null}
@@ -121,4 +123,4 @@ async function FixturesPageBody() {
   );
 }
 
-export default async function FixturesPage({ locale }: { locale: Locale }) { return <><FixturesPageBody /><SyncedFixtureHighlights state="upcoming" /></>; }
+export default async function FixturesPage({ locale }: { locale: Locale }) { return <><FixturesPageBody locale={locale} /><SyncedFixtureHighlights state="upcoming" /></>; }
