@@ -592,13 +592,16 @@ What actually happened:
   tree CI validated, so what landed on `main` was exactly what passed.
 - Re-verified the merged content locally after the merge: `npm run check` exit 0
   (465 tests, 23 groups) and `npm run build` exit 0.
-- Two **documentation-only** follow-ups were merged afterwards — **PR #50**
-  (`6858d08`, corrected this section) and **PR #51** (`dcea1f8`, corrected the
-  header and pushed the restore tag). Both touched only
-  `I18N_FINAL_REPORT.md`; **no code changed**. Verified:
+- **Documentation-only** follow-ups were merged afterwards (PRs #50, #51, #52 and
+  the one carrying this sentence). Every one of them touched only
+  `I18N_FINAL_REPORT.md`; **no code changed**. They exist because merging to
+  `main` deployed the work, which falsified this report's original "nothing has
+  been deployed" claim, and because pinning a SHA in prose goes stale the moment
+  the next merge lands. Verified:
   `git diff 4455d83 origin/main -- . ':(exclude)I18N_FINAL_REPORT.md'` returns
   empty, so the code on `main` is still exactly what CI validated at `4455d83`.
-  `origin/main` is therefore `dcea1f8`.
+  The tip of `origin/main` moves with each merge, so it is deliberately not
+  pinned here — read it with `git rev-parse origin/main`.
 - Tag `baseline-pre-i18n` marks the pre-work commit `c715149` as a restore point,
   and is pushed to `origin` (`git ls-remote --tags origin` resolves it).
 
