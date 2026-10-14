@@ -13,6 +13,8 @@ import { listAdminCompetitions, type AdminCompetition } from "@/lib/admin-compet
 import { listManualNews, newsParagraphs, type ManualNews } from "@/lib/manual-news";
 import { dateAr } from "@/lib/format";
 import { SITE_TZ } from "@/lib/tz";
+import { editorialStructuredData } from "@/lib/news/editorial-seo";
+import type { EditorialLink } from "@/lib/news/editorial-links";
 
 const cardCls = "card flex items-center gap-3 p-4 transition hover:border-gold-500/50";
 
@@ -217,32 +219,107 @@ export function AdminCompetitionDetail({ competition }: { competition: AdminComp
   );
 }
 
-export function AdminNewsDetail({ article }: { article: ManualNews }) {
+/**
+ * A published editorial article, as Google News/Discover reads it:
+ *
+ *   · NewsArticle structured data (headline, image, datePublished,
+ *     dateModified, section, publisher, mainEntityOfPage) — the "article"
+ *     signal Discover and the news surfaces look for;
+ *   · BreadcrumbList — home → news → headline;
+ *   · <time datetime> for the publish date, machine-readable next to the
+ *     Arabic label;
+ *   · internal links (hub & spoke) resolved to real pages only, plus the
+ *     "اقرأ أيضًا" block built from other published articles.
+ *
+ * Everything rendered here comes from the admin store; nothing is invented. An
+ * article whose image or entities are missing simply renders without them.
+ */
+export function AdminNewsDetail({
+  article,
+  links = [],
+  related = [],
+}: {
+  article: ManualNews;
+  links?: EditorialLink[];
+  related?: ManualNews[];
+}) {
   const paragraphs = newsParagraphs(article.content);
+  const structuredData = editorialStructuredData(article);
+
   return (
     <article className="mx-auto max-w-[800px] px-4 py-6">
+      {structuredData.map((json, i) => (
+        <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />
+      ))}
+
       <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
         <Link href="/" className="hover:text-gold-600">الرئيسية</Link><span aria-hidden>/</span>
         <Link href="/news" className="hover:text-gold-600">الأخبار</Link>
+        <span aria-hidden>/</span>
+        <span className="font-semibold text-ink">{article.category}</span>
       </nav>
-      <p className="num text-[11px] text-muted">{dateAr(article.publishedAt)} · {article.category}</p>
+
+      <p className="num text-[11px] text-muted">
+        <time dateTime={article.publishedAt}>{dateAr(article.publishedAt)}</time> · {article.category}
+      </p>
       <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight">{article.title}</h1>
+      {article.titleEn ? <p className="mt-1 text-[12px] text-muted" dir="ltr">{article.titleEn}</p> : null}
       {article.description ? <p className="mt-3 text-[15px] leading-relaxed text-muted">{article.description}</p> : null}
       {article.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={article.imageUrl} alt="" loading="lazy" className="mt-5 w-full rounded-[6px] object-cover" />
+        <img src={article.imageUrl} alt={article.title} className="mt-5 w-full rounded-[6px] object-cover" />
       ) : null}
       <div className="mt-6 space-y-4 text-[15px] leading-8">
         {paragraphs.map((p, i) => (
           <p key={i}>{p}</p>
         ))}
       </div>
-      <p className="mt-8 border-t border-line pt-4 text-[12px] text-muted">
+
+      {links.length > 0 ? (
+        <nav aria-label="روابط ذات صلة" className="mt-8 border-t border-line pt-4">
+          <p className="eyebrow mb-2">روابط ذات صلة</p>
+          <ul className="flex flex-wrap gap-2">
+            {links.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="inline-flex items-center rounded-[3px] border border-line px-2.5 py-1.5 text-[12px] font-bold transition hover:border-gold-500 hover:text-gold-600 dark:hover:text-gold-400"
+                >
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
+      <p className="mt-6 border-t border-line pt-4 text-[12px] text-muted">
         المصدر:{" "}
         <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="font-bold text-gold-600 hover:underline">
           {article.sourceName} ↗
         </a>
       </p>
+
+      {related.length > 0 ? (
+        <section className="mt-8" aria-label="اقرأ أيضًا">
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">اقرأ أيضًا</h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {related.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={`/news/${encodeURIComponent(item.slug)}`}
+                  className="card block h-full p-4 transition hover:border-gold-500/50"
+                >
+                  <span className="num block text-[10px] text-muted">
+                    <time dateTime={item.publishedAt}>{dateAr(item.publishedAt)}</time> · {item.category}
+                  </span>
+                  <span className="mt-1.5 block text-[14px] font-bold leading-snug">{item.title}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </article>
   );
 }

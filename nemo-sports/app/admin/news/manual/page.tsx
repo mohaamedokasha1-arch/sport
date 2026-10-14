@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { storeErrorMessage } from "@/lib/db/store-policy";
 import { AdminHead, Btn, Panel, Pill, Table, Field, inputCls, NotConnected } from "@/components/admin/ui";
 import ConfirmForm from "@/components/admin/ConfirmSubmit";
+import SeoTextField from "@/components/admin/SeoTextField";
 import { requirePermission } from "@/lib/admin-session";
 import { logActivity } from "@/lib/activity";
 import { dateAr, timeOf } from "@/lib/format";
@@ -191,9 +192,9 @@ export default async function AdminManualNews({
           <Panel title={editing ? "تعديل خبر" : "إضافة خبر"}>
             <form action={editing ? updateNewsAction : createNewsAction} className="grid gap-3">
               {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
-              <Field label="العنوان (عربي) *"><input name="title" required maxLength={300} defaultValue={editing?.title ?? ""} className={inputCls} /></Field>
+              <SeoTextField kind="title" name="title" label="العنوان (عربي) *" required maxLength={300} defaultValue={editing?.title ?? ""} />
               <Field label="العنوان (إنجليزي)"><input name="titleEn" dir="ltr" maxLength={300} defaultValue={editing?.titleEn ?? ""} className={inputCls} /></Field>
-              <Field label="ملخص قصير"><textarea name="description" rows={2} maxLength={600} defaultValue={editing?.description ?? ""} className={inputCls} /></Field>
+              <SeoTextField kind="description" name="description" label="ملخص قصير (وصف البحث)" rows={2} maxLength={600} defaultValue={editing?.description ?? ""} />
               <Field label="نص الخبر (فقرات مفصولة بسطر فارغ — نص عادي فقط)">
                 <textarea name="content" rows={6} maxLength={20000} defaultValue={editing?.content ?? ""} className={inputCls} />
               </Field>
@@ -212,6 +213,10 @@ export default async function AdminManualNews({
                 <Field label="البطولة المرتبطة"><input name="relatedCompetition" maxLength={120} defaultValue={editing?.relatedCompetition ?? ""} className={inputCls} /></Field>
               </div>
               <Field label="معرّف مختصر (اختياري)"><input name="slug" dir="ltr" maxLength={100} defaultValue={editing?.slug ?? ""} className={`${inputCls} num`} /></Field>
+              <p className="rounded-[3px] border border-navy-700 bg-navy-950 px-3 py-2 text-[10px] leading-relaxed text-white/50">
+                قائمة الظهور في Discover: عنوان 50–60 حرفًا يبدأ بالكلمة المفتاحية · صورة أصلية بعرض 1200 بكسل أو أكثر
+                (رابط https) · الفريق والبطولة المرتبطان يُحوَّلان تلقائيًا إلى روابط داخلية عند وجود صفحة لهما فقط.
+              </p>
               <Btn type="submit">{editing ? "حفظ التعديلات" : "حفظ الخبر"}</Btn>
               {editing ? <Link href="/admin/news/manual" className="text-center text-[11px] font-bold text-white/50 hover:text-gold-400">إلغاء التعديل</Link> : null}
             </form>
