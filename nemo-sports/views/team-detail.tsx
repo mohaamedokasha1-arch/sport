@@ -28,6 +28,8 @@ import { decodeSlug } from "@/lib/slug";
 import { coveredFootballCompetitionIds, findTeamRow, teamHasFixtureInWindow } from "@/lib/team-lookup";
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+import { formatClock, formatDate } from "@/lib/i18n/dates";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -98,8 +100,10 @@ function competitionNameAr(id: string): string {
 }
 
 async function teamMetadataBody({
+  locale,
   params,
 }: {
+  locale: Locale;
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
@@ -107,9 +111,9 @@ async function teamMetadataBody({
   /* ── real provider team first ── */
   const real = await sdlTeam("football", slug);
   if (real.ok && real.source === "provider") {
-    const t = real.data;
-    const title = `${t.name} | الفريق`;
-    const description = `كل ما يخص ${t.name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
+    const team = real.data;
+    const title = t(locale, "td.metaTitle", { name: team.name });
+    const description = t(locale, "td.metaDescription", { name: team.name });
     return {
       title,
       description,
@@ -123,8 +127,8 @@ async function teamMetadataBody({
     const listed = await findTeamInRealTables(slug);
     const name = listed?.row.teamName ?? listed?.row.teamShortName ?? null;
     if (listed && name) {
-      const title = `${name} | الفريق`;
-      const description = `كل ما يخص ${name}: الترتيب والنقاط وسلسلة النتائج وآخر المباريات — بيانات حقيقية من المصدر.`;
+      const title = t(locale, "td.metaTitle", { name });
+      const description = t(locale, "td.metaDescription", { name });
       // Thin-page rule (same as competition pages): a team known only from its
       // table row, with no fixture in the provider window, is noindex, follow.
       // It returns to the index by itself once its fixtures are available.
@@ -141,19 +145,20 @@ async function teamMetadataBody({
     }
   }
 
-  const t = demoContentVisible() ? teamBySlug(slug) : undefined;
+  const team = demoContentVisible() ? teamBySlug(slug) : undefined;
   // Explicit robots so a 404 emits one consistent directive instead of the
   // layout's `index, follow` stacked on Next.js's built-in not-found noindex.
-  if (!t) return { title: "الفريق غير موجود", robots: { index: false, follow: true } };
-  const comp = competitionBySlug(t.competition);
+  if (!team) return { title: t(locale, "td.notFound"), robots: { index: false, follow: true } };
+  const comp = competitionBySlug(team.competition);
   return {
-    title: `${t.name} | ${comp?.name ?? sportBySlug(t.sport)?.name}`,
-    description: `كل ما يخص ${t.name}: اللاعبون، المباريات القادمة، النتائج، الترتيب والإحصائيات.`,
-    alternates: { canonical: `/teams/${t.slug}` },
+    title: `${team.name} | ${comp?.name ?? sportBySlug(team.sport)?.name}`,
+    description: t(locale, "td.metaDescriptionFull", { name: team.name }),
+    alternates: { canonical: `/teams/${team.slug}` },
   };
 }
 
-async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
+async function TeamPageBody({ locale, params }: { locale: Locale; params: Promise<{ slug: string }> }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const { slug } = await params;
 
   /* ══ 1) real provider team ══════════════════════════════════════════ */
@@ -165,7 +170,7 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
     throw new Error(`team_unavailable:${real.error.kind}`);
   }
   if (real.ok && real.source === "provider") {
-    return <RealTeamView slug={slug} provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} name={real.data.name} shortName={real.data.shortName} logoUrl={real.data.logoUrl} countryName={real.data.countryName} foundedYear={real.data.foundedYear} venueName={real.data.venueName} primaryColor={real.data.primaryColor} secondaryColor={real.data.secondaryColor} />;
+    return <RealTeamView locale={locale} slug={slug} provider={real.provider} fromCache={real.fromCache} stale={real.stale} fetchedAt={real.fetchedAt} name={real.data.name} shortName={real.data.shortName} logoUrl={real.data.logoUrl} countryName={real.data.countryName} foundedYear={real.data.foundedYear} venueName={real.data.venueName} primaryColor={real.data.primaryColor} secondaryColor={real.data.secondaryColor} />;
   }
 
   /* ══ 1b) a real team that /teams links to, resolved from the tables ══
@@ -179,6 +184,7 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
     if (listed && name) {
       return (
         <RealTeamView
+          locale={locale}
           slug={slug}
           lookup={listed}
           provider={listed.provider}
@@ -229,18 +235,26 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
   const table = standings[team.competition];
   const teamRow = table?.find((r) => r.team === team.slug);
 
-  const groupOrder = ["حراسة المرمى", "الدفاع", "الوسط", "الهجوم", "أساسي", "فردي"];
+  // The stored `positionGroup` values are data (Arabic) — only the label is translated.
+  const groupOrder: { value: string; labelKey: "td.pos.goalkeeper" | "td.pos.defender" | "td.pos.midfielder" | "td.pos.forward" | "td.pos.starter" | "td.pos.solo" }[] = [
+    { value: "حراسة المرمى", labelKey: "td.pos.goalkeeper" },
+    { value: "الدفاع", labelKey: "td.pos.defender" },
+    { value: "الوسط", labelKey: "td.pos.midfielder" },
+    { value: "الهجوم", labelKey: "td.pos.forward" },
+    { value: "أساسي", labelKey: "td.pos.starter" },
+    { value: "فردي", labelKey: "td.pos.solo" },
+  ];
   const grouped = groupOrder
-    .map((g) => ({ title: g, list: squad.filter((p) => p.positionGroup === g) }))
+    .map((g) => ({ title: tr(g.labelKey), list: squad.filter((p) => p.positionGroup === g.value) }))
     .filter((g) => g.list.length > 0);
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
-      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — ليست إحصاءات أو مباريات حقيقية.</p>
-      <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("td.demoNotice")}</p>
+      <nav aria-label={tr("td.breadcrumbAria")} className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("td.home")}</Link>
         <span aria-hidden>/</span>
-        <Link href="/teams" className="hover:text-gold-600 dark:hover:text-gold-400">الفرق</Link>
+        <Link href="/teams" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("td.teams")}</Link>
         <span aria-hidden>/</span>
         <span className="font-semibold text-ink">{team.name}</span>
       </nav>
@@ -256,31 +270,31 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
               <p className="eyebrow !text-white/50">{sport?.name}</p>
               <h1 className="text-2xl font-extrabold tracking-tight">{team.name}</h1>
               <p className="mt-1 text-[12px] text-white/70">
-                {team.country} · {comp?.name} · تأسس <span className="num">{team.founded}</span>
+                {team.country} · {comp?.name} · {tr("td.founded")} <span className="num">{team.founded}</span>
               </p>
             </div>
           </div>
 
           <dl className="flex flex-wrap gap-6 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">لعب</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("td.statPlayed")}</dt>
               <dd className="num text-xl font-extrabold">{record.w + record.d + record.l}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">ف/ت/خ</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("td.statWDL")}</dt>
               <dd className="num text-xl font-extrabold text-gold-400">
                 {record.w}/{record.d}/{record.l}
               </dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">الأهداف</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("td.statGoals")}</dt>
               <dd className="num text-xl font-extrabold">
                 {record.gf}–{record.ga}
               </dd>
             </div>
             {teamRow ? (
               <div>
-                <dt className="text-[10px] uppercase tracking-widest text-white/45">المركز</dt>
+                <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("td.statPosition")}</dt>
                 <dd className="num text-xl font-extrabold text-gold-400">{teamRow.pos}</dd>
               </div>
             ) : null}
@@ -289,32 +303,32 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
 
         <div className="flex flex-wrap gap-x-8 gap-y-2 border-t border-white/10 px-5 py-3 text-[11px] text-white/70">
           <span>🏟 {team.stadium ?? "—"}</span>
-          {team.capacity ? <span className="num">السعة: {number(team.capacity)}</span> : null}
-          <span>👔 المدرب: {team.coach ?? "—"}</span>
-          <span>© القائد: {team.captain ?? "—"}</span>
+          {team.capacity ? <span className="num">{tr("td.capacity", { n: number(team.capacity) })}</span> : null}
+          <span>{tr("td.coach", { name: team.coach ?? "—" })}</span>
+          <span>{tr("td.captain", { name: team.captain ?? "—" })}</span>
         </div>
       </header>
 
       <Tabs
-        label="تفاصيل الفريق"
+        label={tr("td.tabsAria")}
         items={[
           {
             id: "overview",
-            label: "نظرة عامة",
+            label: tr("td.tabOverview"),
             content: (
               <div className="space-y-6">
-                {live.length > 0 ? <Group title="مباشر الآن" list={live} /> : null}
-                <Group title="المباريات القادمة" list={upcoming} />
-                <Group title="آخر النتائج" list={played} />
+                {live.length > 0 ? <Group title={tr("td.liveNow")} list={live} /> : null}
+                <Group title={tr("td.upcoming")} list={upcoming} />
+                <Group title={tr("td.recentResults")} list={played} />
                 {matches.length === 0 ? (
-                  <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد مباريات مسجّلة لهذا الفريق.</p>
+                  <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("td.noMatches")}</p>
                 ) : null}
               </div>
             ),
           },
           {
             id: "squad",
-            label: "اللاعبون",
+            label: tr("td.tabPlayers"),
             content:
               grouped.length > 0 ? (
                 <div className="space-y-5">
@@ -334,7 +348,7 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
                               <span className="min-w-0">
                                 <span className="block truncate text-[13px] font-bold">{p.name}</span>
                                 <span className="block truncate text-[11px] text-muted">
-                                  {p.position} · {p.flag} {p.nationality} · {age(p.birth)} سنة
+                                  {p.position} · {p.flag} {p.nationality} · {tr("td.playerYears", { age: age(p.birth) })}
                                 </span>
                               </span>
                             </Link>
@@ -346,26 +360,26 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
                 </div>
               ) : (
                 <p className="card px-4 py-10 text-center text-[13px] text-muted">
-                  لا تتوفر قائمة لاعبين لهذا المشارك في النسخة التجريبية.
+                  {tr("td.noPlayers")}
                 </p>
               ),
           },
           {
             id: "matches",
-            label: "المباريات والنتائج",
-            content: <Group title="كل مباريات الموسم" list={matches} />,
+            label: tr("td.tabMatches"),
+            content: <Group title={tr("td.seasonMatches")} list={matches} />,
           },
           {
             id: "table",
-            label: "الترتيب",
+            label: tr("td.tabTable"),
             disabled: !table,
             content: table ? (
               <div className="space-y-3">
                 <StandingsTable rows={table} />
                 {teamRow ? (
                   <p className="text-[12px] text-muted">
-                    يحتل {team.name} المركز <span className="num font-bold text-ink">{teamRow.pos}</span> برصيد{" "}
-                    <span className="num font-bold text-ink">{teamRow.points}</span> نقطة في {comp?.name}.
+                    {tr("td.standingLine1", { name: team.name })} <span className="num font-bold text-ink">{teamRow.pos}</span> {tr("td.standingPoints")}{" "}
+                    <span className="num font-bold text-ink">{teamRow.points}</span> {tr("td.standingLine2", { comp: comp?.name ?? "" })}
                   </p>
                 ) : null}
               </div>
@@ -373,7 +387,7 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
           },
           {
             id: "news",
-            label: "الأخبار",
+            label: tr("td.tabNews"),
             content:
               news.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -382,7 +396,7 @@ async function TeamPageBody({ params }: { params: Promise<{ slug: string }> }) {
                   ))}
                 </div>
               ) : (
-                <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد أخبار مرتبطة بهذا الفريق.</p>
+                <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("td.noNews")}</p>
               ),
           },
         ]}
@@ -426,35 +440,32 @@ function Group({ title, list }: { title: string; list: ReturnType<typeof teamMat
  * vocabularies must not be mixed: comparing an SDL fixture against "FINISHED"
  * silently matches nothing and files every result under "upcoming".
  */
-const STATUS_AR: Record<string, string> = {
-  scheduled: "لم تبدأ",
-  live: "جارية",
-  halftime: "الاستراحة",
-  extra_time: "وقت إضافي",
-  extra_time_halftime: "استراحة الوقت الإضافي",
-  penalty_shootout: "ركلات الترجيح",
-  finished: "انتهت",
-  awarded: "حُسمت بقرار",
-  walkover: "انسحاب",
-  suspended: "موقوفة",
-  abandoned: "متوقفة",
-  postponed: "مؤجلة",
-  cancelled: "ملغاة",
+const STATUS_KEYS: Record<string, string> = {
+  scheduled: "td.status.scheduled",
+  live: "td.status.live",
+  halftime: "td.status.halftime",
+  extra_time: "td.status.extra_time",
+  extra_time_halftime: "td.status.extra_time_halftime",
+  penalty_shootout: "td.status.penalty_shootout",
+  finished: "td.status.finished",
+  awarded: "td.status.awarded",
+  walkover: "td.status.walkover",
+  suspended: "td.status.suspended",
+  abandoned: "td.status.abandoned",
+  postponed: "td.status.postponed",
+  cancelled: "td.status.cancelled",
 };
 
 // Live-status vocabulary lives in lib/match-state.ts (one definition site-wide).
 const FINAL_STATUSES = new Set(["finished", "awarded", "walkover"]);
 
-const arabicDateTime = (iso: string) => {
+const fixtureDateTime = (locale: Locale, iso: string) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("ar-EG", {
-    weekday: "short", day: "numeric", month: "long",
-    hour: "2-digit", minute: "2-digit", timeZone: "Africa/Cairo",
-  });
+  return `${formatDate(locale, iso)} · ${formatClock(locale, iso)}`;
 };
 
-function ProviderTeamFixtureList({ fixtures, showScore = false }: { fixtures: NormalizedFixture[]; showScore?: boolean }) {
+function ProviderTeamFixtureList({ locale, fixtures, showScore = false }: { locale: Locale; fixtures: NormalizedFixture[]; showScore?: boolean }) {
   return (
     <ul className="space-y-2">
       {fixtures.slice(0, 10).map((fixture) => (
@@ -464,14 +475,14 @@ function ProviderTeamFixtureList({ fixtures, showScore = false }: { fixtures: No
               <span className="block truncate font-bold">
                 {fixture.homeName ?? fixture.homeProviderId ?? "—"} – {fixture.awayName ?? fixture.awayProviderId ?? "—"}
               </span>
-              <span className="num block text-[11px] text-muted">{arabicDateTime(fixture.scheduledAt) ?? "—"}</span>
+              <span className="num block text-[11px] text-muted">{fixtureDateTime(locale, fixture.scheduledAt) ?? "—"}</span>
             </span>
             {showScore ? (
               <span className="num shrink-0 text-[15px] font-extrabold">
-                {fixture.homeScore !== null && fixture.awayScore !== null ? `${fixture.homeScore} : ${fixture.awayScore}` : "النتيجة غير متاحة"}
+                {fixture.homeScore !== null && fixture.awayScore !== null ? `${fixture.homeScore} : ${fixture.awayScore}` : t(locale, "td.scoreUnavailable")}
               </span>
             ) : (
-              <span className="chip shrink-0">{STATUS_AR[fixture.status] ?? "حالة غير معروفة"}</span>
+              <span className="chip shrink-0">{t(locale, (STATUS_KEYS[fixture.status] ?? "td.status.fallback") as Parameters<typeof t>[1])}</span>
             )}
           </Link>
         </li>
@@ -480,7 +491,7 @@ function ProviderTeamFixtureList({ fixtures, showScore = false }: { fixtures: No
   );
 }
 
-async function RealTeamView(props: {
+async function RealTeamView({ locale, ...props }: { locale: Locale;
   slug: string;
   lookup?: RealTeamLookup;
   provider: string;
@@ -518,15 +529,16 @@ async function RealTeamView(props: {
 
   const r = row as NormalizedStandingRow | null;
 
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const facts: [string, string | number | null][] = [
-    ["الدولة", props.countryName],
-    ["سنة التأسيس", props.foundedYear],
-    ["الملعب", props.venueName],
-    ["المركز", r?.position ?? null],
-    ["النقاط", r?.points ?? null],
-    ["لعب", r?.played ?? null],
-    ["فاز / تعادل / خسر", r ? `${r.won} / ${r.drawn} / ${r.lost}` : null],
-    ["فارق الأهداف", r ? r.goalsFor - r.goalsAgainst : null],
+    [tr("td.factCountry"), props.countryName],
+    [tr("td.factFounded"), props.foundedYear],
+    [tr("td.factVenue"), props.venueName],
+    [tr("td.factPosition"), r?.position ?? null],
+    [tr("td.factPoints"), r?.points ?? null],
+    [tr("td.factPlayed"), r?.played ?? null],
+    [tr("td.factWDL"), r ? `${r.won} / ${r.drawn} / ${r.lost}` : null],
+    [tr("td.factGoalDiff"), r ? r.goalsFor - r.goalsAgainst : null],
   ];
 
   return (
@@ -541,7 +553,7 @@ async function RealTeamView(props: {
           </span>
         )}
         <div className="min-w-0">
-          <p className="eyebrow mb-1">فريق · بيانات حقيقية</p>
+          <p className="eyebrow mb-1">{tr("td.eyebrow")}</p>
           <h1 className="text-2xl font-extrabold tracking-tight">{props.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-muted">
             {props.shortName ? <span>{props.shortName}</span> : null}
@@ -551,7 +563,7 @@ async function RealTeamView(props: {
               </Link>
             ) : null}
             {props.primaryColor ? (
-              <span className="flex items-center gap-1.5" title="ألوان الفريق">
+              <span className="flex items-center gap-1.5" title={tr("td.teamColors")}>
                 <span className="h-3 w-3 rounded-[2px]" style={{ background: props.primaryColor }} aria-hidden />
                 {props.secondaryColor ? <span className="h-3 w-3 rounded-[2px]" style={{ background: props.secondaryColor }} aria-hidden /> : null}
               </span>
@@ -571,31 +583,31 @@ async function RealTeamView(props: {
         ))}
       </dl>
 
-      {r?.form?.length ? <p className="mb-8 text-[12px] text-muted">سلسلة آخر النتائج: <span className="num font-bold tracking-[0.2em] text-white">{r.form.join("")}</span></p> : null}
+      {r?.form?.length ? <p className="mb-8 text-[12px] text-muted">{tr("td.formRun")} <span className="num font-bold tracking-[0.2em] text-white">{r.form.join("")}</span></p> : null}
 
       <div className="grid gap-8 lg:grid-cols-2">
         {live.length > 0 ? (
           <section>
-            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">مباشر الآن</h2>
-            <ProviderTeamFixtureList fixtures={live} />
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">{tr("td.liveNow")}</h2>
+            <ProviderTeamFixtureList locale={locale} fixtures={live} />
           </section>
         ) : null}
 
         <section>
-          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">المباريات القادمة</h2>
-          {upcoming.length > 0 ? <ProviderTeamFixtureList fixtures={upcoming} /> : <p className="text-[12px] text-muted">لا توجد مباريات مجدولة ضمن نافذة المباريات المسترجعة حاليًا.</p>}
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">{tr("td.upcoming")}</h2>
+          {upcoming.length > 0 ? <ProviderTeamFixtureList locale={locale} fixtures={upcoming} /> : <p className="text-[12px] text-muted">{tr("td.noUpcoming")}</p>}
         </section>
 
         {special.length > 0 ? (
           <section>
-            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">مباريات بحالات خاصة</h2>
-            <ProviderTeamFixtureList fixtures={special} />
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">{tr("td.specialStates")}</h2>
+            <ProviderTeamFixtureList locale={locale} fixtures={special} />
           </section>
         ) : null}
 
         <section>
-          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">أحدث النتائج</h2>
-          {played.length > 0 ? <ProviderTeamFixtureList fixtures={played} showScore /> : <p className="text-[12px] text-muted">لا توجد نتائج مكتملة ضمن نافذة المباريات المسترجعة حاليًا.</p>}
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-lg font-extrabold">{tr("td.latestResults")}</h2>
+          {played.length > 0 ? <ProviderTeamFixtureList locale={locale} fixtures={played} showScore /> : <p className="text-[12px] text-muted">{tr("td.noResults")}</p>}
         </section>
       </div>
 
@@ -607,15 +619,15 @@ async function RealTeamView(props: {
 export async function generateMetadata(locale: Locale, { params }: ViewProps): Promise<Metadata> {
   const { slug: rawSlug } = await params;
   const slug = decodeSlug(rawSlug);
-  const t = await getAdminTeamBySlug(slug);
-  if (t?.isPublished) {
+  const adminTeam = await getAdminTeamBySlug(slug);
+  if (adminTeam?.isPublished) {
     return {
-      title: `${t.nameAr} | الفريق`,
-      description: `${t.nameAr}${t.country ? ` — ${t.country}` : ""}: بيانات الفريق من إدارة نيمو سبورتس.`,
+      title: t(locale, "td.metaTitle", { name: adminTeam.nameAr }),
+      description: `${adminTeam.nameAr}${adminTeam.country ? ` — ${adminTeam.country}` : ""}: ${t(locale, "td.adminMetaDescription", { name: adminTeam.nameAr })}`,
       alternates: { canonical: `/teams/${slug}` },
     };
   }
-  return teamMetadataBody({ params });
+  return teamMetadataBody({ locale, params });
 }
 
 export default async function TeamPage({ locale, params }: ViewProps & { locale: Locale }) {
@@ -623,5 +635,5 @@ export default async function TeamPage({ locale, params }: ViewProps & { locale:
   const slug = decodeSlug(rawSlug);
   const adminTeam = await getAdminTeamBySlug(slug);
   if (adminTeam?.isPublished) return <AdminTeamDetail team={adminTeam} />;
-  return <TeamPageBody params={params} />;
+  return <TeamPageBody locale={locale} params={params} />;
 }
