@@ -13,6 +13,8 @@ import { matchUrl } from "@/lib/match-links";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
 import { isBracketSlotFixture } from "@/lib/match-identity";
 import type { NormalizedFixture } from "@/packages/sdl/src";
+import { EN_PREFIX } from "@/lib/i18n/locales";
+import { hasEnglishEquivalent, localizePath, stripLocalePrefix } from "@/lib/i18n/paths";
 
 /**
  * Sitemap policy — only URLs that actually exist, return 200 and carry real
@@ -162,5 +164,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     urls.add(url);
     entries.push({ url, lastModified: new Date(record.lastSuccessAt ?? record.lastSeenAt), changeFrequency: "daily", priority: .6 });
   }
-  return entries;
+  /* ── English counterparts ────────────────────────────────────────────────
+     Every Arabic entry that has a real /en route gets a matching English entry,
+     carrying the same lastModified / changeFrequency / priority. Entries whose
+     route has no English page are left alone rather than pointing a crawler at
+     a 404, and /en URLs are never listed twice. */
+  const seen = new Set(entries.map((e) => e.url));
+  const english: MetadataRoute.Sitemap = [];
+  for (const entry of entries) {
+    if (entry.url.startsWith(`${SITE_URL}${EN_PREFIX}`)) continue;
+    const path = entry.url.startsWith(SITE_URL) ? entry.url.slice(SITE_URL.length) || "/" : entry.url;
+    if (!hasEnglishEquivalent(path)) continue;
+    const url = `${SITE_URL}${localizePath(stripLocalePrefix(path), "en")}`;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    english.push({ ...entry, url });
+  }
+  return [...entries, ...english];
 }

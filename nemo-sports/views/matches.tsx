@@ -16,6 +16,7 @@ import { dateScopeIncludesToday, filterProviderMatches, providerMatchCounts, sor
 import { liveBoard, reconcileResult } from "@/lib/live-board";
 import { scopeLabel as scopeLabelFor, sportName } from "@/lib/i18n/names";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
 import { validateMatchStatus } from "@/lib/match-query";
 import { competitionByPath } from "@/lib/competition-catalog";
@@ -30,7 +31,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "mt.metaTitle"),
   description: t(locale, "mt.metaDescription"),
-  alternates: { canonical: "/matches" },
+  alternates: localeAlternates(locale, "/matches"),
 };
 }
 

@@ -7,12 +7,13 @@ import { getNewsFeed } from "@/lib/news/service";
 import { siteDateKey } from "@/lib/tz";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
 export const dynamic = "force-dynamic";
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
-  return { title: t(locale, "md.pageTitle"), alternates: { canonical: "/my-day" }, robots: { index: false, follow: true } };
+  return { title: t(locale, "md.pageTitle"), alternates: localeAlternates(locale, "/my-day", { noHreflang: true }), robots: { index: false, follow: true } };
 }
 export default async function MyDayPage({ locale }: { locale: Locale }) {
   const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
@@ -10,7 +11,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "br.metaTitle"),
   description: t(locale, "br.metaDescription"),
-  alternates: { canonical: "/broadcast-rights" },
+  alternates: localeAlternates(locale, "/broadcast-rights"),
   // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
   robots: { index: true, follow: true },
 };

@@ -11,6 +11,7 @@ import { matchStateOf } from "@/lib/match-state";
 import { matchStateLabel } from "@/lib/i18n/match-state";
 import { sportName, scopeLabel as scopeLabelFor } from "@/lib/i18n/names";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { LIVE_SPORT_SLUGS, liveBoard, liveScope } from "@/lib/live-board";
 import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
@@ -24,7 +25,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "live.metaTitle"),
   description: t(locale, "live.metaDescription"),
-  alternates: { canonical: "/live" },
+  alternates: localeAlternates(locale, "/live"),
 };
 }
 

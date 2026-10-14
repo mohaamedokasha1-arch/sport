@@ -10,6 +10,7 @@ import { listBroadcasters } from "@/lib/broadcasts";
 import { judgedStreams, type PublicStreamCard } from "@/lib/public-streams";
 import { broadcastBadgeKey, broadcastNoticeKey } from "@/lib/i18n/broadcast";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { formatDate, formatTime } from "@/lib/i18n/dates";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
@@ -21,7 +22,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "watch.metaTitle"),
   description: t(locale, "watch.metaDescription"),
-  alternates: { canonical: "/watch" },
+  alternates: localeAlternates(locale, "/watch"),
 };
 }
 

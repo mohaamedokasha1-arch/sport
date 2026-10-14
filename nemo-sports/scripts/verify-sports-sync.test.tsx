@@ -289,6 +289,13 @@ test("original broadcast/player/source stores/auth and deployment settings remai
   assert.match(player, /allow="autoplay; fullscreen; encrypted-media; picture-in-picture"/, "the autoplay/fullscreen allowlist is unchanged");
   assert.match(player, /if \(!stream\) return null;/, "no registered source still means no player section at all");
 
+  // The match page is where a stream is mounted at all. It is a view (so it is
+  // localised), but the stream wiring in it is infrastructure.
+  const matchPage = readFileSync("views/match-detail.tsx", "utf8");
+  assert.match(matchPage, /streamForMatch\(/, "the per-match stream registry is still consulted");
+  assert.match(matchPage, /<MatchStreamPlayer/, "and the player is still mounted");
+  assert.match(matchPage, /getOverride\(/, "admin corrections still apply");
+
   const streams = readFileSync("components/public/LiveStreams.tsx", "utf8");
   assert.match(streams, /if \(cards\.length === 0\) return null;/, "/live still renders nothing when no stream is playable");
   assert.match(streams, /matchStateOf\(card\.status, card\.kickoff\)/, "the state badge is still derived, never hardcoded");

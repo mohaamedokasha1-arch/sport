@@ -15,6 +15,7 @@ import type { NormalizedTopScorer } from "@/packages/sdl/src";
 import { AdminPlayersSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
@@ -26,7 +27,7 @@ export async function generateMetadata(locale: Locale, _props: ViewProps = {} as
     return {
       title: t(locale, "pl.demoMetaTitle"),
       description: t(locale, "pl.demoMetaDescription"),
-      alternates: { canonical: "/players" },
+      alternates: localeAlternates(locale, "/players"),
       robots: { index: false, follow: true },
     };
   }
@@ -35,7 +36,7 @@ export async function generateMetadata(locale: Locale, _props: ViewProps = {} as
   return {
     title: t(locale, "pl.metaTitle"),
     description: t(locale, "pl.metaDescription"),
-    alternates: { canonical: "/players" },
+    alternates: localeAlternates(locale, "/players"),
     robots: available ? { index: true, follow: true } : { index: false, follow: true },
   };
 }

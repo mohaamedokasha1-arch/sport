@@ -10,6 +10,7 @@ import DataSourceNote from "@/components/data/DataSourceNote";
 import { finishedToday, finishedYesterday } from "@/lib/data";
 import { formatDate, formatDayLabel } from "@/lib/i18n/dates";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { siteDay } from "@/lib/tz";
@@ -23,7 +24,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "rs.metaTitle"),
   description: t(locale, "rs.metaDescription"),
-  alternates: { canonical: "/results" },
+  alternates: localeAlternates(locale, "/results"),
 };
 }
 

@@ -9,6 +9,7 @@ import { demoContentVisible } from "@/lib/site";
 import { AdminCompetitionsSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { sportName } from "@/lib/i18n/names";
 
 export type ViewProps = { searchParams: Promise<{ sport?: string; country?: string }> };
@@ -18,7 +19,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "ci.metaTitle"),
   description: t(locale, "ci.metaDescription"),
-  alternates: { canonical: "/competitions" },
+  alternates: localeAlternates(locale, "/competitions"),
 };
 }
 

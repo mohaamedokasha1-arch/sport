@@ -8,6 +8,7 @@ import { teams } from "@/lib/core-data";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -16,7 +17,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "sr.metaTitle"),
   description: t(locale, "sr.metaDescription"),
-  alternates: { canonical: "/search" },
+  alternates: localeAlternates(locale, "/search", { noHreflang: true }),
   robots: { index: false, follow: true },
 };
 }

@@ -7,6 +7,7 @@ import ProviderMatchList from "@/components/data/ProviderMatchList";
 import { postponed, upcomingNext, upcomingToday } from "@/lib/data";
 import { formatDate, formatDayLabel, timeZoneLabel } from "@/lib/i18n/dates";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { fixtures as sdlFixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import DataSourceNote from "@/components/data/DataSourceNote";
 import { demoContentVisible } from "@/lib/site";
@@ -21,7 +22,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "fx.metaTitle"),
   description: t(locale, "fx.metaDescription"),
-  alternates: { canonical: "/fixtures" },
+  alternates: localeAlternates(locale, "/fixtures"),
 };
 }
 

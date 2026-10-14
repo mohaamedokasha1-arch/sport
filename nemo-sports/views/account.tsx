@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "@/components/i18n/Link";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
@@ -10,7 +11,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "ac.metaTitle"),
   description: t(locale, "ac.metaDescription"),
-  alternates: { canonical: "/account" },
+  alternates: localeAlternates(locale, "/account", { noHreflang: true }),
   robots: { index: false, follow: false },
 };
 }

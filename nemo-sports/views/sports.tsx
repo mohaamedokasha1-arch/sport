@@ -6,12 +6,13 @@ import { classification, type Kind } from "@/lib/sports-sync/model";
 import { SyncedFixtureList, SyncNotice, syncedPath } from "@/components/data/SyncedSports";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = { searchParams: Promise<{ state?: string; sport?: string; kind?: string }> };
 
 export const dynamic = "force-dynamic";
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
-  return { title: t(locale, "sp.metaTitle"), alternates: { canonical: "/sports" }, robots: { index: false, follow: true } };
+  return { title: t(locale, "sp.metaTitle"), alternates: localeAlternates(locale, "/sports", { noHreflang: true }), robots: { index: false, follow: true } };
 }
 async function SportsPageBody({ locale, searchParams }: { locale: Locale; searchParams: Promise<{ state?: string; sport?: string; kind?: string }> }) {
   const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);

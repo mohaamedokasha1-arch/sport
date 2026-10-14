@@ -3,6 +3,7 @@ import Link from "@/components/i18n/Link";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
@@ -12,7 +13,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   // The root layout appends " | نيمو سبورتس", so the brand is not repeated here.
   title: t(locale, "ab.metaTitle"),
   description: t(locale, "ab.metaDescription"),
-  alternates: { canonical: "/about" },
+  alternates: localeAlternates(locale, "/about"),
   // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
   robots: { index: true, follow: true },
 };

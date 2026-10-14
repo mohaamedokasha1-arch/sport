@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "@/components/i18n/Link";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = Record<string, never>;
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
-  return { title: t(locale, "ln.metaTitle"), description: t(locale, "ln.metaDescription"), alternates: { canonical: "/learn" }, robots: { index: true, follow: true } };
+  return { title: t(locale, "ln.metaTitle"), description: t(locale, "ln.metaDescription"), alternates: localeAlternates(locale, "/learn"), robots: { index: true, follow: true } };
 }
 
 /** The lesson bodies are dictionary entries; the numbers identify them. */

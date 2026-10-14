@@ -30,6 +30,7 @@ import { matchPath, matchUrl, schemaSportName } from "@/lib/match-links";
 import { isBracketSlotFixture } from "@/lib/match-identity";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { formatClock, formatDate } from "@/lib/i18n/dates";
 import { countryName } from "@/lib/i18n/names";
 
@@ -268,7 +269,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     return {
       title,
       description,
-      alternates: { canonical: matchPath(slug) },
+      alternates: localeAlternates(locale, matchPath(slug)),
       openGraph: { title, description, type: "article" },
       // A bracket slot (e.g. "1st Place Team") is not a settled match yet: the
       // page stays reachable for anyone with the link, but is kept out of the index.
@@ -288,7 +289,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     return {
       title,
       description,
-      alternates: { canonical: matchPath(adminM.slug) },
+      alternates: localeAlternates(locale, matchPath(adminM.slug)),
       openGraph: { title, description, type: "article" },
     };
   }
@@ -303,7 +304,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
       return {
         title: t(locale, "md.metaTitle", { home: home.name, away: away.name, comp: comp.name, date: formatDate(locale, m.kickoff) }),
         description: t(locale, "md.demoMetaDescription", { home: home.name, away: away.name, comp: comp.name }),
-        alternates: { canonical: matchPath(m.slug) },
+        alternates: localeAlternates(locale, matchPath(m.slug)),
         openGraph: { title: t(locale, "md.metaTitleShort", { home: home.name, away: away.name }), type: "article" },
       };
     }

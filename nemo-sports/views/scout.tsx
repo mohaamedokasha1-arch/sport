@@ -6,7 +6,7 @@ import { fixtures, hasMatchIdentity } from "@/lib/sdl-gateway";
 import { footballDataCompetitions, footballTopScorers } from "@/lib/football-data";
 export const dynamic = "force-dynamic";
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
-  return { title: t(locale, "sc.metaTitle"), alternates: { canonical: "/scout" }, robots: { index: false, follow: true } };
+  return { title: t(locale, "sc.metaTitle"), alternates: localeAlternates(locale, "/scout", { noHreflang: true }), robots: { index: false, follow: true } };
 }
 export default async function ScoutPage({ locale, searchParams }: ViewProps & { locale: Locale }) {
   const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
@@ -36,6 +36,7 @@ export default async function ScoutPage({ locale, searchParams }: ViewProps & { 
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 

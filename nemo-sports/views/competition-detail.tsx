@@ -33,6 +33,7 @@ import { decodeSlug } from "@/lib/slug";
 import { isLiveStatus, matchStateOf, isFinishedStatus } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { countryName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
@@ -85,7 +86,7 @@ async function competitionMetadataBody({
       title,
       description,
       // Canonical is always the registered path, never the alias the visitor used.
-      alternates: { canonical: `/competitions/${providerCompetition.canonicalSlug}` },
+      alternates: localeAlternates(locale, `/competitions/${providerCompetition.canonicalSlug}`),
       // Own social title/description: without this, shared links inherit the
       // site-wide homepage title ("نيمو سبورتس | نتائج ومواعيد المباريات").
       openGraph: { title, description, type: "website" },
@@ -97,7 +98,7 @@ async function competitionMetadataBody({
   return {
     title: t(locale, "cd.demoMetaTitle", { name: c.name }),
     description: t(locale, "cd.demoMetaDescription", { name: c.name }),
-    alternates: { canonical: `/competitions/${c.slug}` },
+    alternates: localeAlternates(locale, `/competitions/${c.slug}`),
     robots: { index: false, follow: true },
   };
 }
@@ -471,13 +472,13 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     return {
       title: t(locale, "cd.adminMetaTitle", { name: c.nameAr }),
       description: `${c.nameAr}${c.season ? ` — ${c.season}` : ""}: ${t(locale, "cd.adminMetaDescription", { name: c.nameAr })}`,
-      alternates: { canonical: `/competitions/${slug}` },
+      alternates: localeAlternates(locale, `/competitions/${slug}`),
     };
   }
   const synced = await syncedBySlug("competition", slug);
   if (synced) {
     const fixtures = (await syncedRecords("fixture")).data;
-    return { title: t(locale, "cd.adminMetaTitle", { name: String(synced.data.name) }), alternates: { canonical: `/competitions/${synced.slug}` }, robots: { index: indexWorthy(synced, fixtures), follow: true } };
+    return { title: t(locale, "cd.adminMetaTitle", { name: String(synced.data.name) }), alternates: localeAlternates(locale, `/competitions/${synced.slug}`), robots: { index: indexWorthy(synced, fixtures), follow: true } };
   }
   return competitionMetadataBody({ locale, params });
 }

@@ -29,6 +29,7 @@ import { coveredFootballCompetitionIds, findTeamRow, teamHasFixtureInWindow } fr
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { formatDate, formatDateTime } from "@/lib/i18n/dates";
 import { countryName } from "@/lib/i18n/names";
 
@@ -118,7 +119,7 @@ async function teamMetadataBody({
     return {
       title,
       description,
-      alternates: { canonical: `/teams/${slug}` },
+      alternates: localeAlternates(locale, `/teams/${slug}`),
       openGraph: { title, description, type: "article" },
     };
   }
@@ -139,7 +140,7 @@ async function teamMetadataBody({
       return {
         title,
         description,
-        alternates: { canonical: `/teams/${slug}` },
+        alternates: localeAlternates(locale, `/teams/${slug}`),
         openGraph: { title, description, type: "article" },
         ...(hasMatchContent ? {} : { robots: { index: false, follow: true } }),
       };
@@ -154,7 +155,7 @@ async function teamMetadataBody({
   return {
     title: `${team.name} | ${comp?.name ?? sportBySlug(team.sport)?.name}`,
     description: t(locale, "td.metaDescriptionFull", { name: team.name }),
-    alternates: { canonical: `/teams/${team.slug}` },
+    alternates: localeAlternates(locale, `/teams/${team.slug}`),
   };
 }
 
@@ -622,7 +623,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     return {
       title: t(locale, "td.metaTitle", { name: adminTeam.nameAr }),
       description: `${adminTeam.nameAr}${adminTeam.country ? ` — ${adminTeam.country}` : ""}: ${t(locale, "td.adminMetaDescription", { name: adminTeam.nameAr })}`,
-      alternates: { canonical: `/teams/${slug}` },
+      alternates: localeAlternates(locale, `/teams/${slug}`),
     };
   }
   return teamMetadataBody({ locale, params });

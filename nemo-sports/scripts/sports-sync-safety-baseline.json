@@ -1,12 +1,11 @@
 {
-  "_comment": "Safety baseline for verify-sports-sync.test.ts test 21. `byteForByte` entries must not change at all — a hash mismatch means streaming, broadcast, auth or deployment config was touched. `localisedOnly` entries were deliberately edited by the i18n work; their hash is pinned so any FURTHER edit fails, and the test separately asserts the streaming/security behaviour they carry is still present. `views/match-detail.tsx` is the relocated `app/matches/[slug]/page.tsx` (same route, same render mode).",
+  "_comment": "Safety baseline for verify-sports-sync.test.ts test 21. `byteForByte` entries must not change at all — a hash mismatch means streaming, broadcast, auth or deployment config was touched. `localisedOnly` entries are UI files the i18n work deliberately edited (each diff reviewed as strings and imports only); their hash is pinned so any FURTHER edit fails, and the test separately asserts the streaming behaviour they own, because a hash cannot tell a translation from a logic change. `views/match-detail.tsx` is the relocated `app/matches/[slug]/page.tsx` — a page view, so it belongs with the localised UI files, not with the infrastructure that must never move.",
   "byteForByte": {
     "vercel.json": "1367ede466bf47d13996ad3f8e53e373b4548b5938b265ae3aa6ada9cbc49648",
     "next.config.ts": "055e512a66ff63488c268a1c823e7536b35c0e65d604f545eb4d8fc49e8a2c02",
     "middleware.ts": "7c90076c78bb3453c160952cbf213fabc48ac92e91f3761f5bfa12c6a7971bef",
     "db/schema.sql": "c67bb3d01bed53f1aa93e768d758002936fe1e38a5cf5216ccda50f4f04a5318",
     "db/match-streams.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "views/match-detail.tsx": "a04adf8b20342eb7acebdd054c8114e4825f81ef3dc802a2701cebbbccc9984b",
     "lib/broadcast-state.ts": "54342cac0da5da45d4d6f40479661fb1f6ad86b20e57f5345028281f0eafb91f",
     "lib/broadcasts.ts": "b5e8d92c1c1d6315130decc5dd0da995362032a061ffd9bea67ce196932cabbc",
     "lib/match-streams.ts": "2c6de4c6a46bdbbb9b3ec2507e51afd685237d9eb86a4dd014988c385f714bc1",
@@ -18,6 +17,7 @@
   },
   "localisedOnly": {
     "components/match/MatchStreamPlayer.tsx": "cca519f5b674375c25a05b1b877cb62d1b02773a2b51a202ba789877357172dd",
-    "components/public/LiveStreams.tsx": "35fb5e826f33d93afa157764ec0a9f5931711ba8b811a37e8429e9abd03fd445"
+    "components/public/LiveStreams.tsx": "35fb5e826f33d93afa157764ec0a9f5931711ba8b811a37e8429e9abd03fd445",
+    "views/match-detail.tsx": "51192d632c6b8f45ea4339fdf7bf41aa6c7d829ff0ee44990479c61b6edac505"
   }
 }

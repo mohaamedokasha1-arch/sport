@@ -12,6 +12,7 @@ import { competitionBySlug, playerBySlug, teamBySlug } from "@/lib/core-data";
 import StandingsTable from "@/components/competition/StandingsTable";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { countryName, entityName } from "@/lib/i18n/names";
 
 export type ViewProps = Record<string, never>;
@@ -21,7 +22,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "st.metaTitle"),
   description: t(locale, "st.metaDescription"),
-  alternates: { canonical: "/standings" },
+  alternates: localeAlternates(locale, "/standings"),
 };
 }
 

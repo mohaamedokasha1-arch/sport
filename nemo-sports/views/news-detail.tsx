@@ -9,6 +9,7 @@ import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact } from "@/lib/format";
 import { formatDate } from "@/lib/i18n/dates";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { categoryMeta } from "@/lib/news/categorize";
 import { SITE_NAME, absoluteUrl, demoContentVisible } from "@/lib/site";
 import { absoluteMediaUrl } from "@/lib/seo-discovery";
@@ -48,7 +49,7 @@ async function articleMetadataBody({
   return {
     title: a.title,
     description: a.excerpt,
-    alternates: { canonical: `/news/${a.slug}` },
+    alternates: localeAlternates(locale, `/news/${a.slug}`),
     robots: { index: false, follow: true },
     openGraph: { title: a.title, description: a.excerpt, type: "article" },
   };
@@ -279,7 +280,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     return {
       title: manual.title,
       description,
-      alternates: { canonical: `/news/${slug}` },
+      alternates: localeAlternates(locale, `/news/${slug}`),
       openGraph: {
         title: manual.title,
         description,

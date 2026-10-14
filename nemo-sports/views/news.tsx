@@ -14,6 +14,7 @@ import { relative } from "@/lib/format";
 import { ManualNewsSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 
 export type ViewProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -22,7 +23,7 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
   return {
   title: t(locale, "news.metaTitle"),
   description: t(locale, "news.metaDescription"),
-  alternates: { canonical: "/news" },
+  alternates: localeAlternates(locale, "/news"),
 };
 }
 
