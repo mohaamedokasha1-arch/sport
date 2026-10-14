@@ -577,32 +577,52 @@ a test.
 
 ## (F) Deployment status
 
-**Nothing has been deployed. Production is untouched.**
+**PR #49 was merged into `main`. A production deployment very likely followed,
+and I could not verify it from this environment.**
 
 What actually happened:
 
-- 52 commits on branch `arena/6b071330-sport`, branched from `c715149` (including
-  the two commits that carry this report).
-- Pushed, and opened for review as **PR #49** against `main`. CI ran green:
-  `typecheck · tests · build · smoke`, plus the Vercel preview build. **A CI
-  preview build is not a production deployment** — it is a disposable preview
-  URL, and the live site was not changed.
+- 53 commits on branch `arena/6b071330-sport`, branched from `c715149`.
+- Opened as **PR #49** against `main`. CI ran green: `typecheck · tests · build ·
+  smoke` (both the empty-data and demo-data smoke passes), plus the Vercel
+  preview build.
+- **Merged into `main`** at 2026-10-14T14:39:09Z as merge commit
+  `bd83e39e327e59807583f5f19e314b0a25770e14`. Verified afterwards: `origin/main`
+  advanced `c715149 → bd83e39`, and `main`'s tree hash is byte-identical to the
+  tree CI validated, so what is on `main` is exactly what passed.
+- Re-verified the merged content locally after the merge: `npm run check` exit 0
+  (465 tests, 23 groups) and `npm run build` exit 0.
 - Tag `baseline-pre-i18n` marks the pre-work commit as a restore point.
-- A local production build was run and served with `npx next start -H 0.0.0.0 -p 3000`
-  for verification.
-- Working tree is clean at `da9e42f`.
+
+### The deployment I cannot confirm
+
+Vercel is connected to this repository. **96 seconds after the merge**, the merge
+commit on `main` received a Vercel commit status reading
+*"Deployment has completed"* (2026-10-14T14:40:45Z). The repo's `vercel.json`
+carries only cron definitions and no branch configuration, so the production
+branch is whatever the Vercel dashboard says — which defaults to `main`.
+
+Taken together, that strongly indicates **merging to `main` deployed this work to
+production**. I am stating that as a strong inference, not as a verified fact,
+because I could not check:
+
+- `https://nemo-sports.vercel.app/` is **not reachable from this sandbox** — the
+  request returned HTTP 000. I cannot confirm the live site now serves `/en`, nor
+  inspect its canonical or hreflang responses.
+- The Vercel deployment URL is likewise unreachable, so I cannot tell from here
+  whether that completed deployment was promoted to the production alias or left
+  as a preview.
+
+**Anyone with dashboard access should confirm the production deployment and
+spot-check the live site before treating this as shipped.**
 
 What did **not** happen:
 
-- **No deployment to Vercel or anywhere else.** No deployment access was available
-  or requested.
-- **The live site https://nemo-sports.vercel.app/ was never fetched.** Its current
-  HTTP status codes, canonical/hreflang responses and content are unknown to this
-  report. Every "verified" claim above refers to the **local production build**, not
-  to production.
 - **No Google Search Console access.** Nothing is known about what Google has
   indexed, and no claim is made that it will index the new English pages.
   Indexing is neither guaranteed nor a predictable outcome of this work.
+- **Every "verified" claim in sections B–D refers to the local production build
+  and to CI** — never to the live site, which was never fetched.
 
 ### UNVERIFIED IN PRODUCTION
 
@@ -612,13 +632,25 @@ What did **not** happen:
 - Cron/refresh jobs against real provider endpoints
 - Visual rendering, mobile layout, contrast and focus order in a real browser
 
-### Recommended pre-deployment steps
+### Recommended post-merge verification
 
-1. Deploy to a preview environment with a real `DATABASE_URL` and re-run the route
-   inventory diff against production.
-2. Submit the updated sitemap in Search Console **after** deploy, and monitor
-   coverage — do not assume English pages will be picked up.
-3. Spot-check entity detail pages (`/teams/[slug]`, `/matches/[slug]`,
-   `/en/matches/[slug]`) with live data, which this sandbox could not exercise.
-4. Visually verify Arabic RTL and English LTR in a real browser at mobile widths,
-   with long English strings.
+The merge is done, so these are now checks on the live site rather than gates
+before it.
+
+1. **Confirm the production deployment** in the Vercel dashboard — which
+   deployment is on the production alias, and that it is `bd83e39` or later.
+2. **Re-run the route inventory diff against production**, and confirm every
+   pre-existing Arabic URL still returns 200 with its original canonical. This is
+   the single most important check: it is the one that would catch a regression
+   in the live site's existing SEO.
+3. **Check `/en` on the live domain** — `<html lang="en" dir="ltr">`, a
+   self-canonical, and reciprocal hreflang.
+4. **Spot-check entity detail pages** (`/teams/[slug]`, `/matches/[slug]`,
+   `/en/matches/[slug]`) with real data. This sandbox and CI both ran without a
+   production database, so live entity pages were never exercised end to end.
+5. **Re-run the Arabic-leak scan against production.** The demo dataset exercised
+   the components, but it is not production data.
+6. **Visually verify** Arabic RTL and English LTR in a real browser at mobile
+   widths, with long English strings.
+7. Only then **submit the updated sitemap in Search Console** and monitor
+   coverage — do not assume the English pages will be picked up.
