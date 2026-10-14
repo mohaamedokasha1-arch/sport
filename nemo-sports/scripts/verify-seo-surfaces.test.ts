@@ -26,7 +26,7 @@ test("competition metadata is indexable only while that competition has data", a
   process.env.NEXT_PUBLIC_DEMO_CONTENT = "0";
   const [{ generateMetadata }, { competitionByPath }, { footballStandings, footballMatches }, { SITE_URL }] =
     await Promise.all([
-      import("@/app/competitions/[slug]/page"),
+      import("@/views/competition-detail"),
       import("@/lib/competition-catalog"),
       import("@/lib/football-data"),
       import("@/lib/site"),
@@ -38,7 +38,7 @@ test("competition metadata is indexable only while that competition has data", a
   const hasData =
     (table.ok && (table.data?.length ?? 0) > 0) || (matches.ok && (matches.data?.length ?? 0) > 0);
 
-  const meta = await generateMetadata!({ params: Promise.resolve({ slug: "egyptian-league" }) });
+  const meta = await generateMetadata!("ar", { params: Promise.resolve({ slug: "egyptian-league" }) });
   const robots = (meta.robots ?? {}) as { index?: boolean };
   assert.equal(
     robots.index === false,
@@ -137,7 +137,7 @@ test("④ /admin/seo has working controls and no invented operations data", asyn
   // Source-level guards: this is about what the page ships, which a runtime
   // test cannot assert without a browser. (Same style as verify-admin.ts.)
   const { readFileSync } = await import("node:fs");
-  const page = readFileSync(new URL("../app/admin/seo/page.tsx", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../app/(ar)/admin/seo/page.tsx", import.meta.url), "utf8");
   assert.match(page, /"use server"/, "the save control must be a real server action");
   assert.match(page, /updateSiteSettings\(/, "and it must write through the existing settings store");
   assert.match(page, /<Btn type="submit">حفظ<\/Btn>/, "a Btn defaults to type=button — that is how the old one did nothing");
@@ -152,15 +152,28 @@ test("④ /admin/seo has working controls and no invented operations data", asyn
 
 test("⑤ the root layout reads settings instead of repeating them", async () => {
   const { readFileSync } = await import("node:fs");
-  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-  assert.match(layout, /publicBaseMetadata\(settings\)/, "metadata must come from lib/site-settings");
-  assert.ok(!layout.includes(`description:\n    "مواعيد ونتائج`), "no hardcoded description may come back");
-  assert.ok(!/keywords: \[/.test(layout), "no hardcoded keyword list may come back");
-  assert.match(layout, /siteBranding\(settings\)/, "the Organization/WebSite JSON-LD uses the same brand");
+  // The root layout was split into two route groups (`app/(ar)/layout.tsx` and
+  // `app/(en)/layout.tsx`) that share one metadata builder and one shell, so the
+  // two assertions now live in two files. Both are read: metadata from
+  // lib/site-settings, and the JSON-LD brand from the same settings.
+  const metadataSource = readFileSync(new URL("../lib/i18n/root-metadata.ts", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../components/layout/RootShell.tsx", import.meta.url), "utf8");
+  const combined = `${metadataSource}\n${shell}`;
+  assert.match(metadataSource, /publicBaseMetadata\(settings\)/, "metadata must come from lib/site-settings");
+  assert.ok(!combined.includes(`description:\n    "مواعيد ونتائج`), "no hardcoded description may come back");
+  assert.ok(!/keywords: \[/.test(combined), "no hardcoded keyword list may come back");
+  assert.match(shell, /siteBranding\(settings\)/, "the Organization/WebSite JSON-LD uses the same brand");
+  // Both language trees must route through the same builder, or the two
+  // languages can drift into different metadata.
+  for (const group of ["(ar)", "(en)"]) {
+    const layout = readFileSync(new URL(`../app/${group}/layout.tsx`, import.meta.url), "utf8");
+    assert.match(layout, /rootMetadata\("/, `${group}/layout.tsx must build metadata through lib/i18n/root-metadata`);
+    assert.match(layout, /<RootShell locale="/, `${group}/layout.tsx must render the shared shell`);
+  }
 });
 
 test("the legacy /match/{slug} path answers 308 (permanent), not 307", async () => {
-  const { default: LegacyPage } = await import("@/app/match/[slug]/page");
+  const { default: LegacyPage } = await import("@/app/(ar)/match/[slug]/page");
   let thrown: unknown = null;
   try {
     await LegacyPage({ params: Promise.resolve({ slug: "flamengo-vs-santos" }) });
@@ -174,7 +187,8 @@ test("the legacy /match/{slug} path answers 308 (permanent), not 307", async () 
 });
 
 test("the brand appears once in a static page title (the layout adds it)", async () => {
-  const { metadata } = await import("@/app/about/page");
+  const { generateMetadata } = await import("@/views/about");
+  const metadata = await generateMetadata("ar");
   const title = typeof metadata.title === "string" ? metadata.title : "";
   assert.ok(title.length > 0, "the about page has its own title");
   assert.ok(!title.includes("نيمو سبورتس"), `the layout template adds the brand; the page title must not repeat it: ${title}`);
@@ -190,17 +204,17 @@ test("always-listed static pages declare index,follow explicitly (2026-10-12 aud
   const { join } = await import("node:path");
   const root = join(process.cwd());
   const files = [
-    "app/about/page.tsx",
-    "app/contact/page.tsx",
-    "app/faq/page.tsx",
-    "app/broadcast-rights/page.tsx",
+    "views/about.tsx",
+    "views/contact.tsx",
+    "views/faq.tsx",
+    "views/broadcast-rights.tsx",
     "components/legal/LegalShell.tsx", // used by privacy, terms, copyright
   ];
   for (const file of files) {
     const src = readFileSync(join(root, file), "utf8");
     assert.match(src, /robots:\s*\{\s*index:\s*true,\s*follow:\s*true\s*\}/, `${file} must declare robots index,follow`);
   }
-  for (const file of ["app/privacy/page.tsx", "app/terms/page.tsx", "app/copyright/page.tsx"]) {
+  for (const file of ["views/privacy.tsx", "views/terms.tsx", "views/copyright.tsx"]) {
     const src = readFileSync(join(root, file), "utf8");
     assert.match(src, /legalMetadata\(/, `${file} must use legalMetadata (which sets robots)`);
   }

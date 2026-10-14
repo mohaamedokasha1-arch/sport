@@ -67,8 +67,8 @@ test("① the codes live in exactly one module — no page copies them", async (
   const { ADSTERRA_BANNER } = await loadAds();
 
   const files = [
-    "app/layout.tsx",
-    "app/matches/[slug]/page.tsx",
+    "components/layout/RootShell.tsx",
+    "views/match-detail.tsx",
     "components/match/MatchStreamPlayer.tsx",
     "components/match/MatchLive.tsx",
     "components/ads/AdScripts.tsx",
@@ -200,7 +200,7 @@ test("⑤ Social Bar and Popunder load after load+idle, exactly once, never on /
   assert.match(ads, /if \(document\.readyState !== "complete"\) \{[\s\S]*?nativeWrite\(\.\.\.markup\);[\s\S]*?return;/, "writes during parsing stay untouched");
   assert.match(ads, /creating any <script>|replacement\.setAttribute|appendMarkupPreservingScripts\(markup\.join\(""\)\)/);
 
-  const layout = read("app/layout.tsx");
+  const layout = read("components/layout/RootShell.tsx");
   assert.match(layout, /<AdScripts \/>/, "the root template mounts the tags once");
   assert.equal((layout.match(/<AdScripts \/>/g) ?? []).length, 1, "and only once");
 });

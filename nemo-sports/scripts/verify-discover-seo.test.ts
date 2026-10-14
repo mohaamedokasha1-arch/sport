@@ -59,7 +59,7 @@ test("① preview directives ride on the index decision (never upgrade a noindex
 });
 
 test("② the root layout attaches them to the pipeline's decision", () => {
-  const layout = readFileSync(join(ROOT, "app/layout.tsx"), "utf8");
+  const layout = readFileSync(join(ROOT, "lib/i18n/root-metadata.ts"), "utf8");
   assert.match(layout, /robotsWithDiscovery\(robots\.index, robots\.follow\)/, "the layout must compose, not replace, the robots decision");
   assert.ok(!/"max-image-preview"/.test(layout), "the directives live in lib/seo-discovery.ts — one definition only");
 });
@@ -106,7 +106,7 @@ test("④ the editorial length windows are the ones the plan specifies", async (
 });
 
 test("⑤ the admin form measures what the test measures", () => {
-  const page = readFileSync(join(ROOT, "app/admin/news/manual/page.tsx"), "utf8");
+  const page = readFileSync(join(ROOT, "app/(ar)/admin/news/manual/page.tsx"), "utf8");
   assert.match(page, /<SeoTextField kind="title" name="title"/, "the headline field carries the live counter");
   assert.match(page, /<SeoTextField kind="description" name="description"/, "and so does the meta description");
   assert.match(page, /from "@\/components\/admin\/SeoTextField"/);
@@ -263,7 +263,7 @@ test("⑩ the published article renders as a complete news page (real route, rea
   const [{ createManualNews, deleteManualNews }, { default: ArticlePage, generateMetadata }, { SITE_URL }] =
     await Promise.all([
       import("@/lib/manual-news"),
-      import("@/app/news/[slug]/page"),
+      import("@/views/news-detail"),
       import("@/lib/site"),
     ]);
 
@@ -287,7 +287,7 @@ test("⑩ the published article renders as a complete news page (real route, rea
   const slug = created.article.slug;
 
   try {
-    const meta = await generateMetadata({ params: Promise.resolve({ slug }) });
+    const meta = await generateMetadata("ar", { params: Promise.resolve({ slug }) });
     assert.equal(meta.title, created.article.title);
     assert.equal((meta.alternates as { canonical?: string })?.canonical, `/news/${slug}`);
     assert.equal(meta.robots, undefined, "indexability stays the deployment-wide decision (the layout's), not this page's");
@@ -303,7 +303,7 @@ test("⑩ the published article renders as a complete news page (real route, rea
     // The route itself renders (async server component). Rendering it to HTML
     // here is what proves the crawler actually receives the structured data and
     // the resolved internal links — not merely that the module exports them.
-    const page = await ArticlePage({ params: Promise.resolve({ slug }) });
+    const page = await ArticlePage({ locale: "ar", params: Promise.resolve({ slug }) });
     assert.ok(page, "the article route renders");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const html = renderToStaticMarkup(page as never);
@@ -313,7 +313,7 @@ test("⑩ the published article renders as a complete news page (real route, rea
     assert.match(html, /href="\/matches"/, "the hub links are rendered");
     assert.match(html, /<time dateTime="[^"]+"/, "the publish date is machine-readable");
     assert.ok(html.includes(`alt="${created.article.title}"`), "the hero image carries its headline as alt text");
-    const source = readFileSync(join(ROOT, "app/news/[slug]/page.tsx"), "utf8");
+    const source = readFileSync(join(ROOT, "views/news-detail.tsx"), "utf8");
     assert.match(source, /editorialInternalLinks\(/, "internal links are resolved before rendering");
     assert.match(source, /relatedEditorialNews\(/, "the 'اقرأ أيضًا' block is built from real articles");
     assert.match(source, /<AdminNewsDetail[^>]*links=\{links\}[^>]*related=\{/, "the detail view receives both blocks");

@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { dateAr } from "@/lib/format";
+import { formatDate } from "@/lib/i18n/dates";
+import { useLocale } from "@/lib/i18n/context";
+import type { Locale } from "@/lib/i18n/locales";
 
-export default function SiteClock({ initialIso }: { initialIso: string }) {
+export default function SiteClock({ initialIso, locale }: { initialIso: string; locale?: Locale }) {
+  const contextLocale = useLocale();
+  const active = locale ?? contextLocale;
   const [now, setNow] = useState(initialIso);
 
   useEffect(() => {
@@ -13,5 +17,5 @@ export default function SiteClock({ initialIso }: { initialIso: string }) {
     return () => window.clearInterval(timer);
   }, []);
 
-  return <time dateTime={now}>{dateAr(now)}</time>;
+  return <time dateTime={now}>{formatDate(active, now)}</time>;
 }
