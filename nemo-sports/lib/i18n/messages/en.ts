@@ -949,6 +949,9 @@ const en: Record<keyof typeof ar, string> = {
   "st.unavailableTitle": "League tables are not available right now",
   "st.unavailableMessage": "The league tables could not be fetched from the data source right now. We do not use sample tables in production — they will work again automatically once the source is available.",
   "st.unavailableHint": "Football-Data.org: requested automatically every few minutes, with data cached to reduce load on the source.",
+
+  "st.demoNotice": "Illustrative development data only — these are not real tables or statistics.",
+  "st.assistsSuffix": " · {n} assists",
   "st.thTeam": "Team",
   "st.thPlayed": "P",
   "st.thWon": "W",
