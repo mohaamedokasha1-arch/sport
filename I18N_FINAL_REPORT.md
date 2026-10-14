@@ -581,7 +581,8 @@ a test.
 
 What actually happened:
 
-- 50 commits on branch `arena/6b071330-sport`, branched from `c715149`.
+- 52 commits on branch `arena/6b071330-sport`, branched from `c715149` (including
+  the two commits that carry this report).
 - Pushed, and opened for review as **PR #49** against `main`. CI ran green:
   `typecheck · tests · build · smoke`, plus the Vercel preview build. **A CI
   preview build is not a production deployment** — it is a disposable preview
