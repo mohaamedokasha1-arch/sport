@@ -587,12 +587,20 @@ What actually happened:
   smoke` (both the empty-data and demo-data smoke passes), plus the Vercel
   preview build.
 - **Merged into `main`** at 2026-10-14T14:39:09Z as merge commit
-  `bd83e39e327e59807583f5f19e314b0a25770e14`. Verified afterwards: `origin/main`
-  advanced `c715149 → bd83e39`, and `main`'s tree hash is byte-identical to the
-  tree CI validated, so what is on `main` is exactly what passed.
+  `bd83e39e327e59807583f5f19e314b0a25770e14`. Verified at the time: `origin/main`
+  advanced `c715149 → bd83e39`, and `main`'s tree hash was byte-identical to the
+  tree CI validated, so what landed on `main` was exactly what passed.
 - Re-verified the merged content locally after the merge: `npm run check` exit 0
   (465 tests, 23 groups) and `npm run build` exit 0.
-- Tag `baseline-pre-i18n` marks the pre-work commit as a restore point.
+- Two **documentation-only** follow-ups were merged afterwards — **PR #50**
+  (`6858d08`, corrected this section) and **PR #51** (`dcea1f8`, corrected the
+  header and pushed the restore tag). Both touched only
+  `I18N_FINAL_REPORT.md`; **no code changed**. Verified:
+  `git diff 4455d83 origin/main -- . ':(exclude)I18N_FINAL_REPORT.md'` returns
+  empty, so the code on `main` is still exactly what CI validated at `4455d83`.
+  `origin/main` is therefore `dcea1f8`.
+- Tag `baseline-pre-i18n` marks the pre-work commit `c715149` as a restore point,
+  and is pushed to `origin` (`git ls-remote --tags origin` resolves it).
 
 ### The deployment I cannot confirm
 
