@@ -1,5 +1,5 @@
 {
-  "_comment": "Safety baseline for verify-sports-sync.test.ts test 21. `byteForByte` entries must not change at all — a hash mismatch means streaming, broadcast, auth or deployment config was touched. `localisedOnly` entries are UI files the i18n work deliberately edited (each diff reviewed as strings and imports only); their hash is pinned so any FURTHER edit fails, and the test separately asserts the streaming behaviour they own, because a hash cannot tell a translation from a logic change. `views/match-detail.tsx` is the relocated `app/matches/[slug]/page.tsx` — a page view, so it belongs with the localised UI files, not with the infrastructure that must never move.",
+  "_comment": "Safety baseline for verify-sports-sync.test.ts test 21. `byteForByte` entries must not change at all — a hash mismatch means streaming, broadcast, auth or deployment config was touched. `localisedOnly` entries are UI files the i18n work deliberately edited (each diff reviewed as strings and imports only); their hash is pinned so any FURTHER edit fails, and the test separately asserts the streaming behaviour they own, because a hash cannot tell a translation from a logic change. `views/match-detail.tsx` is the relocated `app/matches/[slug]/page.tsx` — a page view, so it belongs with the localised UI files, not with the infrastructure that must never move. These three hashes were re-pinned once more when the broadcast notice under the stream player was routed through `broadcastNoticeKey` instead of being passed to the player as raw Arabic; that diff was imports, one prop expression and comments, with no logic change.",
   "byteForByte": {
     "vercel.json": "1367ede466bf47d13996ad3f8e53e373b4548b5938b265ae3aa6ada9cbc49648",
     "next.config.ts": "055e512a66ff63488c268a1c823e7536b35c0e65d604f545eb4d8fc49e8a2c02",
@@ -17,7 +17,7 @@
   },
   "localisedOnly": {
     "components/match/MatchStreamPlayer.tsx": "cca519f5b674375c25a05b1b877cb62d1b02773a2b51a202ba789877357172dd",
-    "components/public/LiveStreams.tsx": "35fb5e826f33d93afa157764ec0a9f5931711ba8b811a37e8429e9abd03fd445",
-    "views/match-detail.tsx": "51192d632c6b8f45ea4339fdf7bf41aa6c7d829ff0ee44990479c61b6edac505"
+    "components/public/LiveStreams.tsx": "83553bbf236c10e34735e6df71b5a56d7356d8bbcbef145a99b69350fafaca74",
+    "views/match-detail.tsx": "dfbf7f359f276674e65a93fd06bf87be66968b6dce7bfcb31e341776eb30749f"
   }
 }

@@ -300,4 +300,20 @@ test("original broadcast/player/source stores/auth and deployment settings remai
   assert.match(streams, /if \(cards\.length === 0\) return null;/, "/live still renders nothing when no stream is playable");
   assert.match(streams, /matchStateOf\(card\.status, card\.kickoff\)/, "the state badge is still derived, never hardcoded");
   assert.match(streams, /card\.stream\.rightsHolder/, "the rights holder is still named on every card");
+
+  // The notice under the player is the verdict's Arabic wording. Both mount
+  // sites must translate it rather than pass it through, or the English player
+  // shows Arabic. A hash cannot express that, so assert the wiring directly.
+  for (const [name, src] of [["LiveStreams", streams], ["match-detail", matchPage]] as const) {
+    assert.match(
+      src,
+      /broadcastNoticeKey\(/,
+      `${name} must map the broadcast notice through broadcastNoticeKey`,
+    );
+    assert.equal(
+      /inactiveNote=\{[^}]*noticeAr\s*\}/.test(src),
+      false,
+      `${name} passes the raw Arabic notice straight to the player`,
+    );
+  }
 });

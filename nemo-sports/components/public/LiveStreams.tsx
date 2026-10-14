@@ -6,6 +6,7 @@ import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { formatDate } from "@/lib/i18n/dates";
 import { matchStateLabel } from "@/lib/i18n/match-state";
+import { broadcastNoticeKey } from "@/lib/i18n/broadcast";
 
 /**
  * Server section for /live: every PLAYABLE broadcast (approved, with rights
@@ -40,7 +41,11 @@ export default function LiveStreams({ cards, locale }: { cards: PublicStreamCard
             phase={card.phase}
             home={card.home}
             away={card.away}
-            inactiveNote={card.verdict.noticeAr}
+            // noticeAr is the verdict's Arabic wording, produced by
+            // lib/broadcast-state.ts. Map it to a message key and render it in
+            // the visitor's language, exactly as views/watch.tsx does — passing
+            // it straight through put Arabic on the /en/live player.
+            inactiveNote={tr(broadcastNoticeKey(card.verdict.noticeAr, card.verdict.matchState))}
             sectionId={`live-stream-${card.stream.id}`}
             headingLevel="h3"
           />

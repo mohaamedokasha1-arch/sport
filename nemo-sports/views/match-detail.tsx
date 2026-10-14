@@ -10,6 +10,7 @@ import DataSourceNote from "@/components/data/DataSourceNote";
 import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { broadcastFor, streamForMatch } from "@/lib/match-streams";
+import { broadcastNoticeKey } from "@/lib/i18n/broadcast";
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
 import { awayTeam, compOf, homeTeam, timeOf } from "@/lib/format";
 import { siteDay } from "@/lib/tz";
@@ -567,7 +568,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
               phase={broadcast.state === "live" ? "live" : broadcast.state === "standby" ? "upcoming" : "inactive"}
               home={home}
               away={away}
-              inactiveNote={broadcast.noticeAr}
+              inactiveNote={tr(broadcastNoticeKey(broadcast.noticeAr, broadcast.matchState))}
             />
           ) : (
             <section id="live-stream" className="mt-8">

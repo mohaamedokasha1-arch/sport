@@ -235,10 +235,10 @@ sandbox.
 
 | Command | Result |
 |---|---|
-| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **457 tests, 0 failures** |
+| `npm run check` | **PASS** — exit 0, 31 steps, 23 test groups, **461 tests, 0 failures** |
 | `npm run build` | **PASS** — exit 0 |
 | `npm run typecheck` | **PASS** — exit 0 |
-| `npm run i18n:test` | **PASS** — 16/16 |
+| `npm run i18n:test` | **PASS** — 20/20 |
 | `npm run i18n:parity:test` | **PASS** — 5/5 |
 | `npm run sports-sync:test` | **PASS** — 21/21 |
 | `npm run seo:test` | **PASS** — 9/9 |
@@ -248,7 +248,7 @@ sandbox.
 
 ### D1. New tests written for this work
 
-- **`scripts/verify-i18n.test.ts` (16 tests):** English canonical equals its own
+- **`scripts/verify-i18n.test.ts` (20 tests):** English canonical equals its own
   URL; Arabic canonicals byte-identical to baseline; reciprocal absolute hreflang
   with `x-default` → Arabic and identical clusters; noindex pages get a canonical
   but no hreflang; `localeAlternates` returns no `languages` for `/admin`,
@@ -289,9 +289,10 @@ navigation, language switching, loading/error/empty states, contact and legal pa
 - **Caveat on the Arabic-leak scan.** It curls rendered pages, and it runs with no
   database, so any component that only renders when data is present was never
   exercised. It missed the status-pill and event-label leak described in E2.
-  Component-level tests now cover that gap, but the same blind spot applies to any
-  other data-gated component: **re-run the leak scan against a preview environment
-  with real data before deploying.**
+  Component-level tests now cover that gap, and a source-level grep for Arabic in
+  public non-comment code found a second instance of the same bug (E2b). The blind
+  spot still applies to anything neither approach reaches, so: **re-run the leak
+  scan against a preview environment with real data before deploying.**
 - **NOT TESTED against a live database.** `DATABASE_URL` is unset in this sandbox,
   so data-gated pages render their empty states. Entity detail pages
   (`/teams/[slug]`, `/matches/[slug]`) return 404 here for that reason, and the
@@ -361,6 +362,37 @@ original bug was reintroduced and 3 of the 6 confirmed to go red.
 
 `lib/format.ts` itself is unmodified; it stays on the byte-for-byte baseline
 guard list, and its maps remain in use by the Arabic admin panel.
+
+### E2b. A second leak of the same shape — broadcast notices under the player
+
+Applying the lesson from E2 rather than stopping at it, I grepped the public tree
+for Arabic in non-comment source lines, which is something a runtime scan
+structurally cannot do. Most hits are legitimate: admin code, data values,
+Arabic text normalisation, and deliberate `locale === "ar"` punctuation choices.
+
+Two did not qualify. `lib/broadcast-state.ts` produces the stream notice as an
+Arabic string (`noticeAr`) — correctly, because the broadcast *rule* it encodes is
+covered by the consistency suite and must stay untranslated. Callers are
+responsible for translating it. `views/watch.tsx` did that via
+`broadcastNoticeKey`, but **`components/public/LiveStreams.tsx` and
+`views/match-detail.tsx` passed `noticeAr` straight into `inactiveNote`**, which
+`MatchStreamPlayer` renders as visible bold text. So the `/en/live` and
+`/en/matches/[slug]` players would have shown an Arabic notice.
+
+Fixed by routing both through the existing `broadcastNoticeKey` mapper. Verified
+across all 8 match states and all 6 approval-side notices: each resolves to clean
+English, e.g. `finished` → "The match is finished — the live stream has ended.",
+`postponed` → "The match is postponed — there is no live stream right now."
+
+`scripts/sports-sync-safety-baseline.json` pins hashes for these two files in its
+`localisedOnly` list, so the edit correctly tripped the guard. The diff was
+reviewed and is imports, one prop expression and comments — no logic change — so
+the hashes were re-pinned and the `_comment` records why. Test 21 now also asserts
+the wiring itself, since a hash cannot distinguish a translation from a logic
+change.
+
+Locked in by 4 further tests (i18n suite now 20), mutation-verified: the raw prop
+was reintroduced and **both** the i18n guard and sports-sync test 21 went red.
 
 ### E3. `/admin` returns 404 to anonymous visitors
 

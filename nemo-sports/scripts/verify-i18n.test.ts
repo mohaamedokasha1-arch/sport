@@ -32,6 +32,9 @@ import { LocaleProvider } from "@/lib/i18n/context";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { hasMessage, t } from "@/lib/i18n/translate";
 import { STATUS_AR, EVENT_LABEL } from "@/lib/format";
+import { broadcastBadgeKey, broadcastNoticeKey } from "@/lib/i18n/broadcast";
+import type { MatchState } from "@/lib/match-state";
+import type { BroadcastState } from "@/lib/broadcast-state";
 import { EN_PREFIX } from "@/lib/i18n/locales";
 import { SITE_URL } from "@/lib/site";
 import sitemap from "@/app/sitemap";
@@ -305,4 +308,104 @@ test("StatusBadge no longer reads STATUS_AR from lib/format", () => {
   );
   assert.match(code, /hasMessage\(locale, key\)/, "unknown statuses must fall back safely");
   assert.match(code, /dir=\{dir\}/, "StatusBadge must not hardcode dir=\"rtl\"");
+});
+
+/* ── broadcast notices under the stream player ──────────────────────────────
+ * lib/broadcast-state.ts produces the notice as an Arabic string (noticeAr)
+ * because the broadcast rule it encodes is covered by the consistency suite and
+ * must stay untranslated. Callers are responsible for mapping it to a message
+ * key. views/watch.tsx did that; LiveStreams and match-detail passed noticeAr
+ * straight into a visible prop, so the /en/live and /en/matches/[slug] players
+ * showed an Arabic notice. A content scan cannot catch this: with no database
+ * there is no stream and therefore no notice on the page.
+ */
+
+const MATCH_STATES: MatchState[] = [
+  "upcoming",
+  "live",
+  "unconfirmed",
+  "finished",
+  "postponed",
+  "cancelled",
+  "suspended",
+  "abandoned",
+];
+
+const BROADCAST_STATES: BroadcastState[] = [
+  "live",
+  "standby",
+  "ended",
+  "review",
+  "unpublished",
+  "expired",
+];
+
+test("every broadcast notice key resolves to clean English and clean Arabic", () => {
+  for (const matchState of MATCH_STATES) {
+    const key = broadcastNoticeKey("انتهت نافذة البث المقررة لهذه المباراة", matchState);
+    const en = t("en", key);
+    assert.notEqual(en, key, `${key} has no English entry`);
+    assert.equal(/[\u0600-\u06FF]/.test(en), false, `${key} English still has Arabic: ${en}`);
+    assert.ok(t("ar", key).length > 0, `${key} has no Arabic entry`);
+  }
+});
+
+test("the approval-side broadcast notices are all mapped, not just the expiry ones", () => {
+  // These are matched on the Arabic wording lib/broadcast-state.ts emits; if
+  // that wording changes the mapper must be updated rather than silently
+  // falling through to windowClosed.
+  const notices = [
+    "أنهت الإدارة البث",
+    "غير منشور",
+    "بانتظار توثيق الحقوق",
+    "يبدأ البث مع انطلاق المباراة",
+    "بث مباشر الآن",
+    "لا يمكن ربط هذا البث",
+  ];
+  const expected = [
+    "bc.notice.ended",
+    "bc.notice.unpublished",
+    "bc.notice.review",
+    "bc.notice.standby",
+    "bc.notice.live",
+    "bc.notice.unlinked",
+  ];
+  notices.forEach((notice, i) => {
+    const key = broadcastNoticeKey(notice, "unconfirmed");
+    assert.equal(key, expected[i], `notice ${JSON.stringify(notice)} mapped to ${key}`);
+    const en = t("en", key);
+    assert.equal(/[\u0600-\u06FF]/.test(en), false, `${key} English still has Arabic: ${en}`);
+  });
+});
+
+test("every broadcast badge key resolves to clean English", () => {
+  for (const state of BROADCAST_STATES) {
+    const key = broadcastBadgeKey({ state, matchState: "finished" });
+    const en = t("en", key);
+    assert.notEqual(en, key, `${key} has no English entry`);
+    assert.equal(/[\u0600-\u06FF]/.test(en), false, `${key} English still has Arabic: ${en}`);
+  }
+});
+
+test("no public view passes a raw Arabic broadcast notice to a visible prop", () => {
+  // The rule: noticeAr may be *read* to pick a key, but must never be handed to
+  // a component as text. Assert on the call sites rather than on the lib, whose
+  // Arabic wording is intentional and covered elsewhere.
+  for (const file of [
+    "components/public/LiveStreams.tsx",
+    "views/match-detail.tsx",
+    "views/watch.tsx",
+  ]) {
+    const src = readFileSync(file, "utf8");
+    assert.match(
+      src,
+      /broadcastNoticeKey\(/,
+      `${file} must map the broadcast notice through broadcastNoticeKey`,
+    );
+    assert.equal(
+      /inactiveNote=\{[^}]*noticeAr\s*\}/.test(src),
+      false,
+      `${file} passes the raw Arabic notice straight to a visible prop`,
+    );
+  }
 });
