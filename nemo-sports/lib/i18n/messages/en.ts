@@ -1402,6 +1402,8 @@ const en: Record<keyof typeof ar, string> = {
   "mfd.footerMatches": "the full available fixture list",
 
   /* ── synced sports directory ──────────────────────────────── */
+  "sy.errNoDatabase": "The sync database is not configured yet",
+  "sy.errReadFailed": "Stored records could not be read; that does not mean there are no matches",
   "sy.providerFallback": "Data provider",
   "sy.status.scheduled": "Upcoming",
   "sy.status.live": "Live",

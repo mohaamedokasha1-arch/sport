@@ -176,7 +176,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {liveItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} now={now} />
+              <LiveMatchCard key={match.id} match={match} now={now} locale={locale} />
             ))}
           </div>
         </section>
@@ -206,7 +206,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {upcomingItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} now={now} />
+              <LiveMatchCard key={match.id} match={match} now={now} locale={locale} />
             ))}
           </div>
         </section>
@@ -219,7 +219,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {finishedItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} now={now} />
+              <LiveMatchCard key={match.id} match={match} now={now} locale={locale} />
             ))}
           </div>
         </section>
@@ -233,7 +233,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {interruptedItems.map((match) => (
               <div key={match.id}>
-                <LiveMatchCard match={match} now={now} />
+                <LiveMatchCard match={match} now={now} locale={locale} />
                 <p className="mt-1 text-[11px] font-bold text-muted">{matchStateLabel(locale, stateOf(match))}</p>
               </div>
             ))}
@@ -252,7 +252,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
           <p className="mb-3 text-[12px] leading-6 text-muted">{t(locale, "state.unconfirmedNote")}</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unconfirmedItems.map((match) => (
-              <LiveMatchCard key={match.id} match={match} now={now} />
+              <LiveMatchCard key={match.id} match={match} now={now} locale={locale} />
             ))}
           </div>
         </section>

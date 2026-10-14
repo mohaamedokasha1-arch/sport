@@ -249,7 +249,7 @@ async function NewsPageBody({
                       href={`/news?competition=${encodeURIComponent(c.id)}`}
                       className="flex items-center justify-between gap-2 px-3 py-2.5 text-[12px] font-semibold transition hover:bg-navy-850/[0.03] dark:hover:bg-white/[0.04]"
                     >
-                      <span className="truncate">{c.name}</span>
+                      <span className="truncate">{locale === "ar" ? c.name : c.nameEn}</span>
                       <span className="num shrink-0 text-[11px] text-muted">←</span>
                     </Link>
                   </li>

@@ -36,7 +36,12 @@ async function saveSettingsAction(form: FormData): Promise<void> {
         publishingEnabled: form.get("publishingEnabled") === "on",
       },
       news: { autoPublish: form.get("autoPublish") === "on" },
-      seo: { metaDescription: text("metaDescription"), keywords: text("keywords") },
+      seo: {
+        metaDescription: text("metaDescription"),
+        keywords: text("keywords"),
+        metaDescriptionEn: text("metaDescriptionEn"),
+        keywordsEn: text("keywordsEn"),
+      },
     },
     actor.username,
   );
@@ -117,6 +122,10 @@ export default async function AdminSettings({
           <div className="space-y-3">
             <Field label="الوصف الافتراضي (meta description)"><textarea name="metaDescription" rows={3} defaultValue={s.seo.metaDescription} maxLength={400} className={inputCls} /></Field>
             <Field label="الكلمات المفتاحية"><input name="keywords" defaultValue={s.seo.keywords} maxLength={400} className={inputCls} /></Field>
+            {/* النسخة الإنجليزية تُعرض على صفحات /en فقط. لو تُركت فارغة يُستخدم
+                النص الإنجليزي الافتراضي — ولا تُعرض النسخة العربية على صفحة إنجليزية. */}
+            <Field label="الوصف الافتراضي — English (يُعرض على /en)"><textarea name="metaDescriptionEn" rows={3} defaultValue={s.seo.metaDescriptionEn} maxLength={400} dir="ltr" className={inputCls} /></Field>
+            <Field label="الكلمات المفتاحية — English (تُعرض على /en)"><input name="keywordsEn" defaultValue={s.seo.keywordsEn} maxLength={400} dir="ltr" className={inputCls} /></Field>
           </div>
         </Panel>
 

@@ -1409,6 +1409,8 @@ const ar = {
   "mfd.footerMatches": "الجدول الكامل المتاح",
 
   /* ── synced sports directory ──────────────────────────────── */
+  "sy.errNoDatabase": "لم تُهيّأ قاعدة البيانات للمزامنة بعد",
+  "sy.errReadFailed": "تعذّر قراءة البيانات المحفوظة؛ لا يعني ذلك عدم وجود مباريات",
   "sy.providerFallback": "مزود البيانات",
   "sy.status.scheduled": "قادمة",
   "sy.status.live": "مباشر",

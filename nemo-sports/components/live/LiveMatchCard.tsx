@@ -1,11 +1,9 @@
-"use client";
-
 import Link from "@/components/i18n/Link";
-import { useT, useLocale } from "@/lib/i18n/context";
+import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
-import { SITE_TZ } from "@/lib/tz";
-import { formatDate } from "@/lib/i18n/dates";
+import { formatClock, formatDate } from "@/lib/i18n/dates";
 import { broadcastFor, type MatchStreamSource } from "@/lib/match-streams";
 import { matchStateOf } from "@/lib/match-state";
 import { matchStateLabel } from "@/lib/i18n/match-state";
@@ -32,9 +30,8 @@ export interface LiveCardData {
 
 const BREAK_STATUSES = new Set(["halftime", "extra_time_halftime"]);
 
-export default function LiveMatchCard({ match, now = Date.now() }: { match: LiveCardData; now?: number }) {
-  const tr = useT();
-  const locale = useLocale();
+export default function LiveMatchCard({ match, now = Date.now(), locale }: { match: LiveCardData; now?: number; locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   // Resolve the state once, through the site-wide rule, and label it.
   const state = matchStateOf(match.status, match.scheduledAt, now);
   const isLive = state === "live";
@@ -44,11 +41,9 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
   const broadcast = broadcastFor(match.stream, { status: match.status, scheduledAt: match.scheduledAt, sport: match.sport }, now);
   const played = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
 
-  const timeFormatted = new Date(match.scheduledAt).toLocaleTimeString("ar-EG", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: SITE_TZ,
-  });
+  // formatClock renders exactly this ar-EG 12-hour form for Arabic, and an
+  // English clock on /en — see scripts/verify-i18n-parity.test.ts.
+  const timeFormatted = formatClock(locale, match.scheduledAt);
 
   return (
     <article

@@ -1,5 +1,5 @@
 import Link from "@/components/i18n/Link";
-import { syncedRecords } from "@/lib/sports-sync/read";
+import { syncedRecords, syncErrorKey, type SyncErrorCode } from "@/lib/sports-sync/read";
 import { classification, freshness, indexWorthy, keyOf, type RecordData } from "@/lib/sports-sync/model";
 import { SITE_TZ, siteDateKey } from "@/lib/tz";
 import type { Locale } from "@/lib/i18n/locales";
@@ -49,9 +49,12 @@ const stamp = (iso: string, locale: Locale = DEFAULT_LOCALE) =>
   new Intl.DateTimeFormat(locale === "ar" ? "ar-EG" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: SITE_TZ })
     .format(new Date(iso));
 
-export function SyncNotice({ record, error, locale }: { record?: RecordData; error?: string | null; locale?: Locale }) {
-  return <p role={error ? "status" : undefined} className="my-3 rounded border border-line p-3 text-xs leading-6 text-muted">
-    {error ?? (record
+export function SyncNotice({ record, error, errorCode, locale }: { record?: RecordData; error?: string | null; errorCode?: SyncErrorCode | null; locale?: Locale }) {
+  // Spell the failure per locale. `error` (the Arabic operator string) is only
+  // the fallback for a caller that has not threaded the code through yet.
+  const message = errorCode ? tr(locale ?? DEFAULT_LOCALE, syncErrorKey(errorCode)) : error;
+  return <p role={message ? "status" : undefined} className="my-3 rounded border border-line p-3 text-xs leading-6 text-muted">
+    {message ?? (record
       ? `${freshness(record) === "stale" ? tr(locale, "sy.stalePrefix") : ""}${tr(locale, "sy.lastSuccess", {
           time: record.lastSuccessAt ? stamp(record.lastSuccessAt, locale ?? DEFAULT_LOCALE) : tr(locale, "sy.noSuccessTime"),
           provider: providerName(record.provider, locale),
@@ -71,7 +74,7 @@ export async function SyncedCompetitionDirectory({ sport = "", country = "", loc
   const l = locale ?? DEFAULT_LOCALE;
   return <section className="mx-auto max-w-[1280px] px-4 py-6" aria-labelledby="sync-catalog-title">
     <h2 id="sync-catalog-title" className="text-xl font-extrabold">{tr(l, "sy.catalogTitle")}</h2>
-    <SyncNotice error={result.error} locale={l} />
+    <SyncNotice error={result.error} errorCode={result.errorCode} locale={l} />
     <form method="get" className="my-4 flex flex-wrap gap-3 text-sm">
       <label>{tr(l, "sy.sportLabel")} <select name="sport" defaultValue={sport} className="rounded border border-line bg-transparent p-2"><option value="">{tr(l, "common.all")}</option>{[...new Set(visible.map(r => r.sport))].map(s => <option key={s} value={s}>{sportName(l, s)}</option>)}</select></label>
       <label>{tr(l, "sy.countryLabel")} <select name="country" defaultValue={country} className="rounded border border-line bg-transparent p-2"><option value="">{tr(l, "common.all")}</option>{[...new Set(visible.map(r => String(r.data.countryName ?? "")))].filter(Boolean).sort().map(c => <option key={c}>{c}</option>)}</select></label>
@@ -104,7 +107,7 @@ export async function SyncedCompetitionDetail({ record, locale }: { record: Reco
   return <main className="mx-auto max-w-[1280px] space-y-6 px-4 py-6">
     <nav><Link href="/competitions" className="text-sm text-gold-500">{tr(l, "nav.competitions")}</Link></nav><h1 className="text-2xl font-extrabold">{name(record, l)}</h1>
     <p className="text-sm text-muted">{String(record.data.countryName ?? "")} · {sportName(l, record.sport)} {record.availability === "unconfirmed" ? tr(l, "sy.availabilityUnconfirmed") : ""}</p>
-    <SyncNotice record={record} error={result.error} locale={l} />
+    <SyncNotice record={record} error={result.error} errorCode={result.errorCode} locale={l} />
     <section><h2 className="mb-3 font-bold">{tr(l, "sy.seasonsTitle")}</h2>{seasons.length ? <ul className="flex flex-wrap gap-3">{seasons.map(s => <li key={s.sourceKey}><a href={`#season-${s.id}`} className="text-gold-500">{String(s.data.name)}{s.data.isCurrent ? tr(l, "sy.currentSeason") : ""}</a></li>)}</ul> : <p className="text-sm text-muted">{tr(l, "sy.noSeasons")}</p>}</section>
     {seasons.map(s => <section id={`season-${s.id}`} key={s.id}><h2 className="mb-3 font-bold">{tr(l, "sy.seasonMatches", { name: String(s.data.name) })}</h2><SyncedFixtureList fixtures={fixtures.filter(f => f.data.seasonProviderId === s.data.providerId)} locale={l} /></section>)}
     <section><h2 className="mb-3 font-bold">{seasons.length ? tr(l, "sy.matchesNoSeason") : tr(l, "sy.matchesSynced")}</h2><SyncedFixtureList fixtures={fixtures.filter(f => !seasons.some(s => s.data.providerId === f.data.seasonProviderId))} locale={l} />{!fixtures.length && <p className="text-sm text-muted">{tr(l, "sy.noFixtures")}</p>}</section>
@@ -120,10 +123,10 @@ export async function SyncedEntityDetail({ record, locale }: { record: RecordDat
   if (record.kind === "fixture") {
     const competition = result.data.find(r => r.kind === "competition" && r.provider === record.provider && r.sourceKey === record.competitionKey);
     const teams = [record.data.homeProviderId, record.data.awayProviderId].map(id => result.data.find(r => r.kind === "team" && r.provider === record.provider && r.sourceKey === id));
-    return <main className="mx-auto max-w-[1280px] space-y-4 px-4 py-6"><h1 className="text-2xl font-bold">{String(record.data.homeName)} × {String(record.data.awayName)}</h1><SyncNotice record={record} error={result.error} locale={l} /><p>{tr(l, "sy.kickoffCairo", { time: kickoff(record, l) })}</p><p>{statusName(record.data.status, l)}</p><p dir="ltr" className="num text-3xl">{String(record.data.homeScore ?? "—")} : {String(record.data.awayScore ?? "—")}</p>{competition && <Link href={syncedPath(competition)} className="block text-gold-500">{name(competition, l)}</Link>}<ul className="flex gap-4">{teams.map((team, i) => team && <li key={i}><Link href={syncedPath(team)} className="text-gold-500">{name(team, l)}</Link></li>)}</ul><p className="text-sm text-muted">{tr(l, "sy.fixtureNote")}</p></main>;
+    return <main className="mx-auto max-w-[1280px] space-y-4 px-4 py-6"><h1 className="text-2xl font-bold">{String(record.data.homeName)} × {String(record.data.awayName)}</h1><SyncNotice record={record} error={result.error} errorCode={result.errorCode} locale={l} /><p>{tr(l, "sy.kickoffCairo", { time: kickoff(record, l) })}</p><p>{statusName(record.data.status, l)}</p><p dir="ltr" className="num text-3xl">{String(record.data.homeScore ?? "—")} : {String(record.data.awayScore ?? "—")}</p>{competition && <Link href={syncedPath(competition)} className="block text-gold-500">{name(competition, l)}</Link>}<ul className="flex gap-4">{teams.map((team, i) => team && <li key={i}><Link href={syncedPath(team)} className="text-gold-500">{name(team, l)}</Link></li>)}</ul><p className="text-sm text-muted">{tr(l, "sy.fixtureNote")}</p></main>;
   }
   const fixtures = result.data.filter(f => f.kind === "fixture" && f.provider === record.provider && [f.data.homeProviderId, f.data.awayProviderId].includes(record.sourceKey));
-  return <main className="mx-auto max-w-[1280px] space-y-4 px-4 py-6"><h1 className="text-2xl font-bold">{name(record, l)}</h1><SyncNotice record={record} error={result.error} locale={l} /><p>{String(record.data.countryName ?? "")} {String(record.data.position ?? "")}</p>{record.kind === "team" && <SyncedFixtureList fixtures={fixtures} locale={l} />}{record.kind === "player" && <p className="text-sm text-muted">{tr(l, "sy.playerNote")}</p>}</main>;
+  return <main className="mx-auto max-w-[1280px] space-y-4 px-4 py-6"><h1 className="text-2xl font-bold">{name(record, l)}</h1><SyncNotice record={record} error={result.error} errorCode={result.errorCode} locale={l} /><p>{String(record.data.countryName ?? "")} {String(record.data.position ?? "")}</p>{record.kind === "team" && <SyncedFixtureList fixtures={fixtures} locale={l} />}{record.kind === "player" && <p className="text-sm text-muted">{tr(l, "sy.playerNote")}</p>}</main>;
 }
 
 export async function SyncedFixtureHighlights({ state, sport, locale }: { state?: "live" | "upcoming" | "completed"; sport?: string; locale?: Locale }) {

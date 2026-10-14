@@ -24,7 +24,7 @@ const EN_SUFFIX = "Live scores, results and fixtures";
 
 export async function rootMetadata(locale: Locale): Promise<Metadata> {
   const [robots, settings] = await Promise.all([robotsForDataSource(), getSiteSettingsCached()]);
-  const base = publicBaseMetadata(settings);
+  const base = publicBaseMetadata(settings, locale);
 
   if (locale === DEFAULT_LOCALE) {
     // Byte-for-byte the metadata the site already ships.

@@ -1,16 +1,24 @@
 import { requiredAttributions } from "@/lib/providers";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 
 /**
  * Provider attribution strip — REQUIRED by free-tier licences.
  * Rendered in the site footer and available to any data panel.
- * Arabic-first: "بيانات المباريات: SportScore" etc., each linked.
+ * Each source carries both an Arabic and an English attribution line
+ * (lib/providers.ts); the licence requires the dofollow link with the provider
+ * name visible, which holds in both languages.
+ *
+ * Stays a SERVER component with a `locale` prop: lib/providers.ts reads
+ * non-NEXT_PUBLIC env, so making this client would risk a hydration mismatch.
  */
 export default function AttributionFooter({
   className = "",
   exclude = [],
+  locale = DEFAULT_LOCALE,
 }: {
   className?: string;
   exclude?: string[];
+  locale?: Locale;
 }) {
   const sources = requiredAttributions().filter((source) => !exclude.includes(source.name));
   return (
@@ -18,7 +26,7 @@ export default function AttributionFooter({
       {sources.map((s, i) => (
         <span key={s.name}>
           {i > 0 ? <span aria-hidden> · </span> : null}
-          {s.attributionTextAr}{" "}
+          {locale === "ar" ? s.attributionTextAr : s.attributionText}{" "}
           <a
             href={s.attributionUrl}
             target="_blank"

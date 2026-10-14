@@ -159,7 +159,10 @@ test("⑤ the root layout reads settings instead of repeating them", async () =>
   const metadataSource = readFileSync(new URL("../lib/i18n/root-metadata.ts", import.meta.url), "utf8");
   const shell = readFileSync(new URL("../components/layout/RootShell.tsx", import.meta.url), "utf8");
   const combined = `${metadataSource}\n${shell}`;
-  assert.match(metadataSource, /publicBaseMetadata\(settings\)/, "metadata must come from lib/site-settings");
+  // The builder now also takes the locale (so /en uses the operator's English
+  // SEO copy instead of the Arabic one), but the rule is unchanged: the values
+  // must come from lib/site-settings, never be restated in the layout.
+  assert.match(metadataSource, /publicBaseMetadata\(settings,\s*locale\)/, "metadata must come from lib/site-settings, for the locale being rendered");
   assert.ok(!combined.includes(`description:\n    "مواعيد ونتائج`), "no hardcoded description may come back");
   assert.ok(!/keywords: \[/.test(combined), "no hardcoded keyword list may come back");
   assert.match(shell, /siteBranding\(settings\)/, "the Organization/WebSite JSON-LD uses the same brand");

@@ -136,7 +136,7 @@ export default async function Footer({ locale }: { locale: Locale }) {
             {servable && footballDataAttributionEnabled ? <PoweredByFootballData /> : null}
             {servable && sportScoreAttributionEnabled ? <PoweredBy /> : null}
           </span>
-          <AttributionFooter exclude={["SportScore", "Football-Data.org"]} className="w-full border-t border-white/10 pt-3" />
+          <AttributionFooter exclude={["SportScore", "Football-Data.org"]} className="w-full border-t border-white/10 pt-3" locale={locale} />
         </div>
       </div>
     </footer>

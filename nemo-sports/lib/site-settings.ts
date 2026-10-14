@@ -15,6 +15,7 @@ import type { Metadata } from "next";
 import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { SITE_URL } from "@/lib/site";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 
 export interface SiteSettings {
   siteName: string;
@@ -43,6 +44,14 @@ export interface SiteSettings {
   seo: {
     metaDescription: string;
     keywords: string;
+    /**
+     * English counterparts, used ONLY by the /en tree. Optional in storage: an
+     * operator who never touches them gets the built-in English copy rather
+     * than Arabic text on an English page. Arabic values are never reused for
+     * English — a translated page must not advertise itself in another language.
+     */
+    metaDescriptionEn: string;
+    keywordsEn: string;
   };
 }
 
@@ -60,6 +69,9 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     metaDescription:
       "مواعيد ونتائج المباريات من مصادر البيانات المتاحة، مع توضيح حالة التحديث وعدم عرض بيانات غير مؤكدة.",
     keywords: "نتائج المباريات, مباريات اليوم, جدول المباريات, نتائج كرة القدم",
+    metaDescriptionEn:
+      "Kick-off times, scores and fixtures from the available data sources, with update status stated and unconfirmed data never shown.",
+    keywordsEn: "match results, today's matches, fixture list, football scores",
   },
 };
 
@@ -168,6 +180,8 @@ function mergeSettings(stored: Map<string, unknown>): SiteSettings {
   if (isPlainObject(seo)) {
     merged.seo.metaDescription = str(seo.metaDescription, merged.seo.metaDescription);
     merged.seo.keywords = str(seo.keywords, merged.seo.keywords);
+    merged.seo.metaDescriptionEn = str(seo.metaDescriptionEn, merged.seo.metaDescriptionEn);
+    merged.seo.keywordsEn = str(seo.keywordsEn, merged.seo.keywordsEn);
   }
   return merged;
 }
@@ -330,22 +344,33 @@ export function publicTitleBrand(s: SiteSettings): string {
  * DEFAULT_SETTINGS reproduce the previous hardcoded values exactly, so wiring
  * this in changes nothing until an operator edits a field.
  */
-export function publicBaseMetadata(s: SiteSettings): Metadata {
+/**
+ * Base metadata for a root layout.
+ *
+ * `locale` selects which stored SEO copy is used. Arabic reproduces exactly
+ * what the site has always emitted; English uses the operator's English fields
+ * (falling back to the built-in English copy) so an /en page never advertises
+ * itself with Arabic description or keywords.
+ */
+export function publicBaseMetadata(s: SiteSettings, locale: Locale = DEFAULT_LOCALE): Metadata {
   const brand = publicTitleBrand(s);
-  const title = `${brand} | نتائج ومواعيد المباريات`;
+  const isAr = locale === DEFAULT_LOCALE;
+  const title = isAr ? `${brand} | نتائج ومواعيد المباريات` : `${brand} | Results, scores and fixtures`;
+  const description = isAr ? s.seo.metaDescription : s.seo.metaDescriptionEn;
+  const keywords = isAr ? s.seo.keywords : s.seo.keywordsEn;
   return {
     metadataBase: new URL(SITE_URL),
     title: { default: title, template: `%s | ${brand}` },
-    description: s.seo.metaDescription,
-    keywords: s.seo.keywords
+    description,
+    keywords: keywords
       .split(",")
       .map((k) => k.trim())
       .filter(Boolean),
     openGraph: {
       title,
-      description: s.seo.metaDescription,
+      description,
       siteName: s.siteName.trim() || brand,
-      locale: "ar_AR",
+      locale: isAr ? "ar_AR" : "en_GB",
       type: "website",
     },
   };
