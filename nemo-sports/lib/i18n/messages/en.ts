@@ -1105,6 +1105,7 @@ const en: Record<keyof typeof ar, string> = {
   "ab.broadcastRights": "Broadcast rights policy",
 
   /* ── news detail ────────────────────────────────────────── */
+  "nd.demoNotice": "Development preview content only — this is not a published story or real numbers.",
   "nd.notFound": "Article not found",
   "nd.breadcrumbAria": "Breadcrumb",
   "nd.home": "Home",
