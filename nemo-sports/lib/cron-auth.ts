@@ -1,6 +1,6 @@
 /**
- * NEMO Sports · one gate for every `/api/cron/*` surface
- * ─────────────────────────────────────────────────────
+ * NEMO Sports · the gate for the secret-required cron surfaces
+ * ─────────────────────────────────────────────────────────────
  * The cron routes carried byte-identical copies of this gate. They must never
  * disagree about who may spend provider quota — and a fifth copy is how the
  * disagreement starts — so the rule lives here exactly once:
@@ -14,6 +14,12 @@
  *   · with NO secret configured the surface refuses with **503 not_configured**
  *     and does no work: fail closed, never run anonymously;
  *   · with a secret configured and no match, the answer is **401 unauthorized**.
+ *
+ * `/api/cron/update-matches` is deliberately NOT gated: no token is checked,
+ * any visitor runs the real `matches` job and gets HTTP 200 with the honest
+ * outcome in the body (it was never on the Vercel cron schedule, so no
+ * scheduled secret-bearing traffic involves it). Every other `/api/cron/*`
+ * surface above stays gated through this module.
  *
  * `/api/v1/ingest` keeps its own gate on purpose: its secret set is smaller
  * (`NEMO_INGEST_TOKEN` / `CRON_SECRET`, no Vercel-managed secret) and its 503
