@@ -34,7 +34,7 @@ export interface NewsFreshness {
   lastAttemptOk: boolean | null;
   sources: { enabled: number } & Record<Exclude<SourceFreshness, "disabled">, number>;
   /** the cadence ingestion actually runs at, and the resulting stale threshold */
-  schedule: { intervalMinutes: number; source: SchedulerCadence["source"]; descriptionAr: string; staleAfterMinutes: number };
+  schedule: { intervalMinutes: number; source: SchedulerCadence["source"]; descriptionAr: string; descriptionEn: string; staleAfterMinutes: number };
 }
 
 export interface NewsFeed {
@@ -83,7 +83,7 @@ export function summarizeFreshness(
     lastAttemptAt,
     lastAttemptOk,
     sources: counts,
-    schedule: { intervalMinutes: cadence.minutes, source: cadence.source, descriptionAr: cadence.descriptionAr, staleAfterMinutes: shortest },
+    schedule: { intervalMinutes: cadence.minutes, source: cadence.source, descriptionAr: cadence.descriptionAr, descriptionEn: cadence.descriptionEn, staleAfterMinutes: shortest },
   };
 }
 

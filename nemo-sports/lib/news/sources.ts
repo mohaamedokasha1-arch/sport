@@ -99,6 +99,8 @@ export function defaultSources(now = new Date().toISOString()): RSSSource[] {
 export const NEWS_CRON_PATH = "/api/cron/fetch-news";
 export const NEWS_CRON_SCHEDULE_UTC = "30 3 * * *";
 export const NEWS_CRON_DESCRIPTION_AR = "مرة واحدة يوميًا (03:30 بتوقيت UTC)";
+/** English wording for the same cadence. */
+export const NEWS_CRON_DESCRIPTION_EN = "once a day (03:30 UTC)";
 
 /**
  * Per-source interval (minutes) is the TARGET cadence used by the freshness

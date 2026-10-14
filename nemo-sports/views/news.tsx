@@ -13,14 +13,15 @@ import { demoContentVisible } from "@/lib/site";
 import { relative } from "@/lib/format";
 import { ManualNewsSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 
 export type ViewProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "الأخبار — كل الأخبار الرياضية",
-  description: "أخبار وتحليلات وتقارير رياضية تُجمَع تلقائيًا من الناشرين، مع روابطها الأصلية دائمًا.",
+  title: t(locale, "news.metaTitle"),
+  description: t(locale, "news.metaDescription"),
   alternates: { canonical: "/news" },
 };
 }
@@ -29,10 +30,13 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
 export const revalidate = 120;
 
 async function NewsPageBody({
+  locale,
   searchParams,
 }: {
+  locale: Locale;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const sp = await searchParams;
   // The store keeps the English category name; public links ship Arabic labels
   // too (the footer links to /news?category=انتقالات and /news?category=تحليلات).
@@ -70,7 +74,7 @@ async function NewsPageBody({
   // false statement about a label the newsroom never uses.
   const categoryLabel =
     category === FALLBACK_CATEGORY || CATEGORIES.some((entry) => entry.name === category)
-      ? categoryMeta(category).nameAr
+      ? (locale === "ar" ? categoryMeta(category).nameAr : categoryMeta(category).nameEn)
       : rawCategory;
   const hasFilter = Boolean(category || team || competition);
 
@@ -78,53 +82,53 @@ async function NewsPageBody({
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">التغطية الرياضية</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">NEMO Newsroom · الأخبار</h1>
+          <p className="eyebrow mb-1">{tr("news.eyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tr("news.heading")}</h1>
         </div>
         <p className="text-[12px] text-muted" role="status">
-          <span className="num font-bold">{feed.total + editorial.length}</span> خبرًا ·{" "}
+          <span className="num font-bold">{feed.total + editorial.length}</span> {tr("news.countStories")} ·{" "}
           {fresh.lastSuccessAt ? (
             <>
-              آخر تحديث ناجح: <span className="num font-bold">{relative(fresh.lastSuccessAt)}</span>
-              {fresh.state === "stale" ? <span className="text-warn"> (بيانات قد لا تكون حالية)</span> : null}
+              {tr("news.lastSuccess")} <span className="num font-bold">{relative(fresh.lastSuccessAt)}</span>
+              {fresh.state === "stale" ? <span className="text-warn">{tr("news.maybeStale")}</span> : null}
             </>
           ) : (
-            "لا يوجد تحديث ناجح مسجّل"
+            tr("news.noSuccess")
           )}
           {fresh.lastAttemptOk === false && fresh.lastFailureAt ? (
             <span className="text-warn">
-              {" "}· آخر محاولة تحديث فشلت <span className="num">{relative(fresh.lastFailureAt)}</span>
+              {" "}{tr("news.lastFailure")} <span className="num">{relative(fresh.lastFailureAt)}</span>
             </span>
           ) : null}
-          {!fresh.lastAttemptAt ? <span> · لم تُسجَّل أي محاولة تحديث بعد</span> : null}
+          {!fresh.lastAttemptAt ? <span>{tr("news.noAttempt")}</span> : null}
         </p>
       </header>
 
       <p className="-mt-3 mb-5 text-[11px] text-muted">
-        تُجمع الأخبار عبر مهمة مجدولة تعمل {fresh.schedule.descriptionAr}، لذلك قد تتأخر عن الفاصل المستهدف لكل مصدر، ولا نضمن تحديثًا لحظيًا. تُعتبر البيانات غير حالية إذا مضى على آخر تحديث ناجح أكثر من{" "}
-        <span className="num">{Math.round(fresh.schedule.staleAfterMinutes / 60)}</span> ساعة.
+        {tr("news.cronNote", { schedule: locale === "ar" ? fresh.schedule.descriptionAr : fresh.schedule.descriptionEn })}{" "}
+        <span className="num">{Math.round(fresh.schedule.staleAfterMinutes / 60)}</span> {tr("news.hoursSuffix")}
       </p>
 
-      {editorial.length > 0 ? <p className="mb-5 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">المقالات الظاهرة بيانات توضيحية للتطوير فقط، ولا تمثل أخبارًا منشورة.</p> : null}
+      {editorial.length > 0 ? <p className="mb-5 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("news.editorialDemoNotice")}</p> : null}
 
       {!hasAny ? (
         <DataUnavailable
           title={
             category
-              ? "لا توجد أخبار بهذا التصنيف"
+              ? tr("news.emptyCategory")
               : team || competition
-                ? "لا توجد أخبار مطابقة لهذا الفلتر"
-                : "لا توجد أخبار منشورة حاليًا"
+                ? tr("news.emptyFilter")
+                : tr("news.emptyNone")
           }
           message={
             category
-              ? `لم يُرجع آخر تحديث خبرًا منشورًا في تصنيف «${categoryLabel}». التصنيفات تمتلئ مع وصول أخبار جديدة، وقد يبقى بعضها فارغًا حتى ذلك الحين.`
+              ? tr("news.emptyCategoryMessage", { category: categoryLabel })
               : team || competition
-                ? "لم يُرجع آخر تحديث خبرًا منشورًا يطابق الفلتر المحدد. جرّب اسمًا أقصر أو امسح الفلتر."
-                : "لم تُرجع قاعدة الأخبار محتوى منشورًا مطابقًا. التحديث يعتمد على المهام المجدولة وحالة المصادر، ولا نضمن تحديثًا كل بضع دقائق."
+                ? tr("news.emptyFilterMessage")
+                : tr("news.emptyNoneMessage")
           }
           actionHref={hasFilter ? "/news" : undefined}
-          actionLabel={hasFilter ? "عرض كل الأخبار" : undefined}
+          actionLabel={hasFilter ? tr("news.viewAll") : undefined}
         />
       ) : null}
 
@@ -139,7 +143,7 @@ async function NewsPageBody({
                 : "border border-line bg-surface text-muted hover:border-gold-500"
             }`}
           >
-            الكل
+            {tr("news.filterAll")}
           </Link>
           {feed.categories.slice(0, 12).map((c) => {
             const m = categoryMeta(c.name);
@@ -187,14 +191,14 @@ async function NewsPageBody({
           <div className="space-y-8">
             {/* automatic feed */}
             {feed.items.length > 0 ? (
-              <section aria-label="آخر الأخبار من الناشرين">
+              <section aria-label={tr("news.publisherSection")}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {storyGroups.map(([lead, ...related]) => (
                     <div key={lead.id} className="space-y-2">
                       <RssArticleCard article={lead} />
                       {related.length > 0 && <details className="card p-3 text-sm">
-                        <summary className="cursor-pointer font-bold">عناوين متشابهة ({related.length})</summary>
-                        <p className="my-2 text-xs text-muted">تجميع آلي ضمن الأخبار المحمّلة، وليس تأكيدًا لصحة القصة أو تطابقها.</p>
+                        <summary className="cursor-pointer font-bold">{tr("news.similarHeadlines", { n: related.length })}</summary>
+                        <p className="my-2 text-xs text-muted">{tr("news.similarNote")}</p>
                         <ul className="space-y-3">{related.map((item) => <li key={item.id}><a href={item.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="underline">{item.title}</a><p className="text-xs text-muted">{item.sourceName} · <time dateTime={item.publicationDate}>{relative(item.publicationDate)}</time></p></li>)}</ul>
                       </details>}
                     </div>
@@ -205,10 +209,10 @@ async function NewsPageBody({
 
             {/* editorial / demo */}
             {editorial.length > 0 ? (
-              <section aria-label="مقالات تحريرية">
+              <section aria-label={tr("news.editorialSection")}>
                 <h2 className="mb-3 flex items-center gap-2 text-[14px] font-extrabold">
                   <span className="h-4 w-1 rounded-full bg-gold-500" aria-hidden />
-                  مقالات توضيحية للتطوير
+                  {tr("news.editorialDemo")}
                 </h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {editorial.map((a, i) => (
@@ -235,7 +239,7 @@ async function NewsPageBody({
           <aside className="space-y-5">
             <div className="card overflow-hidden">
               <h2 className="border-b border-line bg-navy-850 px-3 py-2.5 text-[13px] font-extrabold text-white">
-                حسب البطولة
+                {tr("news.byCompetition")}
               </h2>
               <ul className="divide-y divide-line">
                 {newsCompetitions().slice(0, 8).map((c) => (
@@ -253,13 +257,11 @@ async function NewsPageBody({
             </div>
 
             <div className="card p-4 text-[11px] leading-relaxed text-muted">
-              <p className="eyebrow mb-2">سياسة المحتوى</p>
+              <p className="eyebrow mb-2">{tr("news.policyEyebrow")}</p>
               <p>
-                الأخبار المكتوبة داخل نيمو سبورتس من إنتاج محررينا. أما الأخبار المجمّعة
-                تلقائيًا فتظهر بعنوانها ومقتطف قصير ورابط واضح للناشر الأصلي، دون نسخ
-                النص كاملًا —{" "}
+                {tr("news.policyBody")}{" "}
                 <Link href="/copyright" className="font-bold text-gold-600 dark:text-gold-400">
-                  تفاصيل السياسة
+                  {tr("news.policyDetails")}
                 </Link>
                 .
               </p>
