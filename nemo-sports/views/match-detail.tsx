@@ -11,9 +11,10 @@ import { allMatches, articles, matchBySlug } from "@/lib/data";
 import { getLiveStates } from "@/lib/live";
 import { broadcastFor, streamForMatch } from "@/lib/match-streams";
 import { applyDemoOverride, getOverride } from "@/lib/match-overrides";
-import { awayTeam, compOf, dateAr, homeTeam, timeOf } from "@/lib/format";
-import { SITE_TZ, siteDay } from "@/lib/tz";
-import { matchStateOf, MATCH_STATE_LABEL_AR, unconfirmedNoteAr } from "@/lib/match-state";
+import { awayTeam, compOf, homeTeam, timeOf } from "@/lib/format";
+import { siteDay } from "@/lib/tz";
+import { matchStateOf } from "@/lib/match-state";
+import { matchStateLabel, unconfirmedNote } from "@/lib/i18n/match-state";
 import { decodeSlug } from "@/lib/slug";
 import { competitionBySlug, teamBySlug } from "@/lib/core-data";
 import { competitionByPath } from "@/lib/competition-catalog";
@@ -28,6 +29,8 @@ import { isLiveStatus } from "@/lib/match-state";
 import { matchPath, matchUrl, schemaSportName } from "@/lib/match-links";
 import { isBracketSlotFixture } from "@/lib/match-identity";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+import { formatClock, formatDate } from "@/lib/i18n/dates";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -55,19 +58,19 @@ export function generateStaticParams() {
 const matchSport = cache(async (slug: string): Promise<string> => (await sportForMatchId(slug)) ?? "football");
 
 const STATUS_AR: Record<string, string> = {
-  live: "مباشر الآن",
-  halftime: "استراحة بين الشوطين",
-  extra_time: "وقت إضافي",
-  extra_time_halftime: "استراحة الوقت الإضافي",
-  penalty_shootout: "ركلات الترجيح",
-  finished: "انتهت المباراة",
-  scheduled: "لم تبدأ بعد",
-  postponed: "مؤجَّلة",
-  cancelled: "ملغاة",
-  suspended: "موقوفة",
-  abandoned: "متوقفة",
-  walkover: "انسحاب",
-  awarded: "حُسمت بقرار",
+  live: "md.status.live",
+  halftime: "md.status.halftime",
+  extra_time: "md.status.extra_time",
+  extra_time_halftime: "md.status.extra_time_halftime",
+  penalty_shootout: "md.status.penalty_shootout",
+  finished: "md.status.finished",
+  scheduled: "md.status.scheduled",
+  postponed: "md.status.postponed",
+  cancelled: "md.status.cancelled",
+  suspended: "md.status.suspended",
+  abandoned: "md.status.abandoned",
+  walkover: "md.status.walkover",
+  awarded: "md.status.awarded",
 };
 
 const EVENT_ICON: Record<string, string> = {
@@ -111,104 +114,110 @@ function eventGlyph(type: string, sport: string | undefined): string {
 }
 
 const EVENT_AR: Record<string, string> = {
-  goal: "هدف",
-  penalty: "هدف من ركلة جزاء",
-  penalty_awarded: "ركلة جزاء محتسبة",
-  "own-goal": "هدف عكسي",
-  own_goal: "هدف عكسي",
-  "missed-penalty": "ركلة جزاء ضائعة",
-  penalty_missed: "ركلة جزاء ضائعة",
-  yellow: "بطاقة صفراء",
-  yellow_card: "بطاقة صفراء",
-  red: "بطاقة حمراء",
-  red_card: "بطاقة حمراء",
-  yellow_red_card: "بطاقة صفراء ثانية",
-  "second-yellow": "بطاقة صفراء ثانية",
-  "sub-in": "تبديل",
-  substitution: "تبديل",
-  var: "مراجعة الفيديو",
-  var_review: "مراجعة الفيديو",
-  var_decision: "قرار تقنية الفيديو",
-  period_start: "بداية الفترة",
-  period_end: "نهاية الفترة",
-  match_start: "بداية المباراة",
-  match_end: "نهاية المباراة",
-  injury: "توقف للإصابة",
-  extra_time_start: "بداية الوقت الإضافي",
-  penalty_shootout_start: "بداية ركلات الترجيح",
+  goal: "md.event.goal",
+  penalty: "md.event.penalty",
+  penalty_awarded: "md.event.penalty_awarded",
+  "own-goal": "md.event.own-goal",
+  own_goal: "md.event.own-goal",
+  "missed-penalty": "md.event.missed-penalty",
+  penalty_missed: "md.event.missed-penalty",
+  yellow: "md.event.yellow",
+  yellow_card: "md.event.yellow",
+  red: "md.event.red",
+  red_card: "md.event.red",
+  yellow_red_card: "md.event.yellow_red_card",
+  "second-yellow": "md.event.yellow_red_card",
+  "sub-in": "md.event.sub-in",
+  substitution: "md.event.sub-in",
+  var: "md.event.var",
+  var_review: "md.event.var",
+  var_decision: "md.event.var_decision",
+  period_start: "md.event.period_start",
+  period_end: "md.event.period_end",
+  match_start: "md.event.match_start",
+  match_end: "md.event.match_end",
+  injury: "md.event.injury",
+  extra_time_start: "md.event.extra_time_start",
+  penalty_shootout_start: "md.event.penalty_shootout_start",
 };
 
 const STAT_LABELS_AR: Record<string, string> = {
-  ball_possession: "الاستحواذ",
-  possession: "الاستحواذ",
-  shots_total: "إجمالي التسديدات",
-  total_shots: "إجمالي التسديدات",
-  shots_on_target: "تسديدات على المرمى",
-  shots_on_goal: "تسديدات على المرمى",
-  shots_off_target: "تسديدات خارج المرمى",
-  corners: "الركنيات",
-  corner_kicks: "الركنيات",
-  fouls: "الأخطاء",
-  offsides: "التسلل",
-  yellow_cards: "البطاقات الصفراء",
-  red_cards: "البطاقات الحمراء",
-  saves: "التصديات",
-  passes: "التمريرات",
-  passes_accuracy: "دقة التمرير",
+  ball_possession: "md.stat.ball_possession",
+  possession: "md.stat.ball_possession",
+  shots_total: "md.stat.shots_total",
+  total_shots: "md.stat.shots_total",
+  shots_on_target: "md.stat.shots_on_target",
+  shots_on_goal: "md.stat.shots_on_target",
+  shots_off_target: "md.stat.shots_off_target",
+  corners: "md.stat.corners",
+  corner_kicks: "md.stat.corners",
+  fouls: "md.stat.fouls",
+  offsides: "md.stat.offsides",
+  yellow_cards: "md.stat.yellow_cards",
+  red_cards: "md.stat.red_cards",
+  saves: "md.stat.saves",
+  passes: "md.stat.passes",
+  passes_accuracy: "md.stat.passes_accuracy",
 };
 
 const STAT_PERIODS_AR: Record<string, string> = {
-  first_half: "الشوط الأول",
-  firsthalf: "الشوط الأول",
-  "1h": "الشوط الأول",
-  second_half: "الشوط الثاني",
-  secondhalf: "الشوط الثاني",
-  "2h": "الشوط الثاني",
-  extra_time: "الوقت الإضافي",
-  penalty_shootout: "ركلات الترجيح",
-  period_1: "الفترة الأولى",
-  period_2: "الفترة الثانية",
-  period_3: "الفترة الثالثة",
-  period_4: "الفترة الرابعة",
-  q1: "الربع الأول",
-  q2: "الربع الثاني",
-  q3: "الربع الثالث",
-  q4: "الربع الرابع",
+  first_half: "md.period.first_half",
+  firsthalf: "md.period.first_half",
+  "1h": "md.period.first_half",
+  second_half: "md.period.second_half",
+  secondhalf: "md.period.second_half",
+  "2h": "md.period.second_half",
+  extra_time: "md.period.extra_time",
+  penalty_shootout: "md.period.penalty_shootout",
+  period_1: "md.period.period_1",
+  period_2: "md.period.period_2",
+  period_3: "md.period.period_3",
+  period_4: "md.period.period_4",
+  q1: "md.period.q1",
+  q2: "md.period.q2",
+  q3: "md.period.q3",
+  q4: "md.period.q4",
 };
 
-function statLabel(type: string): string {
+function statLabel(locale: Locale, type: string): string {
   const key = type.toLowerCase().replace(/[\s-]+/g, "_");
-  return STAT_LABELS_AR[key] ?? "إحصائية أخرى";
+  const k = STAT_LABELS_AR[key];
+  return k ? t(locale, k) : t(locale, "md.stat.fallback");
 }
 
-function statPeriodSuffix(period: string): string {
+function statPeriodSuffix(locale: Locale, period: string): string {
   const key = period.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (["", "all", "total", "full_time", "fulltime", "ft"].includes(key)) return "";
-  return ` · ${STAT_PERIODS_AR[key] ?? "فترة أخرى"}`;
+  const k = STAT_PERIODS_AR[key];
+  return ` · ${k ? t(locale, k) : t(locale, "md.period.fallback")}`;
 }
 
-function eventDescriptionAr(description: string | null): string | null {
+function eventDescription(locale: Locale, description: string | null): string | null {
   const text = description?.trim();
   if (!text) return null;
-  if (/[\u0600-\u06ff]/.test(text)) return text;
+  // Arabic prose from the source is only meaningful on the Arabic page.
+  if (locale === "ar" && /[\u0600-\u06ff]/.test(text)) return text;
+  if (locale !== "ar" && /[\u0600-\u06ff]/.test(text)) return null;
 
   const substitution = /^(?:in|player in):\s*(.+?)\s*[·,|]\s*(?:out|player out):\s*(.+)$/i.exec(text);
-  if (substitution) return `دخول: ${substitution[1].trim()} · خروج: ${substitution[2].trim()}`;
+  if (substitution) return t(locale, "md.detail.substitution", { in: substitution[1].trim(), out: substitution[2].trim() });
 
   const assist = /^(?:assist|assisted by):\s*(.+)$/i.exec(text);
-  if (assist) return `تمريرة حاسمة: ${assist[1].trim()}`;
+  if (assist) return t(locale, "md.detail.assist", { player: assist[1].trim() });
 
   const key = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const known: Record<string, string> = {
-    "goal disallowed": "هدف ملغى",
-    "goal cancelled": "هدف ملغى",
-    "penalty awarded": "احتُسبت ركلة جزاء",
-    "penalty missed": "ركلة جزاء ضائعة",
-    "tactical foul": "مخالفة تكتيكية",
-    offside: "تسلل",
-    handball: "لمسة يد",
+    "goal disallowed": "md.note.goal_disallowed",
+    "goal cancelled": "md.note.goal_disallowed",
+    "penalty awarded": "md.note.penalty_awarded",
+    "penalty missed": "md.note.penalty_missed",
+    "tactical foul": "md.note.tactical_foul",
+    offside: "md.note.offside",
+    handball: "md.note.handball",
   };
-  return known[key] ?? text;
+  const k = known[key];
+  if (k) return t(locale, k);
+  return locale === "ar" ? text : text;
 }
 
 /**
@@ -221,14 +230,15 @@ function eventDescriptionAr(description: string | null): string | null {
  * still genuinely upcoming (lib/match-state.ts); past that we say the state is
  * unconfirmed rather than implying a fixture still to come.
  */
-function clockOf(f: NormalizedFixture, now = Date.now()): string {
-  if (f.status === "halftime") return "استراحة";
+function clockOf(locale: Locale, f: NormalizedFixture, now = Date.now()): string {
+  if (f.status === "halftime") return t(locale, "md.status.halftime");
   if (f.minute !== null && ["live", "extra_time", "extra_time_halftime", "penalty_shootout"].includes(f.status)) return `${f.minute}'`;
-  if (f.status === "finished") return "انتهت";
+  if (f.status === "finished") return t(locale, "state.finished");
   const state = matchStateOf(f.status, f.scheduledAt, now);
-  if (state === "upcoming") return new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
-  if (state === "unconfirmed") return MATCH_STATE_LABEL_AR.unconfirmed;
-  return STATUS_AR[f.status] ?? MATCH_STATE_LABEL_AR[state];
+  if (state === "upcoming") return formatClock(locale, f.scheduledAt);
+  if (state === "unconfirmed") return matchStateLabel(locale, "unconfirmed");
+  const k = STATUS_AR[f.status];
+  return k ? t(locale, k) : matchStateLabel(locale, state);
 }
 
 export async function generateMetadata(locale: Locale, { params }: ViewProps): Promise<Metadata> {
@@ -243,9 +253,9 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
     const comp = f.competitionName ?? "";
-    const date = dateAr(f.scheduledAt);
-    const title = `${home} ضد ${away} | ${comp} | ${date}`;
-    const description = `نتيجة وتفاصيل مباراة ${home} و${away} في ${comp}: النتيجة، حالة المباراة، الأحداث، والتشكيلات من مصدر البيانات المتاح.`;
+    const date = formatDate(locale, f.scheduledAt);
+    const title = t(locale, "md.metaTitle", { home, away, comp, date });
+    const description = t(locale, "md.metaDescription", { home, away, comp });
     return {
       title,
       description,
@@ -262,10 +272,10 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   if (adminM && adminM.isPublished) {
     const home = adminM.homeName || "—";
     const away = adminM.awayName || "—";
-    const comp = adminM.competitionName || "مباراة";
-    const date = dateAr(adminM.scheduledAt);
-    const title = `${home} ضد ${away} | ${comp} | ${date}`;
-    const description = `موعد وتفاصيل وبث مباراة ${home} ضد ${away} في ${comp}.`;
+    const comp = adminM.competitionName || t(locale, "matches.fallbackCompetition");
+    const date = formatDate(locale, adminM.scheduledAt);
+    const title = t(locale, "md.metaTitle", { home, away, comp, date });
+    const description = t(locale, "md.adminMetaDescription", { home, away, comp });
     return {
       title,
       description,
@@ -282,10 +292,10 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
       const away = awayTeam(m);
       const comp = compOf(m);
       return {
-        title: `${home.name} ضد ${away.name} | ${comp.name} | ${dateAr(m.kickoff)}`,
-        description: `نتيجة وتفاصيل مباراة ${home.name} و${away.name} في ${comp.name}.`,
+        title: t(locale, "md.metaTitle", { home: home.name, away: away.name, comp: comp.name, date: formatDate(locale, m.kickoff) }),
+        description: t(locale, "md.demoMetaDescription", { home: home.name, away: away.name, comp: comp.name }),
         alternates: { canonical: matchPath(m.slug) },
-        openGraph: { title: `${home.name} ضد ${away.name}`, type: "article" },
+        openGraph: { title: t(locale, "md.metaTitleShort", { home: home.name, away: away.name }), type: "article" },
       };
     }
   }
@@ -293,7 +303,7 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   // No real match and no demo match: a stable, non-indexable "not found".
   // The explicit robots directive keeps Next.js's built-in not-found noindex
   // from being emitted alongside the layout's `index, follow`.
-  return { title: "المباراة غير موجودة", robots: { index: false, follow: true } };
+  return { title: t(locale, "md.notFound"), robots: { index: false, follow: true } };
 }
 
 const StatBar = ({ label, home, away }: { label: string; home: string; away: string }) => (
@@ -305,6 +315,7 @@ const StatBar = ({ label, home, away }: { label: string; home: string; away: str
 );
 
 export default async function MatchPage({ locale, params }: ViewProps & { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   // Arabic slugs arrive percent-encoded; decode once so every lookup (admin
   // match, stream registry, overrides, provider) uses the real slug.
   const slug = decodeSlug((await params).slug);
@@ -351,12 +362,12 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
     // `scheduled` whose kickoff day has passed is no longer an upcoming fixture.
     const matchState = matchStateOf(f.status, f.scheduledAt);
     const stateNote = live
-      ? "النتيجة والدقيقة تُحدَّثان تلقائيًا"
+      ? t(locale, "md.kickoffState.auto")
       : matchState === "upcoming"
-        ? "موعد معتمد"
+        ? t(locale, "md.kickoffState.confirmed")
         : matchState === "unconfirmed"
-          ? "الحالة غير مؤكدة — لم يصل تحديث من المصدر"
-          : MATCH_STATE_LABEL_AR[matchState];
+          ? t(locale, "md.kickoffState.unconfirmed")
+          : matchStateLabel(locale, matchState);
 
     // Stream source for THIS match only (null for every other match →
     // no player section renders there). See lib/match-streams.ts.
@@ -389,7 +400,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
       .filter(([, pair]) => pair.home !== "—" || pair.away !== "—")
       .map(([key, pair]) => ({
         key,
-        label: `${statLabel(pair.type)}${statPeriodSuffix(pair.period)}`,
+        label: `${statLabel(locale, pair.type)}${statPeriodSuffix(locale, pair.period)}`,
         home: pair.home,
         away: pair.away,
       }));
@@ -438,19 +449,19 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
       <>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(ld) }} />
         <div className="mx-auto max-w-[1280px] px-4 py-6">
-          <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-            <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+          <nav aria-label={tr("md.breadcrumbAria")} className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+            <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("md.home")}</Link>
             <span aria-hidden>/</span>
-            <Link href="/matches" className="hover:text-gold-600 dark:hover:text-gold-400">المباريات</Link>
+            <Link href="/matches" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("md.matches")}</Link>
             <span aria-hidden>/</span>
-            <Link href="/live" className="hover:text-gold-600 dark:hover:text-gold-400">البث المباشر</Link>
+            <Link href="/live" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("md.liveStream")}</Link>
             <span aria-hidden>/</span>
             <span className="font-semibold text-ink">{home} × {away}</span>
           </nav>
 
           {/* H1 Title */}
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-ink text-center mb-3 tracking-tight">
-            {home} ضد {away}
+            {home} {tr("md.vs")} {away}
           </h1>
 
           {/* scoreboard */}
@@ -482,12 +493,12 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                 ) : (
                   <span className="num text-2xl font-extrabold text-muted">— : —</span>
                 )}
-                <span className={`text-[12px] font-extrabold ${live ? "text-live-red" : "text-muted"}`} dir={/^\d+'$/.test(clockOf(f)) ? "ltr" : undefined}>
-                  {clockOf(f)}
+                <span className={`text-[12px] font-extrabold ${live ? "text-live-red" : "text-muted"}`} dir={/^\d+'$/.test(clockOf(locale, f)) ? "ltr" : undefined}>
+                  {clockOf(locale, f)}
                 </span>
                 {ht ? (
                   <span className="num text-[11px] text-muted">
-                    الشوط الأول: {ht.home} : {ht.away}
+                    {tr("md.halfTimeScore", { home: ht.home ?? "—", away: ht.away ?? "—" })}
                   </span>
                 ) : null}
               </div>
@@ -503,20 +514,20 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
               </div>
             </div>
             <p className="mt-4 text-center text-[11.5px] text-muted">
-              {dateAr(f.scheduledAt)} · {new Date(f.scheduledAt).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ })}
+              {formatDate(locale, f.scheduledAt)} · {formatClock(locale, f.scheduledAt)}
               {f.venueName ? ` · ${f.venueName}` : ""}
               {" · "}
               {stateNote}
             </p>
             {matchState === "unconfirmed" ? (
               <p className="mt-2 rounded-[3px] bg-warn-500/10 px-3 py-2 text-center text-[11px] font-semibold leading-5 text-warn-700 dark:text-warn-400">
-                {unconfirmedNoteAr(f.status)}
+                {unconfirmedNote(locale, f.status)}
               </p>
             ) : null}
             {override ? (
               <p className="mt-2 text-center text-[11px]">
                 <span className="inline-block rounded-[3px] bg-gold-500/15 px-2 py-0.5 font-bold text-gold-600 dark:text-gold-400">
-                  مصحّحة من الإدارة{override.note ? ` — ${override.note}` : ""}
+                  {tr("md.adminCorrected")}{override.note ? ` — ${override.note}` : ""}
                 </span>
               </p>
             ) : null}
@@ -526,8 +537,8 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
             <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={matchPath(slug)} />
             {matchState === "upcoming" && !stale ? (
               <>
-                <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>تنزيل موعد المباراة (.ics)</a>
-                <p className="text-xs text-muted">التقويم لقطة للموعد، وليس اشتراكًا؛ راجع الصفحة عند التأجيل أو تغيير الجدول.</p>
+                <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>{tr("md.calendarLink")} (.ics)</a>
+                <p className="text-xs text-muted">{tr("md.calendarNote")}</p>
               </>
             ) : null}
           </div>
@@ -551,14 +562,14 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
           ) : (
             <section id="live-stream" className="mt-8">
               <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold flex items-center justify-between">
-                <span>البث المباشر</span>
-                <span className="text-[11px] font-normal text-muted">مشغّل البث</span>
+                <span>{tr("md.streamTitle")}</span>
+                <span className="text-[11px] font-normal text-muted">{tr("md.streamSubtitle")}</span>
               </h2>
               <div className="card border-dashed px-4 py-8 text-center bg-navy-900/30">
                 <span className="text-3xl block mb-2" aria-hidden>📺</span>
-                <p className="text-[14px] font-extrabold text-ink">لا يوجد بث موثّق لهذه المباراة حاليًا</p>
+                <p className="text-[14px] font-extrabold text-ink">{tr("md.noStreamTitle")}</p>
                 <p className="mt-1.5 text-[12px] text-muted max-w-md mx-auto leading-relaxed">
-                  وجود ناقل للبطولة لا يثبت توفر مشاهدة مجانية أو مشغّل لهذه المباراة. تحقق من دليل الناقل الرسمي وشروط بلدك.
+                  {tr("md.noStreamBody")}
                 </p>
               </div>
             </section>
@@ -568,12 +579,12 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
 
           {/* events timeline */}
           <section className="mt-8">
-            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">NEMO Match Pulse · أحداث المباراة</h2>
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{tr("md.eventsHeading")}</h2>
             {events.length === 0 ? (
               <p className="card px-4 py-6 text-center text-[12.5px] text-muted">
                 {f.status === "scheduled" && siteDay(f.scheduledAt) >= siteDay(Date.now())
-                  ? "لم تبدأ المباراة بعد — تظهر الأحداث فقط إذا أتاحها المصدر."
-                  : "لا توجد أحداث مسجَّلة لهذه المباراة من المصدر حاليًا."}
+                  ? tr("md.eventsNotStarted")
+                  : tr("md.eventsNone")}
               </p>
             ) : (
               <ol className="card divide-y divide-line">
@@ -583,13 +594,13 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                     : event.teamProviderId && event.teamProviderId === f.awayProviderId
                       ? away
                       : null;
-                  const description = eventDescriptionAr(event.description);
+                  const description = eventDescription(locale, event.description);
                   return (
                     <li key={event.providerEventId} className="flex items-center gap-3 px-3 py-2.5 text-[12.5px]">
                       <span className="num w-9 shrink-0 text-end font-extrabold text-gold-600 dark:text-gold-400">{event.minute !== null ? `${event.minute}${event.additionalMinute ? `+${event.additionalMinute}` : ""}'` : "—"}</span>
                       <span aria-hidden className="w-5 text-center">{eventGlyph(event.type, f.sport)}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="font-bold">{EVENT_AR[event.type] ?? "حدث رياضي"}</span>
+                        <span className="font-bold">{tr(EVENT_AR[event.type] ?? "md.event.fallback")}</span>
                         {event.playerName ? <span> · {event.playerName}</span> : null}
                         {teamName ? <span className="text-muted"> · {teamName}</span> : null}
                         {description ? <span className="text-muted"> · {description}</span> : null}
@@ -601,13 +612,13 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
             )}
           </section>
 
-          <p className="mt-3 text-xs text-muted">الأحداث والإحصاءات من مصدر المباراة نفسه. لا نحسب زخمًا تقديريًا من بيانات غير كافية.</p>
-          {statRows.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">إحصاءات المباراة غير متاحة من المصدر حاليًا.</p>}
-          {lineups.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">التشكيلات غير متاحة من المصدر حاليًا.</p>}
+          <p className="mt-3 text-xs text-muted">{tr("md.eventsNote")}</p>
+          {statRows.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">{tr("md.statsNone")}</p>}
+          {lineups.length === 0 && <p className="card mt-4 p-4 text-sm text-muted">{tr("md.lineupsNone")}</p>}
           {/* statistics (only when the provider has them) */}
           {statRows.length > 0 ? (
             <section className="mt-8">
-              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">إحصائيات المباراة</h2>
+              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{tr("md.statsHeading")}</h2>
               <div className="card overflow-hidden">
                 {statRows.map((row) => (
                   <StatBar key={row.key} label={row.label} home={row.home} away={row.away} />
@@ -619,14 +630,14 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
           {/* lineups */}
           {lineups.length > 0 ? (
             <section className="mt-8">
-              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">التشكيلات</h2>
+              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{tr("md.lineupsHeading")}</h2>
               <div className="grid gap-4 md:grid-cols-2">
                 {lineups.map((lineup) => {
                   const teamName = lineup.teamProviderId === f.homeProviderId
                     ? home
                     : lineup.teamProviderId === f.awayProviderId
                       ? away
-                      : "الفريق";
+                      : tr("md.sideFallback");
                   return (
                     <div key={lineup.teamProviderId} className="card overflow-hidden">
                       <header className="flex items-center justify-between border-b border-line bg-navy-850 px-3 py-2.5 text-white dark:bg-navy-850">
@@ -635,7 +646,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                       </header>
                       <div className="grid gap-0 sm:grid-cols-2">
                         <div className="border-b border-line sm:border-e sm:border-b-0">
-                          <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">التشكيلة الأساسية</p>
+                          <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">{tr("md.startingXI")}</p>
                           <ul className="p-2">
                             {lineup.starters.map((player) => (
                               <li key={player.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px]">
@@ -648,7 +659,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                         </div>
                         {lineup.bench.length > 0 ? (
                           <div>
-                            <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">البدلاء</p>
+                            <p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-wide text-muted">{tr("md.bench")}</p>
                             <ul className="p-2">
                               {lineup.bench.map((player) => (
                                 <li key={player.providerId} className="flex items-center gap-2 px-1 py-1 text-[12px] text-muted">
@@ -660,7 +671,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                           </div>
                         ) : null}
                       </div>
-                      {lineup.coach ? <p className="border-t border-line px-3 py-2 text-[11px] text-muted">المدرب: {lineup.coach}</p> : null}
+                      {lineup.coach ? <p className="border-t border-line px-3 py-2 text-[11px] text-muted">{tr("md.coach", { name: lineup.coach })}</p> : null}
                     </div>
                   );
                 })}
@@ -687,7 +698,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
   /* ══ 3) development/demo fallback ══════════════════════════════════════ */
   if (demoContentVisible()) {
     const match = matchBySlug(slug);
-    if (match) return <DemoMatchView slug={slug} />;
+    if (match) return <DemoMatchView locale={locale} slug={slug} />;
   }
 
   /* ══ 4) honest 404 — real pages come from real provider IDs only ════════ */
@@ -695,7 +706,8 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
 }
 
 /* The original demo view, kept for development/preview design QA. */
-async function DemoMatchView({ slug }: { slug: string }) {
+async function DemoMatchView({ locale, slug }: { locale: Locale; slug: string }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const raw = matchBySlug(slug);
   if (!raw) notFound();
   // Admin corrections apply to demo fixtures too (same override table).
@@ -747,9 +759,9 @@ async function DemoMatchView({ slug }: { slug: string }) {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(ld) }} />
       <div className="mx-auto max-w-[1280px] px-4 py-6">
-        <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — لا تمثل مباراة حقيقية.</p>
-        <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+        <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("md.demoNotice")}</p>
+        <nav aria-label={tr("md.breadcrumbAria")} className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("md.home")}</Link>
           <span aria-hidden>/</span>
           <Link href={`/competitions/${comp.slug}`} className="hover:text-gold-600 dark:hover:text-gold-400">
             {comp.name}
@@ -774,7 +786,7 @@ async function DemoMatchView({ slug }: { slug: string }) {
         />
 
         <section className="mt-8">
-          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">مباريات أخرى في {comp.name}</h2>
+          <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{tr("md.otherMatches", { comp: comp.name })}</h2>
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {allMatches
               .filter((x) => x.competition === match.competition && x.id !== match.id)
