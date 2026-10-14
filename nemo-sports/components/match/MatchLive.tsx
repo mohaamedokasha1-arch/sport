@@ -10,7 +10,9 @@ import { useWatchSmartlink } from "@/components/ads/useSmartlink";
 import AdsterraBanner from "@/components/ads/AdsterraBanner";
 import useMatchState from "@/components/live/useMatchState";
 import type { LiveState } from "@/lib/live";
-import { EVENT_LABEL, awayTeam, compOf, dateAr, homeTeam, number, relative, timeOf } from "@/lib/format";
+import { EVENT_LABEL, awayTeam, compOf, homeTeam, number, relative } from "@/lib/format";
+import { useT, useLocale } from "@/lib/i18n/context";
+import { formatClock, formatDate } from "@/lib/i18n/dates";
 import type { Match } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
 
@@ -26,6 +28,8 @@ export default function MatchLive({
   /** per-match live source (null → no player section renders at all) */
   stream?: MatchStreamInfo | null;
 }) {
+  const tr = useT();
+  const locale = useLocale();
   const state = useMatchState(match.id, initial);
   const home = homeTeam(match);
   const away = awayTeam(match);
@@ -59,7 +63,7 @@ export default function MatchLive({
               {isLive ? <span className="live-dot" aria-hidden /> : null}
               <span className="num font-bold">{state.clock}</span>
               <span className="text-white/45">
-                {isLive ? "تحديث كل 4 ثوانٍ" : isDone ? dateAr(match.kickoff) : relative(match.kickoff)}
+                {isLive ? tr("ml.autoRefresh") : isDone ? formatDate(locale, match.kickoff) : relative(match.kickoff)}
               </span>
             </span>
           </div>
@@ -81,9 +85,9 @@ export default function MatchLive({
               ) : (
                 <>
                   <span className="num text-4xl font-extrabold leading-none text-gold-400" dir="ltr">
-                    {timeOf(match.kickoff)}
+                    {formatClock(locale, match.kickoff)}
                   </span>
-                  <span className="mt-1 text-[11px] text-white/60">{dateAr(match.kickoff)}</span>
+                  <span className="mt-1 text-[11px] text-white/60">{formatDate(locale, match.kickoff)}</span>
                 </>
               )}
               <span className="mt-3">
@@ -105,11 +109,11 @@ export default function MatchLive({
           <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-4 py-3 text-[11px] text-white/60">
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {match.venue ? <span>🏟 {match.venue}</span> : null}
-              {match.referee ? <span>🧑‍⚖️ الحكم: {match.referee}</span> : null}
+              {match.referee ? <span>{tr("ml.referee", { name: match.referee })}</span> : null}
               {match.attendance ? <span className="num">👥 {number(match.attendance)}</span> : null}
-              <span>موسم {comp.season}</span>
+              <span>{tr("ml.season", { season: comp.season })}</span>
             </span>
-            {isLive ? <span className="num font-bold text-live">{number(match.viewers ?? 0)} مشاهد الآن</span> : null}
+            {isLive ? <span className="num font-bold text-live">{tr("ml.viewers", { n: number(match.viewers ?? 0) })}</span> : null}
           </div>
         </section>
 
@@ -129,12 +133,12 @@ export default function MatchLive({
           away={away.name}
           inactiveNote={
             state.status === "POSTPONED"
-              ? "تأجّلت المباراة — لا يوجد بث مباشر حاليًا."
+              ? tr("bc.notice.postponed")
               : state.status === "CANCELLED"
-                ? "أُلغيت المباراة — لا يوجد بث مباشر."
+                ? tr("bc.notice.cancelled")
                 : state.status === "SUSPENDED"
-                  ? "المباراة موقوفة — لا يوجد بث مباشر حاليًا."
-                  : "انتهت المباراة — لم يعد البث المباشر نشطًا."
+                  ? tr("bc.notice.suspended")
+                  : tr("bc.notice.abandoned")
           }
         />
         {stream ? <AdsterraBanner slot="match-below-stream" /> : null}
@@ -142,13 +146,13 @@ export default function MatchLive({
         {/* تفاصيل المباراة */}
         <div className="mt-5">
           <Tabs
-            label="تفاصيل المباراة"
+            label={tr("ml.tabsAria")}
             items={[
-              { id: "summary", label: "الملخص", content: <Summary match={match} state={state} /> },
-              { id: "events", label: "الأحداث", content: <Events match={match} state={state} /> },
-              { id: "stats", label: "الإحصائيات", content: <Stats match={match} /> },
-              { id: "lineups", label: "التشكيلات", disabled: match.lineups.length === 0, content: <Lineups match={match} /> },
-              { id: "news", label: "الأخبار", content: <News tab={relatedNews} /> },
+              { id: "summary", label: tr("ml.tabSummary"), content: <Summary match={match} state={state} /> },
+              { id: "events", label: tr("ml.tabEvents"), content: <Events match={match} state={state} /> },
+              { id: "stats", label: tr("ml.tabStats"), content: <Stats match={match} /> },
+              { id: "lineups", label: tr("ml.tabLineups"), disabled: match.lineups.length === 0, content: <Lineups match={match} /> },
+              { id: "news", label: tr("ml.tabNews"), content: <News tab={relatedNews} /> },
             ]}
           />
         </div>
@@ -159,9 +163,9 @@ export default function MatchLive({
         <TeamPanel slug={match.home} />
         <TeamPanel slug={match.away} />
         <div className="card p-4 text-[11px] leading-relaxed text-muted">
-          <p className="eyebrow mb-2">مشاركة</p>
+          <p className="eyebrow mb-2">{tr("ml.shareEyebrow")}</p>
           <p>
-            انسخ رابط الصفحة للمشاركة. نكتفي بالروابط ولا نضمّن أي محتوى مملوك للغير.
+            {tr("ml.shareNote")}
           </p>
         </div>
       </aside>
@@ -172,12 +176,14 @@ export default function MatchLive({
 /* ── broadcast ─────────────────────────────────────────────── */
 
 function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boolean; isDone: boolean }) {
+  const tr = useT();
+  const locale = useLocale();
   const b = match.broadcast;
   // The official broadcaster link is the other "watch" intent on this page, so
   // the Adsterra Smartlink rides on it too (capped per session, never on a
   // keyboard activation — components/ads/useSmartlink.ts).
   const watchClick = useWatchSmartlink();
-  const stateLabel = isLive ? "يبث الآن" : isDone ? "انتهى البث" : "يبدأ قريبًا";
+  const stateLabel = isLive ? tr("ml.phaseLive") : isDone ? tr("ml.phaseEnded") : tr("ml.phaseSoon");
 
   if (!b) {
     return (
@@ -187,10 +193,9 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
             📺
           </span>
           <div>
-            <h2 className="text-[14px] font-extrabold">البث غير متاح</h2>
+            <h2 className="text-[14px] font-extrabold">{tr("ml.noStreamTitle")}</h2>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
-              لا يوجد ناقل رسمي مسجّل لهذه المباراة في قائمتنا. نعرض فقط المصادر التي تأكدنا
-              من ترخيصها، ولا نلجأ أبدًا إلى روابط غير رسمية.
+              {tr("ml.noStreamBody")}
             </p>
           </div>
         </div>
@@ -202,7 +207,7 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
     <section id="broadcast" className="mt-4 card overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-navy-850 px-4 py-2.5 text-white">
         <h2 className="flex items-center gap-2 text-[13px] font-extrabold">
-          <span aria-hidden>🎬</span> مشاهدة المباراة
+          <span aria-hidden>🎬</span> {tr("ml.watchMatch")}
         </h2>
         <span
           className={`rounded-[3px] px-2 py-1 text-[10px] font-extrabold tracking-wide ${
@@ -217,9 +222,9 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
         {b.license === "embed" ? (
           <div className="stripes grid aspect-video place-items-center rounded-[4px] border border-navy-700 bg-navy-900 text-center text-white">
             <div>
-              <p className="text-[13px] font-bold">مشغّل البث المضمَّن من {b.provider}</p>
+              <p className="text-[13px] font-bold">{tr("ml.embedTitle", { provider: b.provider })}</p>
               <p className="mt-1 text-[11px] text-white/55">
-                يُحمَّل المشغّل من نطاق الناقل الرسمي مباشرة، ولا يمر أي محتوى عبر خوادمنا.
+                {tr("ml.embedNote")}
               </p>
             </div>
           </div>
@@ -233,20 +238,20 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
             onClick={watchClick}
             className="rounded-[3px] bg-gold-500 px-4 py-2.5 text-[12px] font-extrabold text-navy-900 transition hover:bg-gold-400 focus-ring"
           >
-            مشاهدة على {b.provider} ↗
+            {tr("ml.watchOn", { provider: b.provider })} ↗
           </a>
           <dl className="flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
             <div>
-              <dt className="text-muted">جهة النقل</dt>
+              <dt className="text-muted">{tr("ml.broadcaster")}</dt>
               <dd className="font-bold">{b.provider}</dd>
             </div>
             <div>
-              <dt className="text-muted">نوع الترخيص</dt>
-              <dd className="font-bold">{b.license === "embed" ? "تضمين مسموح" : "رابط خارجي رسمي"}</dd>
+              <dt className="text-muted">{tr("ml.licenseType")}</dt>
+              <dd className="font-bold">{b.license === "embed" ? tr("ml.licenseEmbed") : tr("ml.licenseExternal")}</dd>
             </div>
             <div>
-              <dt className="text-muted">المناطق</dt>
-              <dd className="font-bold">{b.regions.join("، ")}</dd>
+              <dt className="text-muted">{tr("ml.regions")}</dt>
+              <dd className="font-bold">{b.regions.join(locale === "ar" ? "، " : ", ")}</dd>
             </div>
           </dl>
         </div>
@@ -254,16 +259,16 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
         {b.geoBlocked ? (
           <p className="mt-3 flex items-start gap-2 rounded-[3px] bg-warn/10 px-3 py-2 text-[11px] font-semibold text-warn">
             <span aria-hidden>🌍</span>
-            هذا البث متاح فقط في: {b.regions.join("، ")}. قد لا يعمل الرابط خارج هذه المناطق.
+            {tr("ml.regionNote", { regions: b.regions.join(locale === "ar" ? "، " : ", ") })}
           </p>
         ) : null}
 
         {b.note ? <p className="mt-2 text-[11px] text-muted">{b.note}</p> : null}
 
         <p className="mt-3 border-t border-line pt-3 text-[11px] leading-relaxed text-muted">
-          لا نعيد بث أو تخزين أي إشارة. جميع الروابط تخص نواقل رسميين مرخّصين —{" "}
+          {tr("ml.rebroadcastNote")}{" "}
           <Link href="/broadcast-rights" className="font-bold text-gold-600 dark:text-gold-400">
-            اقرأ سياسة حقوق البث
+            {tr("ml.readRightsPolicy")}
           </Link>
           .
         </p>
@@ -275,23 +280,25 @@ function BroadcastPanel({ match, isLive, isDone }: { match: Match; isLive: boole
 /* ── tabs ──────────────────────────────────────────────────── */
 
 function Summary({ match, state }: { match: Match; state: LiveState }) {
+  const tr = useT();
+  const locale = useLocale();
   const home = homeTeam(match);
   const away = awayTeam(match);
   const rows = [
-    { k: "الحالة", v: state.status === "FINISHED" ? "انتهت المباراة" : state.status === "UPCOMING" ? "لم تبدأ بعد" : "جارية الآن" },
-    { k: "البطولة", v: compOf(match).name },
-    { k: "الجولة", v: match.round },
-    { k: "الملعب", v: match.venue ?? "—" },
-    { k: "الحكم", v: match.referee ?? "—" },
-    { k: "الحضور", v: match.attendance ? number(match.attendance) : "—" },
-    { k: "الموعد", v: `${dateAr(match.kickoff)} · ${timeOf(match.kickoff)}` },
+    { k: tr("ml.factStatus"), v: state.status === "FINISHED" ? tr("ml.statusFinished") : state.status === "UPCOMING" ? tr("ml.statusUpcoming") : tr("ml.statusLive") },
+    { k: tr("ml.factCompetition"), v: compOf(match).name },
+    { k: tr("ml.factRound"), v: match.round },
+    { k: tr("ml.factVenue"), v: match.venue ?? "—" },
+    { k: tr("ml.factReferee"), v: match.referee ?? "—" },
+    { k: tr("ml.factAttendance"), v: match.attendance ? number(match.attendance) : "—" },
+    { k: tr("ml.factKickoff"), v: `${formatDate(locale, match.kickoff)} · ${formatClock(locale, match.kickoff)}` },
   ];
 
   return (
     <div className="space-y-5">
       <div className="card overflow-hidden">
         <h3 className="border-b border-line bg-navy-850/[0.04] px-4 py-2.5 text-[13px] font-extrabold dark:bg-white/[0.04]">
-          معلومات المباراة
+          {tr("ml.matchInfo")}
         </h3>
         <dl className="divide-y divide-line">
           {rows.map((r) => (
@@ -306,12 +313,12 @@ function Summary({ match, state }: { match: Match; state: LiveState }) {
       {match.periods?.length ? (
         <div className="card overflow-hidden">
           <h3 className="border-b border-line bg-navy-850/[0.04] px-4 py-2.5 text-[13px] font-extrabold dark:bg-white/[0.04]">
-            الفترات
+            {tr("ml.periods")}
           </h3>
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-line text-muted">
-                <th className="px-4 py-2 text-start font-semibold">الفترة</th>
+                <th className="px-4 py-2 text-start font-semibold">{tr("ml.thPeriod")}</th>
                 <th className="px-4 py-2 font-semibold">{home.short}</th>
                 <th className="px-4 py-2 font-semibold">{away.short}</th>
               </tr>
@@ -325,7 +332,7 @@ function Summary({ match, state }: { match: Match; state: LiveState }) {
                 </tr>
               ))}
               <tr className="bg-navy-850/[0.04] dark:bg-white/[0.04]">
-                <td className="px-4 py-2 font-extrabold">المجموع</td>
+                <td className="px-4 py-2 font-extrabold">{tr("ml.total")}</td>
                 <td className="num px-4 py-2 text-center font-extrabold">{state.homeScore}</td>
                 <td className="num px-4 py-2 text-center font-extrabold">{state.awayScore}</td>
               </tr>
@@ -335,14 +342,15 @@ function Summary({ match, state }: { match: Match; state: LiveState }) {
       ) : null}
 
       <p className="text-[11px] leading-relaxed text-muted">
-        البيانات المعروضة في هذه النسخة التجريبية مولّدة محليًا لأغراض العرض. في الإنتاج تُجلب
-        النتائج من مزوّد بيانات مرخّص مع مصدر بديل، ويظهر اسم المصدر وتوقيت آخر تحديث أسفل كل جدول.
+        {tr("ml.demoNote")}
       </p>
     </div>
   );
 }
 
 function Events({ match, state }: { match: Match; state: LiveState }) {
+  const tr = useT();
+  const locale = useLocale();
   const home = homeTeam(match);
   const away = awayTeam(match);
   const events = [...state.events].sort((a, b) => b.minute - a.minute);
@@ -350,7 +358,7 @@ function Events({ match, state }: { match: Match; state: LiveState }) {
   if (events.length === 0) {
     return (
       <p className="card px-4 py-10 text-center text-[13px] text-muted">
-        لا توجد أحداث مسجّلة بعد لهذه المباراة.
+        {tr("ml.noEvents")}
       </p>
     );
   }
@@ -394,6 +402,8 @@ function Events({ match, state }: { match: Match; state: LiveState }) {
 }
 
 function Stats({ match }: { match: Match }) {
+  const tr = useT();
+  const locale = useLocale();
   const home = homeTeam(match);
   const away = awayTeam(match);
 
@@ -403,7 +413,7 @@ function Stats({ match }: { match: Match }) {
         <span className="flex items-center gap-2">
           <Crest slug={match.home} size={22} /> {home.name}
         </span>
-        <span className="text-muted">المقارنة</span>
+        <span className="text-muted">{tr("ml.comparison")}</span>
         <span className="flex items-center justify-end gap-2">
           {away.name} <Crest slug={match.away} size={22} />
         </span>
@@ -435,6 +445,8 @@ function Stats({ match }: { match: Match }) {
 }
 
 function Lineups({ match }: { match: Match }) {
+  const tr = useT();
+  const locale = useLocale();
   const home = homeTeam(match);
   const away = awayTeam(match);
 
@@ -449,7 +461,7 @@ function Lineups({ match }: { match: Match }) {
               <span className="flex items-center gap-2 text-[12px] font-extrabold">
                 <Crest slug={slug} size={22} /> {team.name}
               </span>
-              <span className="num text-[11px] text-gold-400">{l.formation ?? "5 أساسي"}</span>
+              <span className="num text-[11px] text-gold-400">{l.formation ?? tr("ml.formationFallback")}</span>
             </header>
             <div className="divide-y divide-line">
               {l.groups.map((g) => (
@@ -468,7 +480,7 @@ function Lineups({ match }: { match: Match }) {
                   </ul>
                 </div>
               ))}
-              <p className="px-3 py-2 text-[11px] text-muted">المدرب: {l.coach}</p>
+              <p className="px-3 py-2 text-[11px] text-muted">{tr("ml.coach", { name: l.coach })}</p>
             </div>
           </section>
         );
@@ -482,8 +494,10 @@ function News({
 }: {
   tab: { slug: string; title: string; excerpt: string; author: string; publishedAgoMin: number }[];
 }) {
+  const tr = useT();
+  const locale = useLocale();
   if (tab.length === 0) {
-    return <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد أخبار مرتبطة بهذه المباراة بعد.</p>;
+    return <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("ml.noNews")}</p>;
   }
   return (
     <ul className="space-y-3">
@@ -494,7 +508,7 @@ function News({
           </Link>
           <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{a.excerpt}</p>
           <p className="num mt-2 text-[11px] text-muted">
-            {a.author} · منذ {Math.max(1, Math.round(a.publishedAgoMin / 60))} ساعة
+            {tr("ml.hoursAgo", { author: a.author, hours: Math.max(1, Math.round(a.publishedAgoMin / 60)) })}
           </p>
         </li>
       ))}
@@ -503,6 +517,8 @@ function News({
 }
 
 function TeamPanel({ slug }: { slug: string }) {
+  const tr = useT();
+  const locale = useLocale();
   const team = teamBySlug(slug);
   if (!team) return null;
   return (
@@ -512,17 +528,17 @@ function TeamPanel({ slug }: { slug: string }) {
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-extrabold">{team.name}</span>
           <span className="block text-[11px] text-muted">
-            {team.country} · تأسس <span className="num">{team.founded}</span>
+            {team.country} · {tr("ml.teamFounded")} <span className="num">{team.founded}</span>
           </span>
         </span>
       </span>
       <span className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <span className="rounded-[3px] bg-navy-850/[0.04] px-2.5 py-1.5 dark:bg-white/[0.05]">
-          <span className="block text-muted">الملعب</span>
+          <span className="block text-muted">{tr("ml.teamStadium")}</span>
           <span className="block truncate font-bold">{team.stadium ?? "—"}</span>
         </span>
         <span className="rounded-[3px] bg-navy-850/[0.04] px-2.5 py-1.5 dark:bg-white/[0.05]">
-          <span className="block text-muted">المدرب</span>
+          <span className="block text-muted">{tr("ml.teamCoach")}</span>
           <span className="block truncate font-bold">{team.coach ?? "—"}</span>
         </span>
       </span>
