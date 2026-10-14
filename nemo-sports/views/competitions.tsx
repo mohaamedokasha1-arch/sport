@@ -71,7 +71,7 @@ function CompetitionsPageBody({ locale }: { locale: Locale }) {
           <section key={sport.slug}>
             <SectionHead eyebrow={sport.nameEn} title={`${sport.icon} ${sportName(locale, sport.slug)}`} href={`/matches?sport=${sport.slug}`} linkLabel={tr("ci.previewMatches")} />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {bySport[sport.slug].map((competition) => <CompetitionCard key={competition.slug} slug={competition.slug} />)}
+              {bySport[sport.slug].map((competition) => <CompetitionCard key={competition.slug} slug={competition.slug} locale={locale} />)}
             </div>
           </section>
         ) : null)}

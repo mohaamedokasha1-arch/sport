@@ -195,7 +195,7 @@ async function NewsPageBody({
                 <div className="grid gap-4 sm:grid-cols-2">
                   {storyGroups.map(([lead, ...related]) => (
                     <div key={lead.id} className="space-y-2">
-                      <RssArticleCard article={lead} />
+                      <RssArticleCard article={lead} locale={locale} />
                       {related.length > 0 && <details className="card p-3 text-sm">
                         <summary className="cursor-pointer font-bold">{tr("news.similarHeadlines", { n: related.length })}</summary>
                         <p className="my-2 text-xs text-muted">{tr("news.similarNote")}</p>

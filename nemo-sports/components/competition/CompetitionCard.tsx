@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { competitionBySlug, type Competition } from "@/lib/core-data";
+import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+import { countryName, entityName } from "@/lib/i18n/names";
 import { standings } from "@/lib/data";
 import { teamBySlug } from "@/lib/core-data";
 
-export default function CompetitionCard({ slug }: { slug: string }) {
+export default function CompetitionCard({ slug, locale }: { slug: string; locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const c = competitionBySlug(slug) as Competition;
   const table = standings[c.slug]?.slice(0, 3);
 
@@ -17,9 +21,9 @@ export default function CompetitionCard({ slug }: { slug: string }) {
           {c.code}
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-[13px] font-bold">{c.name}</span>
+          <span className="block truncate text-[13px] font-bold">{entityName(locale, c)}</span>
           <span className="block text-[10px] text-white/55">
-            {c.country} · موسم {c.season}
+            {tr("compCard.season", { country: countryName(locale, c.country), season: c.season })}
           </span>
         </span>
       </div>
@@ -30,22 +34,22 @@ export default function CompetitionCard({ slug }: { slug: string }) {
             {table.map((r) => (
               <li key={r.team} className="flex items-center gap-2 text-[12px]">
                 <span className="num w-4 shrink-0 text-[11px] font-bold text-muted">{r.pos}</span>
-                <span className="min-w-0 flex-1 truncate font-semibold">{teamBySlug(r.team)?.name ?? r.team}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold">{entityName(locale, teamBySlug(r.team)) || r.team}</span>
                 <span className="num shrink-0 font-extrabold">{r.points}</span>
               </li>
             ))}
           </ol>
         ) : (
           <p className="py-2 text-[12px] text-muted">
-            {c.teamsCount} مشارك · {c.rounds} {c.format === "بطولة فردية" ? "أدوار" : "جولة"}
+            {tr("compCard.teamsRounds", { teams: c.teamsCount, rounds: c.rounds, unit: c.format === "بطولة فردية" ? tr("compCard.knockoutUnit") : tr("compCard.roundsUnit") })}
           </p>
         )}
       </div>
 
       <div className="flex items-center justify-between border-t border-line px-3 py-2 text-[11px]">
-        <span className="text-muted">{c.teamsCount} فريق</span>
+        <span className="text-muted">{tr("compCard.teamsCount", { count: c.teamsCount })}</span>
         <span className="font-bold text-navy-850 transition group-hover:text-gold-600 dark:text-gold-400">
-          صفحة البطولة ←
+          {tr("compCard.openPage")}
         </span>
       </div>
     </Link>

@@ -268,10 +268,10 @@ async function HomePageBody({ locale }: { locale: Locale }) {
             {demoResults.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{demoResults.map((match) => <MatchCard key={match.id} match={match} />)}</div> : <p className="card px-4 py-6 text-center text-[13px] text-muted">{tr("home.previewNoResults")}</p>}
           </section>
           {demoNews.length ? <section><SectionHead eyebrow={tr("home.previewEyebrow")} title={tr("home.previewNews")} href="/news" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{demoNews.slice(0, 3).map((article, index) => <NewsCard key={article.slug} article={article} layout={index === 0 ? "lead" : "grid"} />)}</div></section> : null}
-          <section><SectionHead eyebrow={tr("home.competitionsEyebrow")} title={tr("nav.competitions")} href="/competitions" /><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["premier-league", "egyptian-league", "champions-league", "la-liga", "nba", "atp-tour", "handball-champions", "world-title-fights"].map((slug) => <CompetitionCard key={slug} slug={slug} />)}</div></section>
+          <section><SectionHead eyebrow={tr("home.competitionsEyebrow")} title={tr("nav.competitions")} href="/competitions" /><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{["premier-league", "egyptian-league", "champions-league", "la-liga", "nba", "atp-tour", "handball-champions", "world-title-fights"].map((slug) => <CompetitionCard key={slug} slug={slug} locale={locale} />)}</div></section>
         </div>
         <aside className="min-w-0 space-y-6 xl:sticky xl:top-40 xl:self-start">
-          <Trending />
+          <Trending locale={locale} />
           <div className="card p-4"><p className="eyebrow mb-2">{tr("home.dataState")}</p><p className="text-[12px] leading-6 text-muted">{tr("home.dataStateBody")}</p></div>
         </aside>
       </div>
