@@ -25,7 +25,8 @@
  *     direction. It is also the most robust path for crawlers.
  */
 
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useLocale } from "@/lib/i18n/context";
 import { LOCALE_COOKIE, type Locale } from "@/lib/i18n/locales";
 import { equivalentPathFor } from "@/lib/i18n/paths";
@@ -44,18 +45,17 @@ function rememberChoice(locale: Locale) {
   }
 }
 
-export default function LanguageSwitcher({ className = "" }: { className?: string }) {
+/** The two anchors. `search` is the raw query string, "" when not yet known. */
+function SwitcherLinks({ search }: { search: string }) {
   const pathname = usePathname() ?? "/";
   const active = useLocale();
+  const current = search ? `${pathname}?${search}` : pathname;
 
   return (
-    <nav
-      aria-label="Language"
-      className={`flex items-center gap-0.5 rounded-[3px] border border-white/15 p-0.5 ${className}`}
-    >
+    <>
       {OPTIONS.map((option) => {
         const selected = option.locale === active;
-        const href = equivalentPathFor(pathname, option.locale);
+        const href = equivalentPathFor(current, option.locale);
         return (
           <a
             key={option.locale}
@@ -76,6 +76,34 @@ export default function LanguageSwitcher({ className = "" }: { className?: strin
           </a>
         );
       })}
+    </>
+  );
+}
+
+/** Reads the query string, so it needs the Suspense boundary below. */
+function SwitcherLinksWithQuery() {
+  // usePathname() deliberately excludes the query string, so carrying only that
+  // would silently drop date filters, pagination and search terms on switch —
+  // the one thing the switcher is required to preserve.
+  const search = useSearchParams()?.toString() ?? "";
+  return <SwitcherLinks search={search} />;
+}
+
+export default function LanguageSwitcher({ className = "" }: { className?: string }) {
+  return (
+    <nav
+      aria-label="Language"
+      className={`flex items-center gap-0.5 rounded-[3px] border border-white/15 p-0.5 ${className}`}
+    >
+      {/* The boundary keeps statically prerendered pages static: without it,
+          useSearchParams() deopts the whole document to client rendering.
+          The fallback is the SAME anchors built from the pathname, never null —
+          a null fallback removed the switcher from the server HTML of every
+          static page, leaving crawlers and no-JS visitors without one. After
+          hydration the query string is added back. */}
+      <Suspense fallback={<SwitcherLinks search="" />}>
+        <SwitcherLinksWithQuery />
+      </Suspense>
     </nav>
   );
 }

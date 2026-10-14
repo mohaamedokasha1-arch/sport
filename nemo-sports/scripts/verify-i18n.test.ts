@@ -23,7 +23,8 @@ import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Metadata } from "next";
 
-import { EN_ROUTE_ROOTS } from "@/lib/i18n/paths";
+import { EN_ROUTE_ROOTS, equivalentPathFor } from "@/lib/i18n/paths";
+import { readFileSync } from "node:fs";
 import { localeAlternates } from "@/lib/i18n/metadata";
 import { EN_PREFIX } from "@/lib/i18n/locales";
 import { SITE_URL } from "@/lib/site";
@@ -161,4 +162,44 @@ test("the sitemap lists an /en counterpart for every Arabic entry that has one",
     assert.equal(counterpart!.priority, entry.priority, `${p}: priority must match its Arabic entry`);
     assert.deepEqual(counterpart!.lastModified, entry.lastModified, `${p}: lastModified must match its Arabic entry`);
   }
+});
+
+test("the language switcher preserves filters, pagination and search on switch", () => {
+  const cases: [string, string, string][] = [
+    ["/matches?date=2026-10-14&sport=football", "/matches?date=2026-10-14&sport=football", "/en/matches?date=2026-10-14&sport=football"],
+    ["/search?q=ahly", "/search?q=ahly", "/en/search?q=ahly"],
+    ["/news?competition=egyptian-league", "/news?competition=egyptian-league", "/en/news?competition=egyptian-league"],
+    ["/teams?page=2", "/teams?page=2", "/en/teams?page=2"],
+    ["/teams/al-ahly", "/teams/al-ahly", "/en/teams/al-ahly"],
+    ["/", "/", "/en"],
+  ];
+  for (const [current, ar, en] of cases) {
+    assert.equal(equivalentPathFor(current, "ar"), ar, `${current} -> ar`);
+    assert.equal(equivalentPathFor(current, "en"), en, `${current} -> en`);
+  }
+});
+
+test("a page with no English counterpart falls back to the English homepage, never a 404", () => {
+  // /admin has no English route and sits outside EN_ROUTE_ROOTS on purpose.
+  assert.equal(equivalentPathFor("/admin", "en"), "/en");
+  assert.equal(equivalentPathFor("/admin/live", "en"), "/en");
+  assert.equal(equivalentPathFor("/api/search", "en"), "/en");
+  // Arabic never gains a prefix, so existing links are untouched.
+  assert.equal(equivalentPathFor("/en/matches", "ar"), "/matches");
+});
+
+test("the switcher renders real anchors in server HTML, not a null fallback", () => {
+  // A `fallback={null}` boundary removed the switcher from the server HTML of
+  // every statically prerendered page, leaving crawlers and no-JS visitors
+  // without one. The fallback must render the same anchors, built from the
+  // pathname, with the query string added after hydration.
+  const src = readFileSync(new URL("../components/layout/LanguageSwitcher.tsx", import.meta.url), "utf8");
+  assert.match(src, /fallback=\{<SwitcherLinks search="" \/>\}/, "the Suspense fallback must render real anchors");
+  assert.ok(!/fallback=\{null\}/.test(src), "a null fallback must not come back");
+  assert.match(src, /useSearchParams\(\)/, "the query string is still read, so filters survive a switch");
+  assert.match(src, /LOCALE_COOKIE/, "the explicit choice is still remembered");
+  // Routing must never read the cookie: a direct /en/... link has to render
+  // English regardless of a previous choice, and crawlers must see both trees.
+  const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
+  assert.ok(!middleware.includes("LOCALE_COOKIE"), "middleware must not redirect on the locale cookie");
 });
