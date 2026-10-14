@@ -1,8 +1,10 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
+import { useT } from "@/lib/i18n/context";
 
 export default function ThemeToggle() {
+  const tr = useT();
   const [dark, setDark] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -34,8 +36,8 @@ export default function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      aria-label={dark ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
-      title={dark ? "الوضع الفاتح" : "الوضع الداكن"}
+      aria-label={dark ? tr("theme.toLight") : tr("theme.toDark")}
+      title={dark ? tr("theme.light") : tr("theme.dark")}
       className="grid h-11 w-11 place-items-center rounded-[3px] border border-white/15 text-white/80 transition hover:border-gold-500 hover:text-gold-400 focus-ring"
     >
       {ready && dark ? (

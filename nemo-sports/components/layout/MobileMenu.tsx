@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { useEffect, useRef, useState } from "react";
 import MainNav from "./MainNav";
 import SearchBox from "./SearchBox";
 import { NAV } from "@/lib/nav";
+import { useT } from "@/lib/i18n/context";
 
 export default function MobileMenu() {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -64,7 +66,7 @@ export default function MobileMenu() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="فتح القائمة"
+        aria-label={tr("header.openMenu")}
         aria-haspopup="dialog"
         aria-controls={open ? "mobile-navigation-drawer" : undefined}
         aria-expanded={open}
@@ -79,7 +81,7 @@ export default function MobileMenu() {
         <div className="fixed inset-0 z-[70] xl:hidden">
           <button
             type="button"
-            aria-label="إغلاق القائمة"
+            aria-label={tr("header.closeMenu")}
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-navy-950/70 backdrop-blur-[2px]"
           />
@@ -99,7 +101,7 @@ export default function MobileMenu() {
                 ref={closeRef}
                 type="button"
                 onClick={() => setOpen(false)}
-                aria-label="إغلاق"
+                aria-label={tr("header.close")}
                 className="grid h-11 w-11 place-items-center rounded-[3px] border border-white/15 hover:border-gold-500 focus-ring"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
@@ -119,10 +121,10 @@ export default function MobileMenu() {
             <div className="mt-auto space-y-2 border-t border-navy-800 p-4 text-[12px]">
               <Link href="/live" onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-2 font-bold text-live focus-ring">
                 <span className="live-dot" aria-hidden />
-                تابع المباريات المباشرة
+                {tr("header.followLiveMobile")}
               </Link>
               <p className="text-white/55">
-                {NAV.length} أقسام رئيسية · روابط بث رسمية فقط
+                {tr("header.sectionsCount", { count: NAV.length })}
               </p>
             </div>
           </aside>

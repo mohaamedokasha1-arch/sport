@@ -126,9 +126,15 @@ test("⑥ every hub link points at a route that exists on disk", async () => {
   const hrefs = EDITORIAL_HUB_LINKS.map((link) => link.href);
   assert.ok(hrefs.length >= 3, "an article is never a dead end");
   assert.equal(new Set(hrefs).size, hrefs.length, "no duplicate hub link");
+  // Routes live in route groups: `app/(ar)/…` for the Arabic tree and
+  // `app/(en)/en/…` for the English one. A hub link must resolve in BOTH, so an
+  // article never links onward to a page that only exists in one language.
   for (const href of hrefs) {
-    const route = join(ROOT, "app", href.replace(/^\//, ""), "page.tsx");
-    assert.ok(existsSync(route), `hub link ${href} has no route (would be a 404): ${route}`);
+    const relative = href.replace(/^\//, "");
+    const arabic = join(ROOT, "app", "(ar)", relative, "page.tsx");
+    const english = join(ROOT, "app", "(en)", "en", relative, "page.tsx");
+    assert.ok(existsSync(arabic), `hub link ${href} has no Arabic route (would be a 404): ${arabic}`);
+    assert.ok(existsSync(english), `hub link ${href} has no English route (would be a 404 in /en): ${english}`);
   }
 });
 

@@ -166,7 +166,7 @@ test("③ only the banner route is embeddable, and only by us", async () => {
 
 test("④ the match page frames the live-stream block with two 300×250 placements", async () => {
 
-  const page = read("app/matches/[slug]/page.tsx");
+  const page = read("views/match-detail.tsx");
   const above = page.indexOf('slot="match-above-stream"');
   const below = page.indexOf('slot="match-below-stream"');
   const stream = page.indexOf("<MatchStreamPlayer");

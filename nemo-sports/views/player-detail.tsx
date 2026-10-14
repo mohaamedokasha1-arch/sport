@@ -7,7 +7,10 @@ import NewsCard from "@/components/news/NewsCard";
 import { articles, teamMatches } from "@/lib/data";
 import { competitionBySlug, playerBySlug, players, teamBySlug } from "@/lib/core-data";
 import { age } from "@/lib/format";
-import DataSourceNote, { providerLabel } from "@/components/data/DataSourceNote";
+import DataSourceNote from "@/components/data/DataSourceNote";
+import { providerLabel } from "@/lib/i18n/data-source";
+import { t } from "@/lib/i18n/translate";
+import { localeAlternates } from "@/lib/i18n/metadata";
 import { playerStats as sdlPlayerStats, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { getAdminPlayerBySlug } from "@/lib/admin-players";
@@ -21,17 +24,18 @@ export type ViewProps = { params: Promise<{ slug: string }> };
 export const revalidate = 1800;
 
 function realPlayerDisplayName(name: string | null | undefined): string {
-  return name?.trim() || "اسم اللاعب غير متاح";
+  return name?.trim() || "";
 }
 
-const EXTRA_STAT_LABELS_AR: Record<string, string> = {
-  penalties: "أهداف من ركلات الجزاء",
-  position: "المركز",
-  ratingRaw: "التقييم كما ورد من المصدر (مقياس غير موحّد)",
-  shots: "إجمالي التسديدات",
-  shotsOnTarget: "التسديدات على المرمى",
-  dribbles: "المراوغات",
-  keyPasses: "التمريرات المفتاحية",
+/** Maps an SDL `extra` field to a message key (values are translated at render). */
+const EXTRA_STAT_LABELS: Record<string, string> = {
+  penalties: "player.stat.penalties",
+  position: "player.stat.position",
+  ratingRaw: "player.stat.ratingRaw",
+  shots: "player.stat.shots",
+  shotsOnTarget: "player.stat.shotsOnTarget",
+  dribbles: "player.stat.dribbles",
+  keyPasses: "player.stat.keyPasses",
 };
 
 export function generateStaticParams() {
@@ -40,11 +44,10 @@ export function generateStaticParams() {
   return demoContentVisible() ? players.map((p) => ({ slug: p.slug })) : [];
 }
 
-async function playerMetadataBody({
+async function playerMetadataBody(locale: Locale, {
   params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
+}: ViewProps): Promise<Metadata> {
+  const tr = (key: string, vars?: Record<string, string | number>) => t(locale, key, vars);
   const { slug } = await params;
 
   // real provider player first (SportScore slugs, e.g. "erling-haaland")
@@ -52,12 +55,12 @@ async function playerMetadataBody({
   if (real.ok && real.source === "provider") {
     const team = String(real.data.extra.team ?? "");
     const name = realPlayerDisplayName(real.data.playerName);
-    const scope = real.data.seasonName ? `لموسم ${real.data.seasonName}` : "المتاحة من المصدر";
+    const scope = real.data.seasonName ? tr("player.scopeSeason", { season: real.data.seasonName }) : tr("player.scopeSource");
     const hasRealName = Boolean(real.data.playerName?.trim());
     return {
-      title: `${name}${team ? ` | ${team}` : ""} | إحصائيات`,
-      description: `إحصاءات ${name} ${scope} لدى ${providerLabel(real.provider)}: المباريات، الأهداف، الصناعات، الدقائق والبطاقات.`,
-      alternates: { canonical: `/players/${slug}` },
+      title: `${name}${team ? ` | ${team}` : ""} | ${tr("player.metaTitleSuffix")}`,
+      description: t(locale, "players.metaStats", { name, scope, provider: providerLabel(locale, real.provider) }),
+      alternates: localeAlternates(locale, `/players/${slug}`),
       ...(!hasRealName ? { robots: { index: false, follow: true } } : {}),
     };
   }
@@ -65,17 +68,18 @@ async function playerMetadataBody({
   const p = demoContentVisible() ? playerBySlug(slug) : undefined;
   // Explicit robots so the 404 emits one directive, not the layout's
   // `index, follow` stacked on Next.js's built-in not-found `noindex`.
-  if (!p) return { title: "اللاعب غير موجود", robots: { index: false, follow: true } };
+  if (!p) return { title: tr("player.notFound"), robots: { index: false, follow: true } };
 
-  const t = teamBySlug(p.team);
+  const playerTeam = teamBySlug(p.team);
   return {
-    title: `${p.name} | ${t?.name ?? p.position} | إحصائيات`,
-    description: `إحصائيات ${p.name} هذا الموسم: المباريات، الأهداف، الصناعات، سجل الفرق والأخبار.`,
-    alternates: { canonical: `/players/${p.slug}` },
+    title: `${p.name} | ${playerTeam?.name ?? p.position} | ${tr("player.metaTitleSuffix")}`,
+    description: tr("player.demoMetaDescription", { name: p.name }),
+    alternates: localeAlternates(locale, `/players/${p.slug}`),
   };
 }
 
-async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> }) {
+async function PlayerPageBody({ locale, params }: ViewProps & { locale: Locale }) {
+  const tr = (key: string, vars?: Record<string, string | number>) => t(locale, key, vars);
   const { slug } = await params;
 
   /* ══ 1) real provider player (SportScore) ══ */
@@ -95,27 +99,27 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
   if (real.ok && real.source === "provider") {
     const s = real.data;
     const name = realPlayerDisplayName(s.playerName);
-    const statsHeading = s.seasonName ? `إحصائيات موسم ${s.seasonName}` : "الإحصاءات المتاحة من المصدر";
+    const statsHeading = s.seasonName ? tr("player.statsSeason", { season: s.seasonName }) : tr("player.statsFromSource");
     const statCells: { label: string; value: string }[] = [
-      { label: "المباريات", value: s.appearances !== null ? String(s.appearances) : "—" },
-      { label: "الأهداف", value: s.goals !== null ? String(s.goals) : "—" },
-      { label: "الصناعات", value: s.assists !== null ? String(s.assists) : "—" },
-      { label: "الدقائق", value: s.minutes !== null ? String(s.minutes) : "—" },
-      { label: "بطاقات صفراء", value: s.yellowCards !== null ? String(s.yellowCards) : "—" },
-      { label: "بطاقات حمراء", value: s.redCards !== null ? String(s.redCards) : "—" },
+      { label: tr("player.stat.appearances"), value: s.appearances !== null ? String(s.appearances) : "—" },
+      { label: tr("player.stat.goals"), value: s.goals !== null ? String(s.goals) : "—" },
+      { label: tr("player.stat.assists"), value: s.assists !== null ? String(s.assists) : "—" },
+      { label: tr("player.stat.minutes"), value: s.minutes !== null ? String(s.minutes) : "—" },
+      { label: tr("player.stat.yellows"), value: s.yellowCards !== null ? String(s.yellowCards) : "—" },
+      { label: tr("player.stat.reds"), value: s.redCards !== null ? String(s.redCards) : "—" },
     ];
     const extraEntries = Object.entries(s.extra).flatMap(([key, value]) => {
-      const label = EXTRA_STAT_LABELS_AR[key];
-      if (!label || (typeof value !== "string" && typeof value !== "number")) return [];
+      const labelKey = EXTRA_STAT_LABELS[key];
+      if (!labelKey || (typeof value !== "string" && typeof value !== "number")) return [];
       if ((typeof value === "string" && !value.trim()) || (typeof value === "number" && !Number.isFinite(value))) return [];
-      return [{ key, label, value: String(value) }];
+      return [{ key, label: tr(labelKey), value: String(value) }];
     });
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
-        <nav aria-label="مسار التنقل" className="mb-4 text-[11px] text-muted">
-          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+        <nav aria-label={tr("player.breadcrumbAria")} className="mb-4 text-[11px] text-muted">
+          <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("player.home")}</Link>
           <span aria-hidden> / </span>
-          <Link href="/standings" className="hover:text-gold-600 dark:hover:text-gold-400">الهدافون</Link>
+          <Link href="/standings" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("player.scorers")}</Link>
           <span aria-hidden> / </span>
           <span className="font-semibold text-ink capitalize">{name}</span>
         </nav>
@@ -146,8 +150,8 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
         </section>
 
         {extraEntries.length > 0 ? (
-          <section className="mt-8" aria-label="إحصائيات إضافية">
-            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">تفاصيل إضافية</h2>
+          <section className="mt-8" aria-label={tr("player.extraStatsAria")}>
+            <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold">{tr("player.extraDetails")}</h2>
             <div className="card grid grid-cols-2 gap-px overflow-hidden sm:grid-cols-4">
               {extraEntries.map((entry) => (
                 <div key={entry.key} className="bg-surface px-3 py-3">
@@ -181,28 +185,28 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
     .slice(0, 3);
 
   const facts = [
-    { k: "الاسم الكامل", v: player.nameEn },
-    { k: "تاريخ الميلاد", v: `${player.birth} (${age(player.birth)} سنة)` },
-    { k: "الجنسية", v: `${player.flag} ${player.nationality}` },
-    { k: "الفريق الحالي", v: team?.name ?? player.team },
-    { k: "المركز", v: player.position },
-    { k: "الرقم", v: player.number ? String(player.number) : "—" },
-    { k: "الطول", v: player.height ? `${player.height} سم` : "—" },
-    { k: "الوزن", v: player.weight ? `${player.weight} كجم` : "—" },
-    { k: "القدم المفضلة", v: player.foot ?? "—" },
+    { k: tr("player.fullName"), v: player.nameEn },
+    { k: t(locale, "players.birthDate"), v: tr("player.birthWithAge", { date: player.birth, age: age(player.birth) }) },
+    { k: t(locale, "players.nationality"), v: `${player.flag} ${player.nationality}` },
+    { k: tr("player.currentTeam"), v: team?.name ?? player.team },
+    { k: t(locale, "players.position"), v: player.position },
+    { k: tr("player.shirtNumber"), v: player.number ? String(player.number) : "—" },
+    { k: "Height", v: player.height ? tr("player.heightCm", { value: player.height }) : "—" },
+    { k: "Weight", v: player.weight ? tr("player.weightKg", { value: player.weight }) : "—" },
+    { k: tr("player.preferredFoot"), v: player.foot ?? "—" },
   ];
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 py-6">
-      <nav aria-label="مسار التنقل" className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">الرئيسية</Link>
+      <nav aria-label={tr("player.breadcrumbAria")} className="mb-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("player.home")}</Link>
         <span aria-hidden>/</span>
-        <Link href="/players" className="hover:text-gold-600 dark:hover:text-gold-400">اللاعبون</Link>
+        <Link href="/players" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("player.players")}</Link>
         <span aria-hidden>/</span>
         <span className="font-semibold text-ink">{player.name}</span>
       </nav>
 
-      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">بيانات معاينة للتطوير فقط — ليست إحصاءات حقيقية.</p>
+      <p className="mb-4 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("player.demoNotice")}</p>
       <header className="stripes mb-6 overflow-hidden rounded-[8px] border border-navy-700 bg-navy-850 text-white">
         <div className="flex flex-wrap items-center gap-5 px-5 py-6">
           <span className="grid h-24 w-24 shrink-0 place-items-center rounded-[6px] border border-white/10 bg-white/5">
@@ -223,19 +227,19 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
 
           <dl className="ms-auto flex flex-wrap gap-6 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">مباريات</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("player.cardMatches")}</dt>
               <dd className="num text-xl font-extrabold">{player.seasonApps}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">أهداف</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("player.cardGoals")}</dt>
               <dd className="num text-xl font-extrabold text-gold-400">{player.seasonGoals}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">صناعة</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("player.cardAssists")}</dt>
               <dd className="num text-xl font-extrabold">{player.seasonAssists}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-white/45">دقائق</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-white/45">{tr("player.cardMinutes")}</dt>
               <dd className="num text-xl font-extrabold">{player.minutes}</dd>
             </div>
           </dl>
@@ -243,23 +247,23 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
       </header>
 
       <Tabs
-        label="تفاصيل اللاعب"
+        label={tr("player.tabsLabel")}
         items={[
           {
             id: "overview",
-            label: "نظرة عامة",
+            label: tr("player.tabOverview"),
             content: (
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="card p-5">
-                  <h2 className="mb-2 text-[14px] font-extrabold">نبذة</h2>
+                  <h2 className="mb-2 text-[14px] font-extrabold">{tr("player.aboutHeading")}</h2>
                   <p className="text-[13px] leading-relaxed text-muted">{player.bio}</p>
-                  <h2 className="mt-5 mb-2 text-[14px] font-extrabold">أرقام الموسم</h2>
+                  <h2 className="mt-5 mb-2 text-[14px] font-extrabold">{tr("player.seasonNumbers")}</h2>
                   <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
-                      { k: "مباريات", v: player.seasonApps },
-                      { k: "أهداف", v: player.seasonGoals },
-                      { k: "صناعة", v: player.seasonAssists },
-                      { k: "بطاقات صفراء", v: player.yellows },
+                      { k: tr("player.cardMatches"), v: player.seasonApps },
+                      { k: tr("player.cardGoals"), v: player.seasonGoals },
+                      { k: tr("player.cardAssists"), v: player.seasonAssists },
+                      { k: tr("player.stat.yellows"), v: player.yellows },
                     ].map((s) => (
                       <div key={s.k} className="rounded-[3px] bg-navy-850/[0.04] px-3 py-2.5 dark:bg-white/[0.05]">
                         <dt className="text-[10px] text-muted">{s.k}</dt>
@@ -271,7 +275,7 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
 
                 <div className="card overflow-hidden">
                   <h2 className="border-b border-line bg-navy-850 px-3 py-2.5 text-[13px] font-extrabold text-white">
-                    البطاقة التعريفية
+                    {tr("player.idCard")}
                   </h2>
                   <dl className="divide-y divide-line">
                     {facts.map((f) => (
@@ -287,19 +291,19 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
           },
           {
             id: "stats",
-            label: "الإحصائيات",
+            label: tr("player.tabStats"),
             content: (
               <div className="card overflow-hidden">
                 <table className="w-full text-[12px]">
                   <thead>
                     <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
-                      <th className="px-3 py-2.5 text-start font-semibold">الموسم</th>
-                      <th className="px-3 py-2.5 text-start font-semibold">الفريق</th>
-                      <th className="px-3 py-2.5 text-start font-semibold">البطولة</th>
-                      <th className="num px-3 py-2.5 font-semibold">مباريات</th>
-                      <th className="num px-3 py-2.5 font-semibold">دقائق</th>
-                      <th className="num px-3 py-2.5 font-semibold">أهداف</th>
-                      <th className="num px-3 py-2.5 font-semibold">صناعة</th>
+                      <th className="px-3 py-2.5 text-start font-semibold">{tr("player.tableSeason")}</th>
+                      <th className="px-3 py-2.5 text-start font-semibold">{t(locale, "players.team")}</th>
+                      <th className="px-3 py-2.5 text-start font-semibold">{tr("player.tableCompetition")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("player.cardMatches")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("player.cardMinutes")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("player.cardGoals")}</th>
+                      <th className="num px-3 py-2.5 font-semibold">{tr("player.cardAssists")}</th>
                       <th className="num px-3 py-2.5 font-semibold">🟨</th>
                     </tr>
                   </thead>
@@ -317,14 +321,14 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
                   </tbody>
                 </table>
                 <p className="border-t border-line px-3 py-2.5 text-[11px] text-muted">
-                  تُبنى الإحصائيات التاريخية في الإنتاج من مزوّد البيانات المرخّص لكل موسم على حدة.
+                  {tr("player.historicalNote")}
                 </p>
               </div>
             ),
           },
           {
             id: "matches",
-            label: "المباريات",
+            label: tr("player.tabMatches"),
             content:
               matches.length > 0 ? (
                 <ul className="space-y-2">
@@ -345,23 +349,23 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
                   ))}
                 </ul>
               ) : (
-                <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد مباريات مسجّلة.</p>
+                <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("player.noMatches")}</p>
               ),
           },
           {
             id: "compare",
-            label: "مقارنة",
+            label: tr("player.tabCompare"),
             content:
               peers.length > 0 ? (
                 <div className="card overflow-hidden">
                   <table className="w-full text-[12px]">
                     <thead>
                       <tr className="border-b border-line bg-navy-850/[0.04] text-muted dark:bg-white/[0.04]">
-                        <th className="px-3 py-2.5 text-start font-semibold">اللاعب</th>
-                        <th className="num px-3 py-2.5 font-semibold">مباريات</th>
-                        <th className="num px-3 py-2.5 font-semibold">أهداف</th>
-                        <th className="num px-3 py-2.5 font-semibold">صناعة</th>
-                        <th className="num px-3 py-2.5 font-semibold">مساهمة/مباراة</th>
+                        <th className="px-3 py-2.5 text-start font-semibold">{tr("player.tablePlayer")}</th>
+                        <th className="num px-3 py-2.5 font-semibold">{tr("player.cardMatches")}</th>
+                        <th className="num px-3 py-2.5 font-semibold">{tr("player.cardGoals")}</th>
+                        <th className="num px-3 py-2.5 font-semibold">{tr("player.cardAssists")}</th>
+                        <th className="num px-3 py-2.5 font-semibold">{tr("player.contribPerMatch")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -385,13 +389,13 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
                 </div>
               ) : (
                 <p className="card px-4 py-10 text-center text-[13px] text-muted">
-                  لا يوجد لاعبون قابلون للمقارنة في نفس البطولة والمركز في هذه النسخة.
+                  {tr("player.noComparable")}
                 </p>
               ),
           },
           {
             id: "news",
-            label: "الأخبار",
+            label: tr("player.tabNews"),
             content:
               news.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -400,7 +404,7 @@ async function PlayerPageBody({ params }: { params: Promise<{ slug: string }> })
                   ))}
                 </div>
               ) : (
-                <p className="card px-4 py-10 text-center text-[13px] text-muted">لا توجد أخبار مرتبطة بهذا اللاعب.</p>
+                <p className="card px-4 py-10 text-center text-[13px] text-muted">{tr("player.noNews")}</p>
               ),
           },
         ]}
@@ -415,12 +419,12 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const p = await getAdminPlayerBySlug(slug);
   if (p?.isPublished) {
     return {
-      title: `${p.fullNameAr}${p.teamName ? ` | ${p.teamName}` : ""} | لاعب`,
-      description: `${p.fullNameAr}${p.teamName ? ` — ${p.teamName}` : ""}: ملف اللاعب من إدارة نيمو سبورتس.`,
-      alternates: { canonical: `/players/${slug}` },
+      title: `${p.fullNameAr}${p.teamName ? ` | ${p.teamName}` : ""} | ${t(locale, "player.metaTitleSuffixPlayer")}`,
+      description: t(locale, "player.adminMetaDescription", { name: p.fullNameAr, team: p.teamName ? ` — ${p.teamName}` : "" }),
+      alternates: localeAlternates(locale, `/players/${slug}`),
     };
   }
-  return playerMetadataBody({ params });
+  return playerMetadataBody(locale, { params });
 }
 
 export default async function PlayerPage({ locale, params }: ViewProps & { locale: Locale }) {
@@ -428,5 +432,5 @@ export default async function PlayerPage({ locale, params }: ViewProps & { local
   const slug = decodeSlug(rawSlug);
   const adminPlayer = await getAdminPlayerBySlug(slug);
   if (adminPlayer?.isPublished) return <AdminPlayerDetail player={adminPlayer} />;
-  return <PlayerPageBody params={params} />;
+  return <PlayerPageBody locale={locale} params={params} />;
 }

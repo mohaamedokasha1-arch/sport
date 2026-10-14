@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * A home–away score that sits on the right sides of an RTL scoreboard.
  *
@@ -10,6 +12,8 @@
  * every surface identical: the first child (home) follows the document
  * direction, each number is bidi-isolated.
  */
+import { useT } from "@/lib/i18n/context";
+
 export default function ScorePair({
   home,
   away,
@@ -23,10 +27,11 @@ export default function ScorePair({
   separator?: string;
   separatorClassName?: string;
 }) {
+  const tr = useT();
   const h = home === null || home === undefined || home === "" ? "—" : String(home);
   const a = away === null || away === undefined || away === "" ? "—" : String(away);
   return (
-    <span className={`num inline-flex items-baseline gap-1.5 tabular-nums ${className}`} aria-label={`النتيجة: صاحب الأرض ${h}، الضيف ${a}`}>
+    <span className={`num inline-flex items-baseline gap-1.5 tabular-nums ${className}`} aria-label={tr("ui.scoreAria", { home: h, away: a })}>
       <bdi aria-hidden>{h}</bdi>
       <span aria-hidden className={separatorClassName}>{separator}</span>
       <bdi aria-hidden>{a}</bdi>

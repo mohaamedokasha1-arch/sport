@@ -1,10 +1,19 @@
-import Link from "next/link";
+"use client";
 
+import Link from "@/components/i18n/Link";
+import { useT, useDir } from "@/lib/i18n/context";
+
+/**
+ * A section heading with an optional "view all" link.
+ *
+ * Client component so the default link label and the trailing arrow follow the
+ * reading direction. Next still server-renders it into the initial HTML.
+ */
 export default function SectionHead({
   eyebrow,
   title,
   href,
-  linkLabel = "عرض الكل",
+  linkLabel,
   accent = true,
 }: {
   eyebrow?: string;
@@ -13,6 +22,11 @@ export default function SectionHead({
   linkLabel?: string;
   accent?: boolean;
 }) {
+  const tr = useT();
+  const dir = useDir();
+  const label = linkLabel ?? tr("ui.viewAll");
+  // The arrow points "onward" in the reading direction, not always left.
+  const arrow = dir === "rtl" ? "←" : "→";
   return (
     <div className="mb-4 flex items-end justify-between gap-4 border-b-2 border-line pb-2.5">
       <div className="flex items-center gap-3">
@@ -27,7 +41,7 @@ export default function SectionHead({
           href={href}
           className="inline-flex min-h-11 shrink-0 items-center text-[12px] font-bold text-navy-850 transition hover:text-gold-600 dark:text-gold-400 dark:hover:text-gold-300"
         >
-          {linkLabel} ←
+          {label} <span aria-hidden>{arrow}</span>
         </Link>
       ) : null}
     </div>
