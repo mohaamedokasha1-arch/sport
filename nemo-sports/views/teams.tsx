@@ -13,14 +13,16 @@ import { teamsDirectory, type DirectoryTeam } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { AdminTeamsSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+import { sportName } from "@/lib/i18n/names";
 
 export type ViewProps = Record<string, never>;
 
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "الفرق — دليل الفرق حسب الرياضة",
-  description: "دليل شامل للفرق: المعلومات، اللاعبون، المباريات والإحصائيات.",
+  title: t(locale, "tm.metaTitle"),
+  description: t(locale, "tm.metaDescription"),
   alternates: { canonical: "/teams" },
 };
 }
@@ -41,7 +43,8 @@ function groupByCompetition(rows: DirectoryTeam[]) {
   return groups;
 }
 
-async function TeamsPageBody() {
+async function TeamsPageBody({ locale }: { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   /* ══ 1) real directory, derived from the league tables we already fetch ══
    * No provider in the chain exposes "list every team", and inventing a roster
    * is exactly what this platform refuses to do. A standings row already
@@ -58,17 +61,20 @@ async function TeamsPageBody() {
   if (real.ok && real.source === "provider" && real.data.length > 0) {
     const groups = groupByCompetition(real.data);
     const majors = footballDataCompetitions(false);
-    const nameOf = (id: string) => majors.find((c) => (c.slug ?? c.code) === id)?.nameAr ?? id;
+    const nameOf = (id: string) => {
+      const c = majors.find((x) => (x.slug ?? x.code) === id);
+      return c ? (locale === "ar" ? c.nameAr : c.name) : id;
+    };
 
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">دليل الفرق</p>
-            <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
+            <p className="eyebrow mb-1">{tr("tm.eyebrow")}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{tr("tm.heading")}</h1>
           </div>
           <p className="text-[12px] text-muted">
-            <span className="num font-bold">{real.data.length}</span> فريقًا من جداول ترتيب حقيقية
+            <span className="num font-bold">{real.data.length}</span> {tr("tm.countReal")}
           </p>
         </header>
 
@@ -84,10 +90,10 @@ async function TeamsPageBody() {
           {[...groups.entries()].map(([compId, list]) => (
             <section key={compId}>
               <SectionHead
-                eyebrow="بيانات حقيقية"
+                eyebrow={tr("tm.realDataEyebrow")}
                 title={nameOf(compId)}
                 href={`/competitions/${compId}`}
-                linkLabel="صفحة البطولة"
+                linkLabel={tr("tm.competitionPage")}
               />
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {list.map((t) => (
@@ -109,7 +115,7 @@ async function TeamsPageBody() {
                         <span className="block truncate text-[11px] text-muted">{nameOf(t.competition)}</span>
                         {t.position !== null ? (
                           <span className="num mt-1 block text-[10px] text-muted">
-                            المركز {t.position}{t.points !== null ? ` · ${t.points} نقطة` : ""}
+                            {tr("tm.positionLine", { pos: t.position })}{t.points !== null ? tr("tm.pointsSuffix", { n: t.points }) : ""}
                           </span>
                         ) : null}
                       </span>
@@ -135,20 +141,20 @@ async function TeamsPageBody() {
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
           <div>
-            <p className="eyebrow mb-1">دليل الفرق</p>
-            <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
+            <p className="eyebrow mb-1">{tr("tm.eyebrow")}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{tr("tm.heading")}</h1>
           </div>
           <p className="text-[12px] text-muted">
-            <span className="num font-bold">{teams.length}</span> فريقًا في بيانات المعاينة
+            <span className="num font-bold">{teams.length}</span> {tr("tm.countDemo")}
           </p>
         </header>
-        <p className="mb-6 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">دليل الفرق هذا بيانات توضيحية للتطوير فقط — لا يعكس ترتيبًا أو قائمة فرق حقيقية.</p>
+        <p className="mb-6 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[11px] font-semibold text-muted">{tr("tm.demoNotice")}</p>
 
         <div className="space-y-9">
           {sports.map((s) =>
             bySport[s.slug]?.length ? (
               <section key={s.slug}>
-                <SectionHead eyebrow={s.nameEn} title={`${s.icon} ${s.name}`} href={`/matches?sport=${s.slug}`} linkLabel="المباريات" />
+                <SectionHead eyebrow={s.nameEn} title={`${s.icon} ${sportName(locale, s.slug)}`} href={`/matches?sport=${s.slug}`} linkLabel={tr("tm.matches")} />
                 <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {bySport[s.slug].map((t) => {
                     const comp = competitions.find((c) => c.slug === t.competition);
@@ -165,7 +171,7 @@ async function TeamsPageBody() {
                             <span className="mt-1 flex items-center gap-1.5">
                               <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: t.primary }} aria-hidden />
                               <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: t.secondary }} aria-hidden />
-                              <span className="num text-[10px] text-muted">تأسس {t.founded}</span>
+                              <span className="num text-[10px] text-muted">{tr("tm.founded", { year: t.founded })}</span>
                             </span>
                           </span>
                         </Link>
@@ -195,15 +201,15 @@ async function TeamsPageBody() {
     <div className="mx-auto max-w-[1280px] px-4 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b-2 border-line pb-3">
         <div>
-          <p className="eyebrow mb-1">دليل الفرق</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">الفرق</h1>
+          <p className="eyebrow mb-1">{tr("tm.eyebrow")}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{tr("tm.heading")}</h1>
         </div>
-        <p className="num text-[12px] font-bold text-muted">0 فريق</p>
+        <p className="num text-[12px] font-bold text-muted">{tr("tm.zeroTeams")}</p>
       </header>
       <DataUnavailable
-        title="دليل الفرق غير متوفر حاليًا"
-        message="صفحات الفرق تُبنى من بيانات رسمية (الفرق، اللاعبون، المباريات). لن ننشئ صفحات لفرق ببيانات غير مؤكدة."
-        hint="يُشتق الدليل من جداول الترتيب الحقيقية — سيتوفر تلقائيًا بمجرد استجابة مصدر البيانات."
+        title={tr("tm.emptyTitle")}
+        message={tr("tm.emptyMessage")}
+        hint={tr("tm.emptyHint")}
       />
     </div>
   );
@@ -213,7 +219,7 @@ export default async function TeamsPage({ locale }: { locale: Locale }) {
   return (
     <>
       <AdminTeamsSection />
-      <TeamsPageBody />
+      <TeamsPageBody locale={locale} />
       <SyncedEntityDirectory kind="team" />
     </>
   );
