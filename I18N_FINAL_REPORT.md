@@ -245,8 +245,9 @@ sandbox.
 | `npm run admin:test` | **PASS** — 43 passed, 0 failed |
 | `npm run consistency:test` | **PASS** |
 | `npm run smoke` | **PASS** — exit 0, **107 routes** against a served production build |
+| `npm run smoke:demo` | **PASS** — exit 0, **7 chrome checks** with demo data rendering |
 | Lint | **PASS** — clean |
-| CI (`typecheck · tests · build · smoke`) | **PASS** — green on PR #49 |
+| CI (`typecheck · tests · build · smoke` ×2) | **PASS** — green on PR #49, both smoke passes |
 
 ### D0. The CI smoke check, and why it was extended
 
@@ -274,6 +275,35 @@ Mutation-verified end to end: an Arabic string was injected into the English
 About page, the app was rebuilt, and the check reported
 `/en/about → no Arabic in rendered chrome (1: نبضة تجريبية)`. It was then
 restored and re-verified green (107 routes, exit 0).
+
+### D0b. A second CI pass with data on screen
+
+The empty-data pass still cannot see any component that only renders once data
+is present — the blind spot behind all three leaks in E2, E2b and E2d. CI now
+starts a **second** production server with `NEXT_PUBLIC_DEMO_CONTENT=1` on port
+3001 and runs `npm run smoke:demo` against it. That flag is read at runtime by
+the server components, so it reuses the same build; no second `next build`.
+
+The demo pass is deliberately narrow and checks **chrome only**. With data on
+screen an English page legitimately contains Arabic *data* — team, player,
+competition and broadcaster names no source supplies in English — so a whole-page
+scan would fail for the wrong reason and bury the signal. It inspects only pure
+chrome:
+
+- every status pill on `/en/matches`, `/en/live` and `/en`;
+- the scoreboard clock on four English match detail pages.
+
+Those are exactly the three surfaces where leaks were found.
+
+Demo mode is a standalone pass that exits before the empty-data assertions, which
+assume no data (whole pages free of Arabic, `/api/live` empty) and would
+otherwise fail spuriously.
+
+Verified locally against running servers — empty-data **107 routes, exit 0**;
+demo-data **7 chrome checks, exit 0** — and in CI, where the step
+*"Smoke against a production server WITH demo content (chrome only)"* completed
+`success`. Mutation-verified: reverting the scoreboard clock to the raw Arabic
+string made the demo pass report 4 failures naming each affected match page.
 
 Two of my own errors in writing it, both caught by running it rather than by
 review, and both worth recording:
@@ -551,7 +581,7 @@ a test.
 
 What actually happened:
 
-- 46 commits on branch `arena/6b071330-sport`, branched from `c715149`.
+- 50 commits on branch `arena/6b071330-sport`, branched from `c715149`.
 - Pushed, and opened for review as **PR #49** against `main`. CI ran green:
   `typecheck · tests · build · smoke`, plus the Vercel preview build. **A CI
   preview build is not a production deployment** — it is a disposable preview
