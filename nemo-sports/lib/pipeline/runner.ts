@@ -19,6 +19,7 @@
  */
 
 import { getDb } from "@/lib/db/pg";
+import { ensureCanonicalSchema } from "@/lib/db/canonical-schema";
 import { loadPipelineConfig, jobByName, sourceGate, competitionBySlug } from "./config";
 import { createHttp, type PipelineHttp } from "./http";
 import { runConnector, currentSeasonName } from "./connectors";
@@ -142,7 +143,22 @@ export async function runJob(jobName: string, opts: RunOptions = {}): Promise<Jo
   }
 
   const db = await getDb().catch(() => null);
-  if (db) await finishStaleRuns(30).catch(() => 0);
+  if (db) {
+    await finishStaleRuns(30).catch(() => 0);
+    // Self-healing schema (lib/db/canonical-schema.ts): a database that was
+    // never initialised (`relation "sports" does not exist`) or one that lost
+    // the canonical tables is repaired here, before anything is read or
+    // written. Additive and idempotent; the probe is one query per process.
+    const schema = await ensureCanonicalSchema(db);
+    // Only the call that actually sent the DDL announces it: a memoised verdict
+    // (`cached`) is not news, and "created …" must never be logged twice.
+    if (schema.ran && !schema.cached && schema.created.length > 0) {
+      logger("info", "pipeline.schema_bootstrapped", { job: job.name, created: schema.created, durationMs: schema.durationMs });
+    }
+    if (schema.failures.length > 0 && !schema.cached) {
+      logger("error", "pipeline.schema_bootstrap_failed", { job: job.name, failures: schema.failures.slice(0, 5), missing: schema.missing });
+    }
+  }
   const matchday = await isMatchday(db);
   const http = opts.http ?? createHttp(cfg, { logger });
   const seasonName = currentSeasonName(opts.now ?? startedAt);
@@ -157,14 +173,27 @@ export async function runJob(jobName: string, opts: RunOptions = {}): Promise<Jo
 
   // Canonical competitions come from the registry, not from a provider: write
   // them once per run so seasons/matches/standings always have a parent row.
+  //
+  // This is the ONE database step that used to sit outside a try/catch, which
+  // is why a database missing `sports` reached the caller as a 500
+  // (`relation "sports" does not exist`). It is now guarded twice: the schema
+  // is bootstrapped above, and a database that refuses the write (read-only
+  // role, denied DDL) records an honest error and lets the sources archive
+  // what they fetched, so the run still ends with a real summary.
   const competitionIds = new Map<string, string>();
   const countryIds = new Map<string, string>();
   if (db && !opts.dryRun) {
-    const sportId = await ensureSport(db, "football");
-    for (const spec of cfg.competitions) {
-      const countryId = spec.country ? await ensureCountry(db, spec.country, spec.country === "EG" ? "مصر" : spec.country, spec.country === "EG" ? "Egypt" : spec.country) : null;
-      if (countryId && spec.country) countryIds.set(spec.country, countryId);
-      competitionIds.set(spec.slug, await upsertCompetition(db, spec, sportId, countryId));
+    try {
+      const sportId = await ensureSport(db, "football");
+      for (const spec of cfg.competitions) {
+        const countryId = spec.country ? await ensureCountry(db, spec.country, spec.country === "EG" ? "مصر" : spec.country, spec.country === "EG" ? "Egypt" : spec.country) : null;
+        if (countryId && spec.country) countryIds.set(spec.country, countryId);
+        competitionIds.set(spec.slug, await upsertCompetition(db, spec, sportId, countryId));
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      errors.push(`canonical registry: ${message}`);
+      logger("error", "pipeline.registry_failed", { job: job.name, error: message });
     }
   }
 
@@ -270,11 +299,23 @@ export async function runJob(jobName: string, opts: RunOptions = {}): Promise<Jo
       summary.notes = result.notes;
 
       if (!opts.dryRun && db && !summary.archivedOnly) {
-        const written = await upsertRecords(db, cfg, source, result.records, { seasonName, countryIds, competitionIds, logger });
-        summary.created = written.created;
-        summary.updated = written.updated;
-        summary.conflicts = written.conflicts;
-        summary.skipped += written.skipped;
+        // A canonical table that cannot be prepared or written (denied DDL,
+        // read-only role) must not turn the whole run into an exception: the
+        // provider was already called, so the honest outcome is "fetched,
+        // archived, 0 written" with the reason in the run summary.
+        try {
+          const written = await upsertRecords(db, cfg, source, result.records, { seasonName, countryIds, competitionIds, logger });
+          summary.created = written.created;
+          summary.updated = written.updated;
+          summary.conflicts = written.conflicts;
+          summary.skipped += written.skipped;
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          summary.notes.push(`canonical write failed: ${message}`);
+          summary.warnings.push("canonical tables unavailable — payloads fetched and archived only");
+          errors.push(`${source.name}: ${message}`);
+          logger("error", "pipeline.canonical_write_failed", { source: source.name, job: job.name, error: message });
+        }
       } else if (summary.archivedOnly) {
         summary.notes.push("archive-only source: payloads stored, canonical rows untouched (set PIPELINE_PUBLISH_FOREIGN=1 to publish)");
       }

@@ -12,6 +12,10 @@
 
 import { PgCanonicalStore, type SqlClient } from "@sdl/index";
 import type { Pool, PoolClient } from "pg";
+import { ensureCanonicalSchema, type SchemaBootstrapResult } from "./canonical-schema";
+import { sanitizeDbMessage } from "./sanitize";
+
+export { sanitizeDbMessage } from "./sanitize";
 
 export type PgDriver = SqlClient & { end: () => Promise<void> };
 
@@ -94,22 +98,46 @@ export async function getDb(): Promise<PgDriver | null> {
   return driver;
 }
 
+/**
+ * The driver with the canonical schema guaranteed to exist.
+ *
+ * `getDb()` stays raw (stores with their own DDL — broadcasts, match_streams,
+ * news — do not need the canonical tables). Everything that reads or writes
+ * the canonical entities goes through here, so `relation "sports" does not
+ * exist` can no longer reach a request: the first call probes and heals the
+ * schema, and the result is memoised per process (`lib/db/canonical-schema.ts`).
+ */
+export async function getReadyDb(): Promise<PgDriver | null> {
+  const db = await getDb();
+  if (!db) return null;
+  // Never throws: a database that cannot be prepared still has to answer.
+  await ensureCanonicalSchema(db).catch(() => undefined);
+  return db;
+}
+
 /** The canonical store, or `null` when there is no database. */
 export async function getCanonicalStore(): Promise<PgCanonicalStore | null> {
-  const db = await getDb();
+  const db = await getReadyDb();
   return db ? new PgCanonicalStore(db) : null;
 }
 
-/**
- * Strip anything that looks like credentials before a message reaches a
- * response body or a log. `pg` echoes the connection string on some errors and
- * this probe is surfaced in the admin dashboard (§12).
- */
-export function sanitizeDbMessage(raw: string): string {
-  return raw
-    .replace(/postgres(ql)?:\/\/[^\s@]*@/gi, "postgres://***@")
-    .replace(/password=\S+/gi, "password=***");
+/** What the schema bootstrap thinks of the configured database (diagnostics). */
+export async function canonicalSchemaReadiness(): Promise<SchemaBootstrapResult> {
+  const db = process.env.DATABASE_URL ? await getDb().catch(() => null) : null;
+  return ensureCanonicalSchema(db);
 }
+
+/**
+ * `sanitizeDbMessage` — strips anything credential-shaped before a message
+ * reaches a response body or a log (`pg` echoes the connection string on some
+ * errors). It lives in `lib/db/sanitize.ts` so the schema bootstrap can use it
+ * without importing this driver, and is re-exported at the top of this file:
+ * every existing `from "@/lib/db/pg"` import site keeps working unchanged.
+ *
+ * Wrapped in a small re-export note rather than a value because TypeScript
+ * forbids a second `export` statement after other exports — see the
+ * `export { sanitizeDbMessage }` above.
+ */
 
 /** One-shot health probe for the admin dashboard. Never throws. */
 export async function dbHealth(): Promise<{ ok: boolean; detail: string }> {

@@ -19,6 +19,7 @@
  */
 
 import { getDb, type PgDriver } from "@/lib/db/pg";
+import { canonicalSchemaError } from "@/lib/db/canonical-schema";
 import { canonicalId, slugify } from "@/packages/sdl/src";
 import { arabicAliasesFor } from "@/lib/name-aliases";
 import { decideField, rankOf, severityForField } from "./priority";
@@ -49,15 +50,27 @@ export const pipelineUuid = (entityType: string, seed: string): string =>
 /* ─── reference rows ─────────────────────────────────────────────────────── */
 
 export async function ensureSport(db: Db, slug = "football"): Promise<string> {
-  const found = await db.select<{ id: string }>(`SELECT id FROM sports WHERE slug = $1 LIMIT 1`, [slug]);
+  // A missing relation here is not a data problem: the canonical schema was
+  // never prepared (or the role lost its rights). The reason travels with the
+  // remedy — see `canonicalSchemaError`.
+  let found: { id: string }[];
+  try {
+    found = await db.select<{ id: string }>(`SELECT id FROM sports WHERE slug = $1 LIMIT 1`, [slug]);
+  } catch (e) {
+    throw canonicalSchemaError("sports", e);
+  }
   if (found[0]?.id) return found[0].id;
   const id = pipelineUuid("sport", slug);
-  await db.run(
-    `INSERT INTO sports (id, slug, name_ar, name_en, short_name_ar, short_name_en, display_order, config)
+  try {
+    await db.run(
+      `INSERT INTO sports (id, slug, name_ar, name_en, short_name_ar, short_name_en, display_order, config)
      VALUES ($1, $2, $3, $4, $5, $6, 1, '{}'::jsonb)
      ON CONFLICT (slug) DO NOTHING`,
-    [id, slug, slug === "football" ? "كرة القدم" : slug, slug === "football" ? "Football" : slug, slug, slug.toUpperCase()],
-  );
+      [id, slug, slug === "football" ? "كرة القدم" : slug, slug === "football" ? "Football" : slug, slug, slug.toUpperCase()],
+    );
+  } catch (e) {
+    throw canonicalSchemaError("sports", e);
+  }
   const again = await db.select<{ id: string }>(`SELECT id FROM sports WHERE slug = $1 LIMIT 1`, [slug]);
   return again[0]?.id ?? id;
 }
@@ -92,13 +105,18 @@ export async function ensureCountry(db: Db, iso2: string, nameAr: string, nameEn
   }
 
   const id = pipelineUuid("country", alpha2);
-  await db.run(
-    `INSERT INTO countries (id, iso2, iso3, name_ar, name_en)
+  let rows: { id: string }[];
+  try {
+    await db.run(
+      `INSERT INTO countries (id, iso2, iso3, name_ar, name_en)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (iso2) DO UPDATE SET name_ar = EXCLUDED.name_ar, name_en = EXCLUDED.name_en, updated_at = now()`,
-    [id, alpha2, alpha3, nameAr, nameEn],
-  );
-  const rows = await db.select<{ id: string }>(`SELECT id FROM countries WHERE iso2 = $1 LIMIT 1`, [alpha2]);
+      [id, alpha2, alpha3, nameAr, nameEn],
+    );
+    rows = await db.select<{ id: string }>(`SELECT id FROM countries WHERE iso2 = $1 LIMIT 1`, [alpha2]);
+  } catch (e) {
+    throw canonicalSchemaError("countries", e);
+  }
   return rows[0]?.id ?? id;
 }
 
@@ -151,8 +169,10 @@ export async function recordSourceMapping(
 
 export async function upsertCompetition(db: Db, spec: CompetitionSpec, sportId: string, countryId: string | null): Promise<string> {
   const id = pipelineUuid("competition", spec.slug);
-  const rows = await db.select<{ id: string }>(
-    `INSERT INTO competitions
+  let rows: { id: string }[];
+  try {
+    rows = await db.select<{ id: string }>(
+      `INSERT INTO competitions
        (id, sport_id, country_id, name_ar, name_en, short_name_ar, short_name_en, slug, type, is_active, is_featured, display_order)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11)
      ON CONFLICT (slug) DO UPDATE SET
@@ -166,20 +186,23 @@ export async function upsertCompetition(db: Db, spec: CompetitionSpec, sportId: 
        is_active = true,
        updated_at = now()
      RETURNING id`,
-    [
-      id,
-      sportId,
-      countryId,
-      spec.name_ar,
-      spec.name_en,
-      spec.short_ar,
-      spec.short_en,
-      spec.slug,
-      spec.type,
-      spec.featured,
-      spec.featured ? 10 : 100,
-    ],
-  );
+      [
+        id,
+        sportId,
+        countryId,
+        spec.name_ar,
+        spec.name_en,
+        spec.short_ar,
+        spec.short_en,
+        spec.slug,
+        spec.type,
+        spec.featured,
+        spec.featured ? 10 : 100,
+      ],
+    );
+  } catch (e) {
+    throw canonicalSchemaError("competitions", e);
+  }
   return rows[0]?.id ?? id;
 }
 

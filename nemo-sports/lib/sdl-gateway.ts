@@ -14,6 +14,7 @@ import { isDateKey, shiftDateKey, siteDateKey } from "@/lib/tz";
 
 import { getSdl, configureSdl, type FetchReport, type NormalizedFixture, type ProviderName, type SdlFailure, type DataType, type NormalizedEvent, type NormalizedStandingRow, type NormalizedTopScorer, type NormalizedLineup, type NormalizedStat, type NormalizedPlayerStats, type NormalizedTeam, type NormalizedCompetition } from "@/packages/sdl/src";
 import { getCanonicalStore, dbHealth } from "@/lib/db/pg";
+import { schemaBootstrapSnapshot } from "@/lib/db/canonical-schema";
 import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
 import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
@@ -92,6 +93,21 @@ export type InfraState = {
   redis: { ok: boolean; detail: string };
   canonical: "postgres" | "memory";
   cache: "redis" | "memory";
+  /**
+   * What the canonical-schema bootstrap found (lib/db/canonical-schema.ts):
+   * `null` when no database is configured, otherwise the verdict of the
+   * self-healing step — `missing` and `failures` are the difference between
+   * "connected" and "usable", which is exactly the gap that produced
+   * `relation "sports" does not exist` on a connected database.
+   */
+  schema: {
+    ok: boolean;
+    ran: boolean;
+    created: string[];
+    missing: string[];
+    failures: { object: string; error: string }[];
+    reason?: string;
+  } | null;
 };
 
 let infraPromise: Promise<InfraState> | null = null;
@@ -106,7 +122,18 @@ async function initInfra(): Promise<InfraState> {
     ...(canonical ? { canonical } : {}),
     ...(kv ? { store: kv } : {}),
   });
-  return { postgres: pg, redis: rd, canonical: canonical ? "postgres" : "memory", cache: kv ? "redis" : "memory" };
+  // `getCanonicalStore()` prepares the schema before it hands back a store, so
+  // by now the bootstrap has a verdict to report (null only without a database).
+  const boot = schemaBootstrapSnapshot();
+  return {
+    postgres: pg,
+    redis: rd,
+    canonical: canonical ? "postgres" : "memory",
+    cache: kv ? "redis" : "memory",
+    schema: boot
+      ? { ok: boot.ok, ran: boot.ran, created: boot.created, missing: boot.missing, failures: boot.failures, reason: boot.reason }
+      : null,
+  };
 }
 
 function infra(): Promise<InfraState> {
