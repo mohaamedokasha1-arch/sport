@@ -1480,6 +1480,26 @@ const en: Record<keyof typeof ar, string> = {
   "mf.gridButton": "▦ Grid",
   "mf.listButton": "☰ List",
 
+  /* ── live provider board (LiveFeed) ───────────────────────── */
+  "lf.title": "Live provider board",
+  "lf.unavailable": "No live data right now ({kind}). The layer runs on the “demo” adapter until provider keys are added, and what you see below this box is the hand-curated preview dataset.",
+  "lf.demoHidden": "Live data is currently unavailable — no real data provider is connected yet (current mode: demo adapter). We will not show invented matches or scores; this board starts working as soon as provider keys are added.",
+  "lf.provenance": "Source: {provider} · {origin}{stale} · {time}",
+  "lf.staleSuffix": " · stale data (last valid value)",
+  "lf.noLive": "No live matches at this moment.",
+  "lf.teamFallback": "Team {id}",
+  "lf.versus": "v",
+  "lf.footer": "Every row here came through the data layer (SDL) — the interface never calls a provider directly.",
+  "lf.providersLink": "Provider status",
+  "lf.status.live": "In play",
+  "lf.status.halftime": "Half-time",
+  "lf.status.scheduled": "Not started",
+  "lf.status.finished": "Finished",
+  "lf.status.postponed": "Postponed",
+  "lf.status.cancelled": "Cancelled",
+  "lf.status.suspended": "Suspended",
+  "lf.status.abandoned": "Abandoned",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "View all",
   "ui.dataUnavailableTitle": "Data is not available right now",

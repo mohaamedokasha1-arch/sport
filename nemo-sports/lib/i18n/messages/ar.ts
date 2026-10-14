@@ -1485,6 +1485,26 @@ const ar = {
   "mf.gridButton": "▦ شبكة",
   "mf.listButton": "☰ قائمة",
 
+  /* ── live provider board (LiveFeed) ───────────────────────── */
+  "lf.title": "لوحة المزوّد الحيّة",
+  "lf.unavailable": "لا توجد بيانات مباشرة الآن ({kind}). الطبقة تعمل بمحوّل «demo» حتى تُضاف مفاتيح المزوّدين، وما تراه أسفل هذا المربع هو بيانات العرض المُنسَّقة يدويًا.",
+  "lf.demoHidden": "البيانات المباشرة غير متوفرة حاليًا — لا يوجد مزوّد بيانات حقيقي مربوط بعد (الوضع الحالي: محوّل demo). لن نعرض مباريات أو نتائج وهمية؛ ستعمل هذه اللوحة تلقائيًا فور إضافة مفاتيح المزوّدين.",
+  "lf.provenance": "المصدر: {provider} · {origin}{stale} · {time}",
+  "lf.staleSuffix": " · بيانات قديمة (آخر قيمة صالحة)",
+  "lf.noLive": "لا مباريات مباشرة في هذه اللحظة.",
+  "lf.teamFallback": "فريق {id}",
+  "lf.versus": "ضد",
+  "lf.footer": "كل سطر هنا جاء عبر طبقة البيانات (SDL) — الواجهة لا تتصل بأي مزوّد مباشرة.",
+  "lf.providersLink": "حالة المزوّدين",
+  "lf.status.live": "جارية",
+  "lf.status.halftime": "استراحة",
+  "lf.status.scheduled": "لم تبدأ",
+  "lf.status.finished": "انتهت",
+  "lf.status.postponed": "مؤجَّلة",
+  "lf.status.cancelled": "ملغاة",
+  "lf.status.suspended": "موقوفة",
+  "lf.status.abandoned": "متوقفة",
+
   /* ── shared UI ──────────────────────────────────────────── */
   "ui.viewAll": "عرض الكل",
   "ui.dataUnavailableTitle": "البيانات غير متوفرة حاليًا",
