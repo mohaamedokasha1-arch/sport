@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { demoContentVisible } from "@/lib/site";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 
 export type ViewProps = Record<string, never>;
 
@@ -9,8 +10,8 @@ export type ViewProps = Record<string, never>;
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
   // The root layout appends " | نيمو سبورتس", so the brand is not repeated here.
-  title: "من نحن",
-  description: "تعرف على طريقة عرض نيمو سبورتس للبيانات الرياضية ومصادرها وسياسة حقوق البث.",
+  title: t(locale, "ab.metaTitle"),
+  description: t(locale, "ab.metaDescription"),
   alternates: { canonical: "/about" },
   // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
   robots: { index: true, follow: true },
@@ -18,46 +19,47 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
 }
 
 export default function AboutPage({ locale }: { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const preview = demoContentVisible();
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <p className="eyebrow mb-2">عن نيمو سبورتس</p>
-      <h1 className="text-3xl font-extrabold tracking-tight">من نحن</h1>
+      <p className="eyebrow mb-2">{tr("ab.eyebrow")}</p>
+      <h1 className="text-3xl font-extrabold tracking-tight">{tr("ab.heading")}</h1>
 
       <div className="mt-6 space-y-4 text-[15px] leading-[1.9]">
         <p>
-          <strong>نيمو سبورتس (NEMO Sports)</strong> واجهة عربية لمواعيد المباريات ونتائجها والبطولات والأخبار، ضمن نطاق البيانات التي يمكن استرجاعها والتحقق منها. تختلف التغطية بحسب الرياضة والبطولة والمصدر.
+          <strong>{locale === "ar" ? "نيمو سبورتس (NEMO Sports)" : "NEMO Sports"}</strong> {tr("ab.intro1")}
         </p>
         <p>
-          نوضح مصدر البيانات وتوقيت آخر تحديث عند توفرهما. إذا لم تصل بيانات موثوقة، نعرض حالة عدم التوفر بدلًا من إنشاء نتيجة أو إحصائية تقديرية. كما لا نعرض رابط بث إلا بعد توثيق مصدر رسمي وحقوقه ومناطقه.
+          {tr("ab.intro2")}
         </p>
-        <p>نعمل وفق مبادئ واضحة:</p>
+        <p>{tr("ab.principlesLead")}</p>
         <ul className="space-y-2 pe-4">
-          <li>• <strong>التحقق والشفافية</strong>: عدم إخفاء نقص البيانات أو حالتها القديمة.</li>
-          <li>• <strong>احترام الحقوق</strong>: لا إعادة بث، ولا روابط غير مرخّصة، ولا نسخ لمحتوى الناشرين.</li>
-          <li>• <strong>إتاحة الاستخدام</strong>: واجهة عربية من اليمين إلى اليسار، ووضع داكن، وتصميم يستجيب لأحجام الشاشات المختلفة.</li>
+          <li>• <strong>{tr("ab.p1Title")}</strong>{tr("ab.p1Body")}</li>
+          <li>• <strong>{tr("ab.p2Title")}</strong>{tr("ab.p2Body")}</li>
+          <li>• <strong>{tr("ab.p3Title")}</strong>{tr("ab.p3Body")}</li>
         </ul>
         <p>
-          لا تُنشأ صفحات تفاصيل قابلة للفهرسة إلا عندما تسمح استجابة المصدر بعرض بيانات حقيقية ذات هوية واضحة. وقد تبقى بعض صفحات الفرق أو اللاعبين أو المباريات غير متاحة عند غياب بيانات المصدر.
+          {tr("ab.indexingNote")}
         </p>
       </div>
 
       <div className="mt-8 card p-5">
-        <h2 className="text-[15px] font-extrabold">حالة البيانات</h2>
+        <h2 className="text-[15px] font-extrabold">{tr("ab.dataStatus")}</h2>
         <p className="mt-2 text-[13px] leading-relaxed text-muted">
-          قد تتأخر المصادر أو تتوقف، وقد لا تغطي كل البطولات. لا نضمن توافر تحديث حي دائم، ولا نعرض بيانات بديلة مصطنعة عند انقطاع المصدر.
+          {tr("ab.dataStatusBody")}
         </p>
         {preview ? (
           <p className="mt-3 rounded-[3px] border border-gold-500/30 bg-gold-500/10 px-3 py-2 text-[12px] font-semibold leading-relaxed text-muted">
-            هذه بيئة معاينة؛ قد تحتوي بعض الصفحات على بيانات توضيحية للتطوير، وتُوسم بوضوح ولا تمثل نتائج أو إحصاءات فعلية.
+            {tr("ab.previewNotice")}
           </p>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/matches" className="inline-flex min-h-11 items-center rounded-[3px] bg-navy-850 px-4 py-2 text-[12px] font-bold text-white transition hover:bg-navy-700 focus-ring">
-            تصفّح المباريات
+            {tr("ab.browseMatches")}
           </Link>
           <Link href="/broadcast-rights" className="inline-flex min-h-11 items-center rounded-[3px] border border-line px-4 py-2 text-[12px] font-bold transition hover:border-gold-500 focus-ring">
-            سياسة حقوق البث
+            {tr("ab.broadcastRights")}
           </Link>
         </div>
       </div>

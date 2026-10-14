@@ -1,74 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 
 export type ViewProps = Record<string, never>;
 
 
 export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewProps): Metadata {
   return {
-  title: "الأسئلة الشائعة",
-  description: "إجابات عن توفر البيانات الرياضية ومصادرها وسياسة البث في نيمو سبورتس.",
+  title: t(locale, "faq.metaTitle"),
+  description: t(locale, "faq.metaDescription"),
   alternates: { canonical: "/faq" },
   // Static, always-listed page in app/sitemap.ts: do not inherit the data-dependent root robots.
   robots: { index: true, follow: true },
 };
 }
 
-const faq = [
-  {
-    q: "من أين تأتي النتائج والأرقام؟",
-    a: "تُعرض البيانات التي تصل من مزودي البيانات المهيّئين فقط. نوضح المصدر ووقت التحديث عندما تتوفر هذه المعلومات. قد تختلف التغطية أو تتوقف؛ عندها نصرّح بعدم التوفر ولا نستبدل البيانات المفقودة بأرقام تقديرية.",
-  },
-  {
-    q: "هل تعرضون بثًا مباشرًا للمباريات؟",
-    a: "لا نعيد بث أي إشارة. قد نعرض رابطًا إلى ناقل رسمي فقط بعد توثيق حقوقه والمناطق التي يغطيها. إذا لم يتوفر مصدر موثّق للمباراة فلن يظهر رابط بث.",
-  },
-  {
-    q: "لماذا لا يعمل رابط البث عندي؟",
-    a: "قد يكون البث مقيدًا جغرافيًا أو يتطلب اشتراكًا لدى الناقل. نعرض المناطق وشروط الوصول المتاحة لنا، ولا ننصح بتجاوز القيود الجغرافية.",
-  },
-  {
-    q: "كم مرة تتحدّث النتائج المباشرة؟",
-    a: "تتحدث بعض مكونات النتائج دوريًا عند توفر مصدر مباشر، لكن وقت ظهور التغيير يتأثر بتحديث المصدر وطبقات التخزين المؤقت والاتصال. لا نضمن معدل تحديث ثابتًا أو خدمة لحظية مستمرة.",
-  },
-  {
-    q: "هل تتوفر حسابات أو إشعارات للأهداف؟",
-    a: "لا تتوفر حاليًا حسابات عامة أو إشعارات أهداف للمستخدمين. لن نطلب بيانات دخول أو نوحي بوجود هذه الخدمة قبل تفعيلها فعليًا.",
-  },
-  {
-    q: "هل الموقع مناسب للهاتف؟",
-    a: "الواجهة تتكيف مع الشاشات الصغيرة، وتستخدم اتجاه RTL ومناطق لمس أوضح في عناصر التنقل الرئيسية. قد يختلف العرض بحسب الجهاز والمتصفح.",
-  },
-  {
-    q: "كيف أبلغ عن نتيجة خاطئة؟",
-    a: "قناة المراسلة العامة غير مهيأة حاليًا، لذلك لا يوجد نموذج إرسال يعمل. لا تُدخل بيانات شخصية في نموذج غير موصول؛ سننشر قناة تواصل هنا عند تفعيلها.",
-  },
-  {
-    q: "هل يمكنني استخدام بيانات الموقع؟",
-    a: "تخضع البيانات والمواد لشروط مصادرها وحقوق أصحابها. لا تُعد إعادة نشر المحتوى أو الشعارات أو مواد البث مسموحة تلقائيًا؛ راجع شروط الاستخدام وحقوق النشر قبل استخدامها.",
-  },
-];
+const FAQ_KEYS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 export default function FaqPage({ locale }: { locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <p className="eyebrow mb-2">مساعدة</p>
-      <h1 className="text-3xl font-extrabold tracking-tight">الأسئلة الشائعة</h1>
+      <p className="eyebrow mb-2">{tr("faq.eyebrow")}</p>
+      <h1 className="text-3xl font-extrabold tracking-tight">{tr("faq.heading")}</h1>
 
       <dl className="mt-6 space-y-3">
-        {faq.map((item) => (
-          <div key={item.q} className="card p-4">
-            <dt className="text-[14px] font-extrabold">{item.q}</dt>
-            <dd className="mt-2 text-[13px] leading-relaxed text-muted">{item.a}</dd>
+        {FAQ_KEYS.map((n) => (
+          <div key={n} className="card p-4">
+            <dt className="text-[14px] font-extrabold">{tr(`faq.q${n}` as Parameters<typeof t>[1])}</dt>
+            <dd className="mt-2 text-[13px] leading-relaxed text-muted">{tr(`faq.a${n}` as Parameters<typeof t>[1])}</dd>
           </div>
         ))}
       </dl>
 
       <p className="mt-6 card p-4 text-[13px] text-muted">
-        للمزيد عن الحقوق والبيانات، راجع{" "}
-        <Link href="/broadcast-rights" className="font-bold text-gold-600 dark:text-gold-400">سياسة البث</Link>
-        {" "}و<Link href="/terms" className="font-bold text-gold-600 dark:text-gold-400">شروط الاستخدام</Link>.
+        {tr("faq.moreIntro")}{" "}
+        <Link href="/broadcast-rights" className="font-bold text-gold-600 dark:text-gold-400">{tr("faq.broadcastPolicy")}</Link>
+        {" "}{tr("faq.and")} <Link href="/terms" className="font-bold text-gold-600 dark:text-gold-400">{tr("faq.terms")}</Link>.
       </p>
     </div>
   );
