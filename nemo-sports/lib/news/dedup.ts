@@ -135,3 +135,34 @@ export function checkDuplicate(
     reason,
   };
 }
+
+/**
+ * Cross-identity reconciliation for Google News items.
+ * ────────────────────────────────────────────────────
+ * One story reaches the pipeline under TWO different identities over time:
+ *
+ *   · as the publisher's own URL + domain (a run that decoded the wrapper);
+ *   · as the news.google.com wrapper itself (a run where decoding failed).
+ *
+ * The 5 levels above deliberately require the same source domain, so they
+ * cannot reconcile those two identities — during a decode outage the same
+ * story would be stored a second time and readers would see duplicate cards.
+ * For Google-origin candidates the domain is therefore NOT a story key at
+ * all: title near-equality on the same publication day is. (Two unrelated
+ * articles sharing a title across publishers are far rarer than the exact
+ * same wrapper story coming back, and Google titles carry the publisher
+ * suffix, which keeps cross-publisher collisions honest.)
+ *
+ * Used by the pipeline ONLY for candidates whose original link was a Google
+ * wrapper, against a small global recent-story window.
+ */
+export function checkCrossIdentityDuplicate(
+  candidate: Pick<DedupCandidate, "title" | "publicationDate">,
+  existing: Pick<DedupCandidate, "title" | "publicationDate">,
+): { isDuplicate: boolean; titleSimilarity: number } {
+  const titleSimilarity = textSimilarity(candidate.title, existing.title);
+  return {
+    isDuplicate: titleSimilarity > 85 && sameDay(candidate.publicationDate, existing.publicationDate),
+    titleSimilarity,
+  };
+}

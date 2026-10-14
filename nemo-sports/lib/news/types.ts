@@ -132,6 +132,8 @@ export interface IngestStats {
   validationFailures: number;
   parseErrors: number;
   entityMatches: number;
+  /** Google News wrapper links resolved to original publisher URLs (all sources) */
+  decodedPublisherUrls: number;
   avgProcessingMs: number;
   /** relevance moderation of already-published articles (end of run) */
   moderation?: { scanned: number; quarantined: number; reviewOnly: number; applied: boolean };

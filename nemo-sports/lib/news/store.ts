@@ -550,6 +550,34 @@ export async function recentByDomain(domain: string, days = 3, limit = 60): Prom
     .slice(0, limit);
 }
 
+/**
+ * Recent stories across ALL domains — the cross-identity window used ONLY for
+ * Google News wrapper items (see checkCrossIdentityDuplicate in dedup.ts).
+ * Read once per ingestion run, never per item.
+ */
+export async function recentStoriesGlobal(days = 3, limit = 120): Promise<NewsArticle[]> {
+  const db = await pg();
+  if (db) {
+    try {
+      const rows = await db.select<ArticleRow>(
+        `SELECT * FROM news_articles
+         WHERE publication_date > now() - make_interval(days => $1)
+         ORDER BY publication_date DESC LIMIT $2`,
+        [days, limit],
+      );
+      return rows.map(articleFromRow);
+    } catch {
+      // fall through
+    }
+  }
+  seedMemory();
+  const cutoff = Date.now() - days * 86400_000;
+  return [...memArticles.values()]
+    .filter((a) => Date.parse(a.publicationDate) > cutoff)
+    .sort((a, b) => +new Date(b.publicationDate) - +new Date(a.publicationDate))
+    .slice(0, limit);
+}
+
 export async function insertArticle(a: NewsArticle): Promise<void> {
   const db = await pg();
   if (!db) await persistOrThrow(null, async () => {});

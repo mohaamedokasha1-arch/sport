@@ -19,6 +19,7 @@ import { applyFixtureOverrides } from "@/lib/match-overrides";
 import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
 import { resolveMatchSlug } from "@/lib/match-links";
+import { resolveCurrentMeetingForSlug } from "@/lib/match-resolution";
 import { decodeSlug } from "@/lib/slug";
 import { demoContentVisible } from "@/lib/site";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
@@ -654,15 +655,45 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
 /**
  * The canonical slug of the match an inbound (partner/bookmark) URL means,
  * or null when the current data cannot answer that unambiguously.
- * See resolveMatchSlug() in lib/match-links.ts for the rule.
+ *
+ * Two-stage, date-aware (lib/match-resolution.ts):
+ *   1. CURRENT-WIN — the slug is resolved against the UNION of the live feed
+ *      and the last/next Cairo-day fixtures, and the CURRENT meeting of the
+ *      pairing wins (live > nearest upcoming > latest finished in a short
+ *      window). An old meeting can no longer hijack a link while the new
+ *      Derby or tonight's القناة × المصري exists — that was the "visitor
+ *      lands on last month's match" defect.
+ *   2. LEGACY-FALLBACK — when no current meeting is known (e.g. the only
+ *      meeting in our data finished days ago and nothing newer exists), the
+ *      old unique-sides rule still answers, because that old meeting IS the
+ *      match the link meant. Ambiguity still answers null, never a guess.
  */
 export async function resolveInboundMatchSlug(slug: string): Promise<string | null> {
   const wanted = String(slug ?? "").trim();
   if (!wanted) return null;
+  const today = siteDateKey();
+  const dayKeys = [shiftDateKey(today, -1), today, shiftDateKey(today, 1)];
   for (const sport of ["football", ...PUBLIC_SPORTS.map((s) => s.slug).filter((s) => s !== "football")]) {
-    const res = await fixtures({ sport });
-    if (!res.ok) continue;
-    const hit = resolveMatchSlug(wanted, res.data.filter((f) => hasMatchIdentity(f)));
+    // Merge every pool we already fetch (each is cached by the SDL) so the
+    // "current meeting" judgement sees today, tomorrow and yesterday at once.
+    const pool = new Map<string, NormalizedFixture>();
+    const feed = await fixtures({ sport });
+    if (feed.ok) for (const f of feed.data) pool.set(f.providerId, f);
+    for (const date of dayKeys) {
+      const day = await fixturesForCairoDate({ sport, date });
+      if (day.ok) for (const f of day.data) if (!pool.has(f.providerId)) pool.set(f.providerId, f);
+    }
+    const known = [...pool.values()].filter((f) => (f.sport ?? sport) === sport && hasMatchIdentity(f));
+    if (known.length === 0) continue;
+
+    const current = resolveCurrentMeetingForSlug(wanted, known);
+    if (current) {
+      // An exact provider id should never "redirect" onto itself.
+      if (current.fixture.providerId === wanted) return null;
+      return current.fixture.providerId;
+    }
+
+    const hit = resolveMatchSlug(wanted, known);
     if (hit?.providerId) return hit.providerId;
   }
   return null;
