@@ -8,7 +8,9 @@ import { articleBySlug, articles, relatedArticles } from "@/lib/data";
 import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact, dateAr } from "@/lib/format";
 import { SITE_NAME, absoluteUrl, demoContentVisible } from "@/lib/site";
-import { getManualNewsBySlug } from "@/lib/manual-news";
+import { absoluteMediaUrl } from "@/lib/seo-discovery";
+import { getManualNewsBySlug, listManualNews } from "@/lib/manual-news";
+import { editorialInternalLinks, relatedEditorialNews } from "@/lib/news/editorial-links";
 import { AdminNewsDetail } from "@/components/public/AdminPublished";
 import { decodeSlug } from "@/lib/slug";
 
@@ -257,11 +259,33 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const slug = decodeSlug(rawSlug);
   const manual = await getManualNewsBySlug(slug);
   if (manual && manual.status === "published") {
+    const description = manual.description || manual.title;
+    // A preview card is only as good as its picture: the image must be an
+    // absolute URL a crawler can fetch (lib/seo-discovery.ts), so a relative or
+    // malformed value is dropped instead of emitting a broken card.
+    const image = absoluteMediaUrl(manual.imageUrl);
+    // Indexability is NOT decided here: the page inherits the deployment-wide
+    // decision (lib/sdl-gateway → app/layout.tsx), which already carries the
+    // Discover preview directives. Only the preview metadata is added.
     return {
       title: manual.title,
-      description: manual.description || manual.title,
+      description,
       alternates: { canonical: `/news/${slug}` },
-      openGraph: { title: manual.title, description: manual.description || manual.title, type: "article" },
+      openGraph: {
+        title: manual.title,
+        description,
+        type: "article",
+        publishedTime: manual.publishedAt,
+        modifiedTime: manual.updatedAt,
+        locale: "ar_AR",
+        ...(image ? { images: [{ url: image, alt: manual.title }] } : {}),
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: manual.title,
+        description,
+        ...(image ? { images: [image] } : {}),
+      },
     };
   }
   return articleMetadataBody({ params });
@@ -271,6 +295,14 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const { slug: rawSlug } = await params;
   const slug = decodeSlug(rawSlug);
   const manual = await getManualNewsBySlug(slug);
-  if (manual && manual.status === "published") return <AdminNewsDetail article={manual} />;
+  if (manual && manual.status === "published") {
+    // Internal links are resolved against real destinations only
+    // (lib/news/editorial-links.ts): hub & spoke without a single 404.
+    const [links, all] = await Promise.all([
+      editorialInternalLinks({ relatedCompetition: manual.relatedCompetition, relatedTeam: manual.relatedTeam }),
+      listManualNews({ publishedOnly: true, limit: 100 }),
+    ]);
+    return <AdminNewsDetail article={manual} links={links} related={relatedEditorialNews(manual, all, 5)} />;
+  }
   return <ArticlePageBody params={params} />;
 }

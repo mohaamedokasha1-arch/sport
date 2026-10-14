@@ -91,7 +91,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const t of teams) entries.push({ url: `${SITE_URL}/teams/${t.slug}`, lastModified: new Date(t.updatedAt), changeFrequency: "weekly", priority: 0.6 });
     for (const p of players) entries.push({ url: `${SITE_URL}/players/${p.slug}`, lastModified: new Date(p.updatedAt), changeFrequency: "weekly", priority: 0.5 });
     for (const c of comps) entries.push({ url: `${SITE_URL}/competitions/${c.slug}`, lastModified: new Date(c.updatedAt), changeFrequency: "weekly", priority: 0.6 });
-    for (const n of news) entries.push({ url: `${SITE_URL}/news/${n.slug}`, lastModified: new Date(n.updatedAt), changeFrequency: "weekly", priority: 0.6 });
+    // Editorial news is the fastest-moving surface of the site: it is listed as
+    // daily/high-priority and its lastModified follows the real edit time, so a
+    // rewritten or updated story is re-crawled without a redeploy.
+    for (const n of news) {
+      const lastModified = new Date(n.updatedAt > n.publishedAt ? n.updatedAt : n.publishedAt);
+      entries.push({ url: `${SITE_URL}/news/${n.slug}`, lastModified, changeFrequency: "daily", priority: 0.8 });
+    }
   } catch {
     // never fail the sitemap because of admin content
   }

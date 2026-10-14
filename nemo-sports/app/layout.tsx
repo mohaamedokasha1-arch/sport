@@ -8,6 +8,7 @@ import { robotsForDataSource } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { SITE_NAME, SITE_NAME_AR, SITE_URL, absoluteUrl } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
+import { robotsWithDiscovery } from "@/lib/seo-discovery";
 
 import {
   getSiteSettingsCached,
@@ -24,7 +25,11 @@ import {
  */
 export async function generateMetadata(): Promise<Metadata> {
   const [robots, settings] = await Promise.all([robotsForDataSource(), getSiteSettingsCached()]);
-  return { ...publicBaseMetadata(settings), robots };
+  // `robotsWithDiscovery` only ADDS Google's preview directives
+  // (max-image-preview:large …) required for Google Discover eligibility; the
+  // index/follow decision made by the data pipeline is passed through byte for
+  // byte (see lib/seo-discovery.ts).
+  return { ...publicBaseMetadata(settings), robots: robotsWithDiscovery(robots.index, robots.follow) };
 }
 
 export const viewport: Viewport = {
