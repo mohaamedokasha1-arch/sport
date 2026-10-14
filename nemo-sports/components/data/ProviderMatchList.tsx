@@ -1,9 +1,13 @@
-import Link from "next/link";
+"use client";
+
+import Link from "@/components/i18n/Link";
+import { useT, useLocale } from "@/lib/i18n/context";
 import PoweredBy from "@/components/ui/PoweredBy";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
 import { SITE_TZ } from "@/lib/tz";
-import { matchStateOf, MATCH_STATE_LABEL_AR, unconfirmedNoteAr } from "@/lib/match-state";
+import { matchStateOf } from "@/lib/match-state";
+import { matchStateLabel, unconfirmedNote } from "@/lib/i18n/match-state";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import { isLiveNow } from "@/lib/match-state";
 
@@ -17,12 +21,14 @@ const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
 
 export function MatchStatePill({ fixture, now = Date.now() }: { fixture: NormalizedFixture; now?: number }) {
+  const tr = useT();
+  const locale = useLocale();
   const state = matchStateOf(fixture.status, fixture.scheduledAt, now);
   if (state === "live") {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-[3px] bg-live-red/10 px-1.5 py-0.5 text-[11px] font-extrabold text-live-red">
         <span className="live-dot" aria-hidden />
-        {["halftime", "extra_time_halftime"].includes(fixture.status) ? "استراحة" : fixture.minute !== null ? <span dir="ltr">{`${fixture.minute}'`}</span> : "مباشر"}
+        {["halftime", "extra_time_halftime"].includes(fixture.status) ? tr("ui.break") : fixture.minute !== null ? <span dir="ltr">{`${fixture.minute}'`}</span> : tr("state.live")}
       </span>
     );
   }
@@ -30,22 +36,22 @@ export function MatchStatePill({ fixture, now = Date.now() }: { fixture: Normali
     return <span className="num shrink-0 text-[12px] font-bold text-muted">{timeOf(fixture.scheduledAt)}</span>;
   }
   if (state === "finished") {
-    return <span className="shrink-0 text-[11px] font-bold text-muted">انتهت</span>;
+    return <span className="shrink-0 text-[11px] font-bold text-muted">{tr("state.finished")}</span>;
   }
   if (state === "unconfirmed") {
     // The stored status still says "not started" but the kickoff day is over.
     // Show the kickoff (it is the only thing the source gave us) flagged as
     // unverified, instead of presenting it as a match still to come.
     return (
-      <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={unconfirmedNoteAr(fixture.status)}>
+      <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={unconfirmedNote(locale, fixture.status)}>
         <span className="num">{timeOf(fixture.scheduledAt)}</span>
-        <span className="mt-0.5 block text-[10px] font-extrabold">غير مؤكدة</span>
+        <span className="mt-0.5 block text-[10px] font-extrabold">{tr("ui.unconfirmed")}</span>
       </span>
     );
   }
   return (
     <span className="shrink-0 text-[11px] font-bold text-muted">
-      {MATCH_STATE_LABEL_AR[state]}
+      {matchStateLabel(locale, state)}
     </span>
   );
 }
@@ -61,6 +67,8 @@ export default function ProviderMatchList({
   footer?: boolean;
   view?: "grid" | "list";
 }) {
+  const tr = useT();
+  const locale = useLocale();
   return (
     <div className="space-y-2">
       <ul className={view === "list" ? "space-y-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>
@@ -74,16 +82,16 @@ export default function ProviderMatchList({
                 className={`card focus-ring flex items-center gap-3 px-3 py-2.5 transition hover:border-gold-500/50 ${live ? "border-live-red/40" : ""}`}
               >
                 <div className="min-w-0 flex-1">
-                  {f.editorialUpdatedAt && <p className="mb-1 text-[10px] text-muted">إدخال تحريري · ليس تحققًا آليًا من المزود</p>}
+                  {f.editorialUpdatedAt && <p className="mb-1 text-[10px] text-muted">{tr("ui.editorialEntry")}</p>}
                   {showCompetition && f.competitionName ? (
                     <p dir="auto" className="mb-1 truncate text-right text-[10.5px] text-muted">{f.competitionName}</p>
                   ) : null}
                   <p className="flex min-w-0 items-center gap-2 text-[13px] font-bold">
-                    <ProviderCrest name={f.homeName ?? f.homeProviderId ?? "الفريق المستضيف"} logoUrl={f.homeLogoUrl} size={22} />
+                    <ProviderCrest name={f.homeName ?? f.homeProviderId ?? tr("ui.homeTeamFallback")} logoUrl={f.homeLogoUrl} size={22} />
                     <span dir="auto" className="min-w-0 truncate" title={f.homeName ?? f.homeProviderId ?? undefined}>{f.homeName ?? f.homeProviderId ?? "—"}</span>
                   </p>
                   <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] font-bold">
-                    <ProviderCrest name={f.awayName ?? f.awayProviderId ?? "الفريق الضيف"} logoUrl={f.awayLogoUrl} size={22} />
+                    <ProviderCrest name={f.awayName ?? f.awayProviderId ?? tr("ui.awayTeamFallback")} logoUrl={f.awayLogoUrl} size={22} />
                     <span dir="auto" className="min-w-0 truncate" title={f.awayName ?? f.awayProviderId ?? undefined}>{f.awayName ?? f.awayProviderId ?? "—"}</span>
                   </p>
                 </div>

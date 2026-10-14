@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/lib/i18n/context";
+
 import { useEffect, useRef, useState } from "react";
 import { teamMonogram } from "@/lib/team-monogram";
 
@@ -31,6 +33,7 @@ export default function ProviderCrest({
   /** The full team name is visible next to the crest (default). */
   decorative?: boolean;
 }) {
+  const tr = useT();
   const [failed, setFailed] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const monogram = teamMonogram(name, shortName);
@@ -48,7 +51,7 @@ export default function ProviderCrest({
       <img
         ref={imgRef}
         src={logoUrl}
-        alt={decorative ? "" : `شعار ${name}`}
+        alt={decorative ? "" : tr("ui.crestAria", { name })}
         aria-hidden={decorative ? true : undefined}
         width={size}
         height={size}
@@ -63,7 +66,7 @@ export default function ProviderCrest({
 
   return (
     <span
-      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": `شعار ${name} — بديل رمزي` })}
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": tr("ui.crestFallbackAria", { name }) })}
       data-monogram={monogram}
       title={decorative ? undefined : name}
       className={`crest-monogram grid shrink-0 select-none place-items-center overflow-hidden rounded-[4px] border border-gold-500/35 bg-navy-850 font-display font-extrabold leading-none text-gold-400 ${className}`}

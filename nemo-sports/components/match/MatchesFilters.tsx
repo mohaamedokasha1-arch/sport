@@ -3,30 +3,33 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { isDateKey, shiftDateKey, siteDateKey } from "@/lib/tz";
 import { useEffect, useState } from "react";
+import { useT, useLocale } from "@/lib/i18n/context";
+import { sportName } from "@/lib/i18n/names";
 
 
+/** Query-string ids are the API/URL contract; only the rendered label is translated. */
 const DATES = [
-  { id: "yesterday", label: "أمس" },
-  { id: "today", label: "اليوم" },
-  { id: "tomorrow", label: "غدًا" },
-  { id: "week", label: "هذا الأسبوع" },
-];
+  { id: "yesterday", labelKey: "date.yesterday" },
+  { id: "today", labelKey: "date.today" },
+  { id: "tomorrow", labelKey: "date.tomorrow" },
+  { id: "week", labelKey: "mf.thisWeek" },
+] as const;
 
 const STATUS = [
-  { id: "all", label: "الكل" },
-  { id: "live", label: "مباشر" },
-  { id: "upcoming", label: "قادمة" },
-  { id: "finished", label: "منتهية" },
-];
+  { id: "all", labelKey: "mf.statusAll" },
+  { id: "live", labelKey: "mf.statusLive" },
+  { id: "upcoming", labelKey: "mf.statusUpcoming" },
+  { id: "finished", labelKey: "mf.statusFinished" },
+] as const;
 
 /** Exact interruptions reported by a provider, plus stale/uncertain states. */
 const REPORTED_STATES = [
-  { id: "postponed", label: "مؤجلة" },
-  { id: "cancelled", label: "ملغاة" },
-  { id: "suspended", label: "موقوفة" },
-  { id: "abandoned", label: "متوقفة" },
-  { id: "unconfirmed", label: "غير مؤكدة" },
-];
+  { id: "postponed", labelKey: "mf.statePostponed" },
+  { id: "cancelled", labelKey: "mf.stateCancelled" },
+  { id: "suspended", labelKey: "mf.stateSuspended" },
+  { id: "abandoned", labelKey: "mf.stateAbandoned" },
+  { id: "unconfirmed", labelKey: "mf.stateUnconfirmed" },
+] as const;
 export default function MatchesFilters({
   counts,
   sportsOptions,
@@ -48,6 +51,8 @@ export default function MatchesFilters({
   initialView: "grid" | "list";
   initialQuery: string;
 }) {
+  const tr = useT();
+  const locale = useLocale();
   const router = useRouter();
   const params = useSearchParams();
   const [team, setTeam] = useState(initialQuery);
@@ -100,40 +105,40 @@ export default function MatchesFilters({
   return (
     <div className="card space-y-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="eyebrow ms-1">الرياضة</span>
+        <span className="eyebrow ms-1">{tr("matches.sport")}</span>
         <button type="button" aria-pressed={!sport} onClick={() => set("sport", null)} className={chip(!sport)}>
-          كل الرياضات
+          {tr("matches.allSports")}
         </button>
         {sportsOptions.map((s) => (
           <button key={s.slug} type="button" aria-pressed={sport === s.slug} onClick={() => set("sport", s.slug)} className={chip(sport === s.slug)}>
-            <span aria-hidden className="ms-1">{s.icon}</span> {s.name}
+            <span aria-hidden className="ms-1">{s.icon}</span> {sportName(locale, s.slug)}
           </button>
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <span className="eyebrow ms-1">التاريخ</span>
+        <span className="eyebrow ms-1">{tr("matches.date")}</span>
         {DATES.map((d) => (
           <button key={d.id} type="button" aria-pressed={date === d.id} onClick={() => set("date", d.id)} className={chip(date === d.id)}>
-            {d.label}
+            {tr(d.labelKey)}
             <span className="num ms-1.5 text-[10px]">{counts[`date:${d.id}`] ?? 0}</span>
           </button>
         ))}
-        <label className="text-xs">تاريخ محدد (القاهرة)
+        <label className="text-xs">{tr("mf.specificDate")}
           <input type="date" value={isDateKey(date) ? date : ""} onChange={(e) => e.target.value && set("date", e.target.value)} className="focus-ring ms-2 min-h-11 rounded border border-line bg-surface p-2" />
         </label>
-        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, -1))}>اليوم السابق</button>
-        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, 1))}>اليوم التالي</button>
+        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, -1))}>{tr("mf.prevDay")}</button>
+        <button className={chip(false)} onClick={() => set("date", shiftDateKey(selectedDay, 1))}>{tr("mf.nextDay")}</button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-        <span className="eyebrow ms-1">الحالة</span>
+        <span className="eyebrow ms-1">{tr("matches.status")}</span>
         {[
           ...STATUS,
           ...REPORTED_STATES.filter((s) => (counts[`status:${s.id}`] ?? 0) > 0 || status === s.id),
         ].map((s) => (
           <button key={s.id} type="button" aria-pressed={status === s.id} onClick={() => set("status", s.id)} className={chip(status === s.id)}>
-            {s.label}
+            {tr(s.labelKey)}
             <span className="num ms-1.5 text-[10px]">{counts[`status:${s.id}`] ?? 0}</span>
           </button>
         ))}
@@ -141,13 +146,13 @@ export default function MatchesFilters({
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
         <label className="flex items-center gap-2">
-          <span className="eyebrow">البطولة</span>
+          <span className="eyebrow">{tr("matches.competition")}</span>
           <select
             value={comp}
             onChange={(e) => set("competition", e.target.value)}
             className="focus-ring min-h-11 w-56 max-w-[calc(100vw-6rem)] rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold outline-none focus:border-gold-500"
           >
-            <option value="">كل البطولات</option>
+            <option value="">{tr("matches.allCompetitions")}</option>
             {visibleComps.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -157,11 +162,11 @@ export default function MatchesFilters({
         </label>
 
         <label className="flex min-w-[200px] flex-1 items-center gap-2">
-          <span className="eyebrow">فريق</span>
+          <span className="eyebrow">{tr("mf.team")}</span>
           <input
             value={team}
             onChange={(e) => setTeam(e.target.value)}
-            placeholder="اكتب اسم الفريق…"
+            placeholder={tr("mf.teamPlaceholder")}
             className="focus-ring min-h-11 w-full rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] outline-none focus:border-gold-500"
           />
         </label>
@@ -173,13 +178,13 @@ export default function MatchesFilters({
                 key={v}
                 type="button"
                 onClick={() => set("view", v)}
-                aria-label={v === "grid" ? "عرض شبكي" : "عرض قائمة"}
+                aria-label={v === "grid" ? tr("mf.gridAria") : tr("mf.listAria")}
                 aria-pressed={view === v}
                 className={`focus-ring min-h-11 px-2.5 py-1.5 text-[11px] font-bold transition ${
                   view === v ? "bg-navy-850 text-white" : "bg-surface text-muted hover:text-ink"
                 }`}
               >
-                {v === "grid" ? "▦ شبكة" : "☰ قائمة"}
+                {v === "grid" ? tr("mf.gridButton") : tr("mf.listButton")}
               </button>
             ))}
           </div>
@@ -189,7 +194,7 @@ export default function MatchesFilters({
               onClick={clear}
               className="min-h-11 rounded-[3px] border border-live/40 px-3 py-1.5 text-[12px] font-bold text-live transition hover:bg-live hover:text-white focus-ring"
             >
-              مسح الفلاتر
+              {tr("mt.clearFilters")}
             </button>
           ) : null}
         </div>

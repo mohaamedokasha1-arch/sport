@@ -1,11 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { useCallback, useEffect, useState } from "react";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
-import { SITE_TZ } from "@/lib/tz";
 import { isLiveStatus } from "@/lib/match-state";
+import { useT, useLocale } from "@/lib/i18n/context";
+import { clockLabel } from "@/lib/i18n/clock";
+import type { ClockParts } from "@/lib/live";
+import { formatClock } from "@/lib/i18n/dates";
 
 type RailMatch = {
   id: string;
@@ -19,6 +22,7 @@ type RailMatch = {
   compCode: string;
   status: string;
   clock: string | null;
+  clockParts?: ClockParts | null;
   minute: number | null;
   homeScore: number | null;
   awayScore: number | null;
@@ -32,9 +36,12 @@ type RailResponse = {
   liveTotal?: number;
 };
 
-const clockText = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
+/** Wall-clock in the site timezone, spelled for the active locale (lib/i18n/dates). */
 
 export default function ScoreRail() {
+  const tr = useT();
+  const locale = useLocale();
+  const clockText = (iso: string) => formatClock(locale, iso);
   const [data, setData] = useState<RailResponse | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
   const [failed, setFailed] = useState(false);
@@ -68,11 +75,11 @@ export default function ScoreRail() {
   const isLiveMode = data?.mode === "live";
 
   return (
-    <div role="region" aria-label="متابعة نتائج المباريات" className="border-b border-navy-800 bg-navy-900 text-white">
+    <div role="region" aria-label={tr("rail.regionAria")} className="border-b border-navy-800 bg-navy-900 text-white">
       <div className="mx-auto flex max-w-[1280px] items-center gap-3 px-4 py-2">
         <Link href="/live" className="flex min-h-11 shrink-0 items-center gap-2 border-e border-navy-800 pe-3 text-[11px] font-extrabold text-gold-400 transition hover:text-white focus-ring">
           {isLiveMode && hasMatches ? <span className="live-dot" aria-hidden /> : null}
-          {isPreview ? "معاينة التطوير" : isLiveMode ? `مباشر الآن${data?.liveTotal ? ` (${data.liveTotal})` : ""}` : "متابعة المباريات"}
+          {isPreview ? tr("rail.devPreview") : isLiveMode ? (data?.liveTotal ? tr("rail.liveNowCount", { count: data.liveTotal }) : tr("rail.liveNow")) : tr("rail.followMatches")}
         </Link>
 
         {hasMatches ? (
@@ -93,7 +100,7 @@ export default function ScoreRail() {
                   {/* Home name comes first (right side in RTL), so the home score
                       must too — no dir="ltr" around the pair. */}
                   {isPreview ? (
-                    <span className="num min-w-[48px] text-center text-[13px] font-extrabold text-white/85">معاينة</span>
+                    <span className="num min-w-[48px] text-center text-[13px] font-extrabold text-white/85">{tr("rail.previewShort")}</span>
                   ) : hasScore ? (
                     <ScorePair home={match.homeScore} away={match.awayScore} separator="–" separatorClassName="text-white/45" className={`min-w-[48px] justify-center text-[13px] font-extrabold ${live ? "text-white" : "text-white/85"}`} />
                   ) : (
@@ -102,7 +109,13 @@ export default function ScoreRail() {
                   <span dir="auto" className="max-w-[96px] truncate text-[11px] font-semibold" title={match.awayName}>{match.awayName}</span>
                   <ProviderCrest name={match.awayName} logoUrl={match.awayLogoUrl} size={20} />
                   <span className={`num text-[10px] font-bold ${live ? "text-live" : "text-white/45"}`} dir="ltr">
-                    {isPreview ? "تجريبي" : live ? match.clock ?? "مباشر" : finished ? "انتهت" : ""}
+                    {isPreview
+                      ? tr("rail.demo")
+                      : live
+                        ? clockLabel(locale, match.clockParts) || tr("status.LIVE")
+                        : finished
+                          ? tr("status.FINISHED")
+                          : ""}
                   </span>
                 </Link>
               );
@@ -116,21 +129,21 @@ export default function ScoreRail() {
                   exactly that on every page, on top of /live and the homepage,
                   while matches were being played). */}
               {data === null && !failed
-                ? "جارٍ تحميل المباريات الجارية…"
+                ? tr("rail.loading")
                 : failed || data?.mode === "unavailable"
-                  ? "تعذر تحديث النتائج الآن. نعيد المحاولة تلقائيًا."
-                  : "لا توجد مباراة جارية الآن."}
-              {data?.mode === "empty" ? " لا توجد مباريات قادمة اليوم من المصدر." : null}
+                  ? tr("rail.refreshFailed")
+                  : tr("rail.noneLive")}
+              {data?.mode === "empty" ? tr("rail.noneUpcoming") : null}
             </p>
             <Link href={data?.mode === "empty" ? "/fixtures" : data === null ? "/live" : "/matches?date=today"} className="inline-flex min-h-11 shrink-0 items-center rounded-[3px] px-2 py-2 font-bold text-gold-400 hover:text-white focus-ring">
-              {data?.mode === "empty" ? "المباريات القادمة ←" : data === null ? "المباريات المباشرة ←" : "مباريات اليوم ←"}
+              {data?.mode === "empty" ? tr("rail.upcomingLink") : data === null ? tr("rail.liveLink") : tr("rail.todayLink")}
             </Link>
           </div>
         )}
 
         {lastUpdate ? (
-          <span className="hidden shrink-0 border-s border-navy-800 ps-3 text-[10px] text-white/45 lg:block" title="آخر تحديث">
-            {failed ? <span className="text-warn">تعذّر التحديث · </span> : null}{clockText(lastUpdate)} · توقيت القاهرة
+          <span className="hidden shrink-0 border-s border-navy-800 ps-3 text-[10px] text-white/45 lg:block" title={tr("rail.lastUpdate")}>
+            {failed ? <span className="text-warn">{tr("rail.updateFailed")}</span> : null}{tr("rail.updatedAt", { time: clockText(lastUpdate) })}
           </span>
         ) : null}
       </div>

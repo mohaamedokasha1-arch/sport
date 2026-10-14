@@ -1,10 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { NAV } from "@/lib/nav";
 import { PUBLIC_SPORTS } from "@/lib/core-data";
+import { useT } from "@/lib/i18n/context";
+import { sportName } from "@/lib/i18n/names";
+import { useLocale } from "@/lib/i18n/context";
+import { stripLocalePrefix } from "@/lib/i18n/paths";
 
 export default function MainNav({
   onNavigate,
@@ -13,6 +17,8 @@ export default function MainNav({
   onNavigate?: () => void;
   orientation?: "horizontal" | "vertical";
 }) {
+  const tr = useT();
+  const locale = useLocale();
   const pathname = usePathname();
   const [openSports, setOpenSports] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -29,7 +35,12 @@ export default function MainNav({
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  const isActive = (href: string) => pathname.startsWith(href);
+  /**
+   * Active-state matching must ignore the `/en` prefix, otherwise no item is
+   * ever marked current on the English tree.
+   */
+  const current = stripLocalePrefix(pathname ?? "/");
+  const isActive = (href: string) => current.startsWith(href);
   const vertical = orientation === "vertical";
 
   const linkCls = (active: boolean) =>
@@ -41,18 +52,18 @@ export default function MainNav({
     <nav
       ref={wrapRef}
       className={`flex ${vertical ? "flex-col items-stretch" : "items-center"} gap-1`}
-      aria-label="الملاحة الرئيسية"
+      aria-label={tr("nav.main")}
     >
-      {/* الرياضات — dropdown */}
+      {/* Sports — dropdown */}
       <div className="relative">
         <button
           type="button"
           onClick={() => setOpenSports((v) => !v)}
           aria-expanded={openSports}
           aria-haspopup="true"
-          className={`flex items-center gap-1.5 ${linkCls(pathname.startsWith("/sports"))} focus-ring`}
+          className={`flex items-center gap-1.5 ${linkCls(current.startsWith("/sports"))} focus-ring`}
         >
-          الرياضات
+          {tr("nav.sports")}
           <svg width="9" height="6" viewBox="0 0 9 6" aria-hidden className="opacity-70">
             <path d="M1 1l3.5 3.5L8 1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
@@ -65,7 +76,7 @@ export default function MainNav({
             } w-64 border border-navy-700 bg-navy-900 p-2 shadow-2xl`}
           >
             <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
-              رياضات متاحة للمتابعة
+              {tr("nav.sportsAvailable")}
             </p>
             <div className="grid grid-cols-2 gap-1">
               {PUBLIC_SPORTS.map((s) => (
@@ -76,7 +87,7 @@ export default function MainNav({
                   className="flex min-h-11 items-center gap-2 rounded-[3px] px-2 py-1.5 text-[12px] font-semibold text-white/80 transition hover:bg-gold-500 hover:text-navy-900 focus-ring"
                 >
                   <span aria-hidden>{s.icon}</span>
-                  {s.name}
+                  {sportName(locale, s.slug)}
                 </Link>
               ))}
             </div>
@@ -92,7 +103,7 @@ export default function MainNav({
           className={`${linkCls(isActive(item.href))} focus-ring`}
           aria-current={isActive(item.href) ? "page" : undefined}
         >
-          {item.label}
+          {tr(item.labelKey)}
         </Link>
       ))}
     </nav>

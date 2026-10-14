@@ -259,6 +259,61 @@ test("shared atomic request budget charges failures/retries and stops provider a
 
 test("original broadcast/player/source stores/auth and deployment settings remain byte-for-byte unchanged", async () => {
   const { createHash } = await import("node:crypto");
-  const baseline = JSON.parse(readFileSync("scripts/sports-sync-safety-baseline.json", "utf8")) as Record<string, string>;
-  for (const [path, expected] of Object.entries(baseline)) assert.equal(createHash("sha256").update(readFileSync(path)).digest("hex"), expected, path);
+  const raw = JSON.parse(readFileSync("scripts/sports-sync-safety-baseline.json", "utf8")) as {
+    byteForByte: Record<string, string>;
+    localisedOnly: Record<string, string>;
+  };
+  const sha = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+
+  // The bulk of the list: streaming, broadcast, auth and deployment config. Not
+  // one byte may move.
+  for (const [path, expected] of Object.entries(raw.byteForByte)) assert.equal(sha(path), expected, path);
+
+  // Two UI components were deliberately edited by the i18n work — their Arabic
+  // copy moved into the shared dictionaries. The diffs were reviewed line by
+  // line and contain nothing but strings and imports (see the commit that
+  // restructured this baseline). Their hash is still pinned so any FURTHER edit
+  // fails, and the behaviour they are responsible for is asserted directly,
+  // because a hash alone cannot tell a translation from a logic change.
+  for (const [path, expected] of Object.entries(raw.localisedOnly)) assert.equal(sha(path), expected, path);
+
+  const player = readFileSync("components/match/MatchStreamPlayer.tsx", "utf8");
+  assert.match(player, /src=\{stream\.embedUrl\}/, "the player still mounts the registered embed URL");
+  // The real iframe policy, read off the element: sandboxed, no top navigation,
+  // no unsolicited popups, and a referrer policy that does not leak the slug.
+  const sandbox = /sandbox="([^"]*)"/.exec(player)?.[1] ?? "";
+  assert.ok(sandbox.includes("allow-scripts") && sandbox.includes("allow-same-origin"), "player scripts still run");
+  assert.ok(!sandbox.includes("allow-top-navigation"), "a stream page must never navigate the reader's tab");
+  assert.ok(!sandbox.includes("allow-popups"), "and must not open unsolicited windows");
+  assert.equal(/referrerPolicy="([^"]*)"/.exec(player)?.[1], "strict-origin-when-cross-origin", "referrer policy unchanged");
+  assert.match(player, /allow="autoplay; fullscreen; encrypted-media; picture-in-picture"/, "the autoplay/fullscreen allowlist is unchanged");
+  assert.match(player, /if \(!stream\) return null;/, "no registered source still means no player section at all");
+
+  // The match page is where a stream is mounted at all. It is a view (so it is
+  // localised), but the stream wiring in it is infrastructure.
+  const matchPage = readFileSync("views/match-detail.tsx", "utf8");
+  assert.match(matchPage, /streamForMatch\(/, "the per-match stream registry is still consulted");
+  assert.match(matchPage, /<MatchStreamPlayer/, "and the player is still mounted");
+  assert.match(matchPage, /getOverride\(/, "admin corrections still apply");
+
+  const streams = readFileSync("components/public/LiveStreams.tsx", "utf8");
+  assert.match(streams, /if \(cards\.length === 0\) return null;/, "/live still renders nothing when no stream is playable");
+  assert.match(streams, /matchStateOf\(card\.status, card\.kickoff\)/, "the state badge is still derived, never hardcoded");
+  assert.match(streams, /card\.stream\.rightsHolder/, "the rights holder is still named on every card");
+
+  // The notice under the player is the verdict's Arabic wording. Both mount
+  // sites must translate it rather than pass it through, or the English player
+  // shows Arabic. A hash cannot express that, so assert the wiring directly.
+  for (const [name, src] of [["LiveStreams", streams], ["match-detail", matchPage]] as const) {
+    assert.match(
+      src,
+      /broadcastNoticeKey\(/,
+      `${name} must map the broadcast notice through broadcastNoticeKey`,
+    );
+    assert.equal(
+      /inactiveNote=\{[^}]*noticeAr\s*\}/.test(src),
+      false,
+      `${name} passes the raw Arabic notice straight to the player`,
+    );
+  }
 });

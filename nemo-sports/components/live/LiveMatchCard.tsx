@@ -1,10 +1,12 @@
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
+import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
-import { SITE_TZ } from "@/lib/tz";
-import { dateAr } from "@/lib/format";
+import { formatClock, formatDate } from "@/lib/i18n/dates";
 import { broadcastFor, type MatchStreamSource } from "@/lib/match-streams";
-import { matchStateOf, MATCH_STATE_LABEL_AR } from "@/lib/match-state";
+import { matchStateOf } from "@/lib/match-state";
+import { matchStateLabel } from "@/lib/i18n/match-state";
 
 export interface LiveCardData {
   id: string;
@@ -28,7 +30,8 @@ export interface LiveCardData {
 
 const BREAK_STATUSES = new Set(["halftime", "extra_time_halftime"]);
 
-export default function LiveMatchCard({ match, now = Date.now() }: { match: LiveCardData; now?: number }) {
+export default function LiveMatchCard({ match, now = Date.now(), locale }: { match: LiveCardData; now?: number; locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   // Resolve the state once, through the site-wide rule, and label it.
   const state = matchStateOf(match.status, match.scheduledAt, now);
   const isLive = state === "live";
@@ -38,11 +41,9 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
   const broadcast = broadcastFor(match.stream, { status: match.status, scheduledAt: match.scheduledAt, sport: match.sport }, now);
   const played = match.homeScore !== null && match.homeScore !== undefined && match.awayScore !== null && match.awayScore !== undefined;
 
-  const timeFormatted = new Date(match.scheduledAt).toLocaleTimeString("ar-EG", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: SITE_TZ,
-  });
+  // formatClock renders exactly this ar-EG 12-hour form for Arabic, and an
+  // English clock on /en — see scripts/verify-i18n-parity.test.ts.
+  const timeFormatted = formatClock(locale, match.scheduledAt);
 
   return (
     <article
@@ -58,24 +59,24 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
           {match.sportLabel ? <span className="shrink-0 rounded-[3px] bg-navy-850/10 px-1 py-px text-[10px] dark:bg-white/10">{match.sportLabel}</span> : null}
           {/* dir="auto": a Latin name is cut at its END ("National Basketball…"),
               not at its start as an RTL ellipsis did ("…onal Basketball Association"). */}
-          <span dir="auto" className="min-w-0 truncate">{match.competitionName || "مباراة"}</span>
+          <span dir="auto" className="min-w-0 truncate">{match.competitionName || tr("card.match")}</span>
         </span>
 
         {isLive ? (
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-[4px] bg-live-red/15 px-2 py-0.5 text-[11px] font-black text-live-red">
             <span className="live-dot !bg-live-red" aria-hidden />
-            <span>{BREAK_STATUSES.has(match.status) ? "استراحة" : "مباشر"}</span>
+            <span>{BREAK_STATUSES.has(match.status) ? tr("ui.break") : tr("state.live")}</span>
             {!BREAK_STATUSES.has(match.status) && match.minute !== null && match.minute !== undefined ? (
               <span className="num font-bold" dir="ltr">({match.minute}&apos;)</span>
             ) : null}
           </span>
         ) : isFinished ? (
           <span className="inline-flex shrink-0 items-center rounded-[4px] bg-navy-850 px-2 py-0.5 text-[11px] font-bold text-muted">
-            انتهت
+            {tr("state.finished")}
           </span>
         ) : state === "upcoming" ? (
           <span className="inline-flex shrink-0 items-center rounded-[4px] bg-gold-500/15 px-2 py-0.5 text-[11px] font-bold text-gold-500 dark:text-gold-400">
-            لم تبدأ
+            {tr("state.upcoming")}
           </span>
         ) : (
           <span
@@ -85,7 +86,7 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
                 : "bg-navy-850 text-muted"
             }`}
           >
-            {MATCH_STATE_LABEL_AR[state]}
+            {matchStateLabel(locale, state)}
           </span>
         )}
       </header>
@@ -111,10 +112,10 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
               <span className="num text-[17px] font-black text-gold-500 dark:text-gold-400" dir="ltr">
                 {timeFormatted}
               </span>{" "}
-              <span className="text-[10px] text-muted">بتوقيت مكة المكرمة والقاهرة</span>
+              <span className="text-[10px] text-muted">{tr("card.meccaCairoTime")}</span>
             </div>
           )}
-          <span className="mt-1 text-[10.5px] text-muted">{dateAr(match.scheduledAt)}</span>
+          <span className="mt-1 text-[10.5px] text-muted">{formatDate(locale, match.scheduledAt)}</span>
         </div>
 
         <div className="flex min-w-0 flex-col items-center gap-2 text-center">
@@ -133,7 +134,7 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
             className="inline-flex items-center justify-center gap-1.5 rounded-[4px] bg-gold-500 px-3.5 py-1.5 text-[12px] font-black text-navy-950 shadow-sm transition hover:bg-gold-400 focus-ring"
           >
             <span className="text-[13px]" aria-hidden>▶</span>
-            <span>مشاهدة المباراة</span>
+            <span>{tr("card.watchMatch")}</span>
           </Link>
         ) : broadcast?.state === "standby" ? (
           <Link
@@ -141,12 +142,12 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
             className="inline-flex items-center justify-center gap-1.5 rounded-[4px] border border-gold-500/60 px-3 py-1.5 text-[11.5px] font-bold text-gold-600 transition hover:bg-gold-500/10 focus-ring dark:text-gold-400"
           >
             <span aria-hidden>📺</span>
-            <span>بث موثّق — يبدأ مع المباراة</span>
+            <span>{tr("card.verifiedStream")}</span>
           </Link>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-line bg-navy-850/50 px-2.5 py-1 text-[11px] font-medium text-muted">
             <span aria-hidden>📺</span>
-            <span>{broadcast?.state === "expired" || broadcast?.state === "ended" ? "لا يوجد بث نشط" : "لا يوجد بث موثّق"}</span>
+            <span>{broadcast?.state === "expired" || broadcast?.state === "ended" ? tr("card.noActiveStream") : tr("card.noVerifiedStream")}</span>
           </span>
         )}
 
@@ -154,7 +155,7 @@ export default function LiveMatchCard({ match, now = Date.now() }: { match: Live
           href={`/matches/${encodeURIComponent(match.slug)}`}
           className="inline-flex items-center justify-center rounded-[4px] border border-line bg-navy-850 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-navy-750 focus-ring"
         >
-          تفاصيل المباراة
+          {tr("card.matchDetails")}
         </Link>
       </footer>
     </article>

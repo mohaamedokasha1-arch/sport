@@ -20,7 +20,7 @@
  * still reports the last SUCCESSFUL run, so a wrong declaration shows up as
  * "stale", never as a false "fresh".
  */
-import { NEWS_CRON_DESCRIPTION_AR, NEWS_CRON_SCHEDULE_UTC } from "./sources";
+import { NEWS_CRON_DESCRIPTION_AR, NEWS_CRON_DESCRIPTION_EN, NEWS_CRON_SCHEDULE_UTC } from "./sources";
 
 /**
  * Minutes between runs for the simple cron shapes this project ships.
@@ -50,6 +50,8 @@ export interface SchedulerCadence {
   /** "vercel-cron": derived from vercel.json; "external": operator-declared. */
   source: "vercel-cron" | "external";
   descriptionAr: string;
+  /** English wording for the same cadence (locale-selected at render time). */
+  descriptionEn: string;
 }
 
 const MIN_EXTERNAL = 5;
@@ -58,12 +60,18 @@ const MAX_EXTERNAL = 24 * 60;
 export function schedulerCadence(env: Record<string, string | undefined> = process.env): SchedulerCadence {
   const declared = Number(env.NEMO_NEWS_SCHEDULER_INTERVAL_MINUTES);
   if (Number.isInteger(declared) && declared >= MIN_EXTERNAL && declared <= MAX_EXTERNAL) {
-    return { minutes: declared, source: "external", descriptionAr: `كل ${declared} دقيقة عبر مُجدول خارجي مُعلَن` };
+    return {
+      minutes: declared,
+      source: "external",
+      descriptionAr: `كل ${declared} دقيقة عبر مُجدول خارجي مُعلَن`,
+      descriptionEn: `every ${declared} minutes via a declared external scheduler`,
+    };
   }
   return {
     minutes: cronIntervalMinutes(NEWS_CRON_SCHEDULE_UTC) ?? 24 * 60,
     source: "vercel-cron",
     descriptionAr: NEWS_CRON_DESCRIPTION_AR,
+    descriptionEn: NEWS_CRON_DESCRIPTION_EN,
   };
 }
 

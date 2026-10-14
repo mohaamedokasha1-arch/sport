@@ -154,10 +154,10 @@ export function categorizeArticle(title: string, description: string): CategoryR
   };
 }
 
-export function categoryMeta(name: string): { nameAr: string; color: string; icon: string } {
+export function categoryMeta(name: string): { nameAr: string; nameEn: string; color: string; icon: string } {
   const c = CATEGORIES.find((x) => x.name === name);
-  if (!c) return { nameAr: FALLBACK_CATEGORY_AR, color: "#5D6B7F", icon: "🏅" };
-  return { nameAr: c.nameAr, color: c.color, icon: c.icon };
+  if (!c) return { nameAr: FALLBACK_CATEGORY_AR, nameEn: FALLBACK_CATEGORY, color: "#5D6B7F", icon: "🏅" };
+  return { nameAr: c.nameAr, nameEn: c.name, color: c.color, icon: c.icon };
 }
 
 /**

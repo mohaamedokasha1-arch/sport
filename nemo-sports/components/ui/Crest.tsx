@@ -1,5 +1,8 @@
+"use client";
+
 import { useId } from "react";
 import { teamBySlug } from "@/lib/core-data";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * Team crest: a shield-shaped monogram generated from the club colours.
@@ -14,6 +17,7 @@ export default function Crest({
   size?: number;
   className?: string;
 }) {
+  const tr = useT();
   const team = teamBySlug(slug);
   const primary = team?.primary ?? "#0F1B2E";
   const secondary = team?.secondary ?? "#D4AF37";
@@ -29,7 +33,7 @@ export default function Crest({
       viewBox="0 0 48 48"
       className={`shrink-0 ${className}`}
       role="img"
-      aria-label={team ? `شعار ${team.name}` : glyph}
+      aria-label={team ? tr("ui.crestAria", { name: team.name }) : glyph}
     >
       <defs>
         <clipPath id={id}>

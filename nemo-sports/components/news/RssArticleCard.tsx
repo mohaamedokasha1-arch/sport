@@ -1,9 +1,11 @@
 import { reportKind } from "@/lib/news/relevance";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import type { NewsArticle } from "@/lib/news/types";
 import { categoryMeta } from "@/lib/news/categorize";
 import { cleanText, displayHeadline } from "@/lib/news/normalize";
-import { relative } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+import { formatRelative } from "@/lib/i18n/dates";
 import { newsEntityHref } from "@/lib/news/entity-links";
 
 /**
@@ -13,7 +15,8 @@ import { newsEntityHref } from "@/lib/news/entity-links";
  * prominent original-source link. NEVER the full body. Clicking opens the
  * ORIGINAL publisher in a new tab.
  */
-export default function RssArticleCard({ article }: { article: NewsArticle }) {
+export default function RssArticleCard({ article, locale }: { article: NewsArticle; locale: Locale }) {
+  const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   const meta = categoryMeta(article.category);
   const minsOld = Math.max(0, Math.round((Date.now() - Date.parse(article.publicationDate)) / 60000));
   const breaking = minsOld < 15;
@@ -37,12 +40,12 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
           </span>
           {breaking ? (
             <span className="ms-auto shrink-0 rounded-[3px] bg-live px-1.5 py-0.5 text-[9px] font-extrabold text-white">
-              حديث النشر
+              {tr("newsCard.fresh")}
             </span>
           ) : null}
         </div>
 
-        <p className="mb-2 text-[11px] text-muted">{reportKind(article.title) === "rumor" ? "تقرير / احتمال غير مؤكد" : "خبر منقول"} · التصنيف الآلي لا يثبت صحة الخبر</p>
+        <p className="mb-2 text-[11px] text-muted">{reportKind(article.title) === "rumor" ? tr("newsCard.rumor") : tr("newsCard.syndicated")} · {tr("newsCard.rssDisclaimer")}</p>
         {/* headline → original publisher */}
         <h3 className="text-[15px] font-bold leading-snug">
           <a
@@ -50,7 +53,7 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
             target="_blank"
             rel="noopener noreferrer nofollow"
             className="transition group-hover:text-gold-600 dark:group-hover:text-gold-400"
-            title={`اقرأ الخبر كاملًا على ${article.sourceName}`}
+            title={tr("newsCard.readFullOn", { source: article.sourceName })}
           >
             {displayHeadline(article.title, article.sourceName)}
           </a>
@@ -66,11 +69,11 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
             className="rounded-[3px] px-1.5 py-0.5"
             style={{ backgroundColor: `${meta.color}22`, color: meta.color }}
           >
-            {meta.icon} {meta.nameAr}
+            {meta.icon} {locale === "ar" ? meta.nameAr : meta.nameEn}
           </span>
           {article.secondaryCategories.slice(0, 2).map((c) => (
             <span key={c} className="rounded-[3px] bg-navy-850/[0.06] px-1.5 py-0.5 text-muted dark:bg-white/[0.06]">
-              {categoryMeta(c).nameAr}
+              {locale === "ar" ? categoryMeta(c).nameAr : categoryMeta(c).nameEn}
             </span>
           ))}
         </div>
@@ -99,18 +102,18 @@ export default function RssArticleCard({ article }: { article: NewsArticle }) {
 
         {/* footer: time + source link */}
         <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-[11px]">
-          <span className="num text-muted">{relative(article.publicationDate)}</span>
+          <span className="num text-muted">{formatRelative(locale, article.publicationDate)}</span>
           <a
             href={article.sourceUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
             className="shrink-0 font-extrabold text-gold-600 transition hover:underline dark:text-gold-400"
           >
-            اقرأ على {article.sourceName} ←
+            {tr("newsCard.readOn", { source: article.sourceName })}
           </a>
         </div>
         <p className="mt-1.5 border-t border-line pt-1.5 text-[10px] text-muted">
-          المصدر: {article.sourceName} · مقتطف RSS — النص الكامل لدى الناشر الأصلي
+          {tr("newsCard.rssNote", { source: article.sourceName })}
         </p>
       </div>
     </article>

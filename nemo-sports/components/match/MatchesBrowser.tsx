@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import MatchCard from "./MatchCard";
 import { sortMatches } from "@/lib/filters";
 import type { Match } from "@/lib/data";
+import { useT, useDir, useLocale } from "@/lib/i18n/context";
 
 const PER_PAGE = 12;
 
 export default function MatchesBrowser({ matches }: { matches: Match[] }) {
+  const tr = useT();
   const router = useRouter();
   const params = useSearchParams();
   const view = (params.get("view") as "grid" | "list") ?? "grid";
@@ -28,16 +30,16 @@ export default function MatchesBrowser({ matches }: { matches: Match[] }) {
           <circle cx="11" cy="11" r="7" />
           <path d="M20 20l-3.6-3.6M8.5 11h5" strokeLinecap="round" />
         </svg>
-        <p className="text-[15px] font-bold">لا توجد مباريات تطابق معايير البحث</p>
+        <p className="text-[15px] font-bold">{tr("browser.noResults")}</p>
         <p className="max-w-sm text-[13px] text-muted">
-          جرّب تغيير التاريخ أو الرياضة، أو امسح الفلاتر لعرض كل مباريات اليوم.
+          {tr("browser.noResultsHint")}
         </p>
         <button
           type="button"
           onClick={() => router.replace("/matches")}
           className="rounded-[3px] bg-navy-850 px-4 py-2 text-[12px] font-bold text-white transition hover:bg-navy-700"
         >
-          مسح الفلاتر
+          {tr("common.clearFilters")}
         </button>
       </div>
     );
@@ -47,18 +49,18 @@ export default function MatchesBrowser({ matches }: { matches: Match[] }) {
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12px] text-muted">
-          <span className="num font-bold text-ink">{sorted.length}</span> مباراة
-          {pages > 1 ? ` · الصفحة ${page} من ${pages}` : ""}
+          <span className="num font-bold text-ink">{sorted.length}</span> {tr("browser.countSuffix")}
+          {pages > 1 ? tr("browser.pageOf", { page, pages }) : ""}
         </p>
         <label className="flex items-center gap-2 text-[12px] text-muted">
-          ترتيب حسب
+          {tr("browser.sortBy")}
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as "time" | "importance")}
             className="rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold outline-none focus:border-gold-500"
           >
-            <option value="time">التوقيت</option>
-            <option value="importance">أهمية المباراة</option>
+            <option value="time">{tr("browser.sortTime")}</option>
+            <option value="importance">{tr("browser.sortImportance")}</option>
           </select>
         </label>
       </div>
@@ -84,7 +86,7 @@ export default function MatchesBrowser({ matches }: { matches: Match[] }) {
             onClick={() => setPage((p) => p + 1)}
             className="rounded-[3px] border border-line bg-surface px-5 py-2.5 text-[12px] font-bold transition hover:border-gold-500 hover:text-gold-600 dark:hover:text-gold-400 focus-ring"
           >
-            عرض المزيد ({sorted.length - shown.length} متبقية)
+            {tr("browser.showMore", { count: sorted.length - shown.length })}
           </button>
         </div>
       ) : null}

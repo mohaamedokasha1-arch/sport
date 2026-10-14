@@ -13,6 +13,9 @@ import { withoutNonSportEntities } from "./relevance";
 interface EntityDef {
   internalId: string;
   displayName: string;
+  /** English label for the /en tree. `names` already carries the Latin forms a
+   *  matcher needs; this is only what the reader is shown. */
+  displayNameEn?: string;
   names: string[];
 }
 
@@ -59,13 +62,13 @@ const PLAYERS: EntityDef[] = [
 ];
 
 const COMPETITIONS: EntityDef[] = [
-  { internalId: "egyptian-league", displayName: "الدوري المصري", names: ["egyptian premier league", "egyptian league", "الدوري المصري"] },
-  { internalId: "caf-champions-league", displayName: "دوري أبطال أفريقيا", names: ["caf champions league", "african champions league", "دوري أبطال أفريقيا"] },
-  { internalId: "premier-league", displayName: "الدوري الإنجليزي", names: ["premier league", "epl", "الدوري الإنجليزي"] },
-  { internalId: "champions-league", displayName: "دوري أبطال أوروبا", names: ["champions league", "uefa champions", "دوري أبطال أوروبا"] },
-  { internalId: "la-liga", displayName: "الدوري الإسباني", names: ["la liga", "laliga", "الدوري الإسباني"] },
-  { internalId: "serie-a", displayName: "الدوري الإيطالي", names: ["serie a", "الدوري الإيطالي"] },
-  { internalId: "nba", displayName: "دوري السلة الأمريكي", names: ["nba", "national basketball"] },
+  { internalId: "egyptian-league", displayName: "الدوري المصري", displayNameEn: "Egyptian Premier League", names: ["egyptian premier league", "egyptian league", "الدوري المصري"] },
+  { internalId: "caf-champions-league", displayName: "دوري أبطال أفريقيا", displayNameEn: "CAF Champions League", names: ["caf champions league", "african champions league", "دوري أبطال أفريقيا"] },
+  { internalId: "premier-league", displayName: "الدوري الإنجليزي", displayNameEn: "Premier League", names: ["premier league", "epl", "الدوري الإنجليزي"] },
+  { internalId: "champions-league", displayName: "دوري أبطال أوروبا", displayNameEn: "UEFA Champions League", names: ["champions league", "uefa champions", "دوري أبطال أوروبا"] },
+  { internalId: "la-liga", displayName: "الدوري الإسباني", displayNameEn: "La Liga", names: ["la liga", "laliga", "الدوري الإسباني"] },
+  { internalId: "serie-a", displayName: "الدوري الإيطالي", displayNameEn: "Serie A", names: ["serie a", "الدوري الإيطالي"] },
+  { internalId: "nba", displayName: "دوري السلة الأمريكي", displayNameEn: "NBA", names: ["nba", "national basketball"] },
 ];
 
 const patternCache = new Map<string, RegExp>();
@@ -136,6 +139,9 @@ export function matchEntities(title: string, description: string): NewsEntityRef
   ].slice(0, 8);
 }
 
-export function newsCompetitions(): { id: string; name: string }[] {
-  return COMPETITIONS.map((c) => ({ id: c.internalId, name: c.displayName }));
+export function newsCompetitions(): { id: string; name: string; nameEn: string }[] {
+  // nameEn falls back to the Arabic label rather than blanking an entry: a
+  // competition must never disappear from the list because it lacks a
+  // translation.
+  return COMPETITIONS.map((c) => ({ id: c.internalId, name: c.displayName, nameEn: c.displayNameEn ?? c.displayName }));
 }

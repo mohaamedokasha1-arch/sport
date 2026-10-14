@@ -1,5 +1,8 @@
+"use client";
+
 import PoweredByFootballData from "@/components/ui/PoweredByFootballData";
-import { SITE_TZ } from "@/lib/tz";
+import { useT, useLocale } from "@/lib/i18n/context";
+import { fetchedAtLabel, originLabel, providerLabel } from "@/lib/i18n/data-source";
 
 /**
  * Provenance line rendered directly under a data surface.
@@ -9,44 +12,12 @@ import { SITE_TZ } from "@/lib/tz";
  * fetched. When the source is Football-Data.org the required dofollow
  * attribution travels with the data itself, not only with the page footer.
  *
- * Props are plain values so this stays a presentational server component and
- * can never pull the provider integration into a client bundle.
+ * Props are plain values, so this stays purely presentational. It is a client
+ * component only so it can read the active locale from context — Next still
+ * server-renders it into the initial HTML, so crawlers see the full line.
+ * The label helpers live in `lib/i18n/data-source.ts` so server code can use
+ * the exact same wording.
  */
-
-/** Human label for a provider name coming back from the SDL. */
-export function providerLabel(provider: string): string {
-  const labels: Record<string, string> = {
-    football_data: "Football-Data.org",
-    sportscore: "SportScore",
-    sportapi: "SportAPI",
-    sportradar: "Sportradar",
-    sportmonks: "SportMonks",
-    api_football: "API-Football",
-    thesportsdb: "TheSportsDB",
-    demo: "بيانات توضيحية (وضع التطوير)",
-    admin: "تحريري (إدارة نيمو سبورتس)",
-  };
-  return labels[provider] ?? provider;
-}
-
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
-
-/**
- * How the surface obtained its data.
- *
- * Only a real provider round-trip can honestly be called "جلب مباشر". Editorial
- * matches and the offline preview dataset are read straight from their own
- * store, so labelling them a live fetch claimed a call that never happened.
- * The cache TTL travels with the cache label because that is the only place it
- * means anything to a visitor.
- */
-export function originLabel(provider: string, fromCache: boolean, ttlSeconds?: number): string {
-  if (provider === "demo") return "بيانات المعاينة";
-  if (provider === "admin") return "من سجل التحرير";
-  if (fromCache) return `من الكاش${ttlSeconds ? ` (صلاحية ${Math.round(ttlSeconds / 60)} د)` : ""}`;
-  return "جلب مباشر";
-}
-
 export default function DataSourceNote({
   provider,
   fromCache = false,
@@ -63,31 +34,33 @@ export default function DataSourceNote({
   /** The source answered, but not with full coverage (partial chain / fallback). */
   degraded?: boolean;
   /** Timestamp of the last SUCCESSFUL update. Omit it rather than passing the
-   *  render time: a fabricated "آخر تحديث" tells the visitor the data is fresh
-   *  when no refresh actually succeeded. */
+   *  render time: a fabricated "last updated" tells the visitor the data is
+   *  fresh when no refresh actually succeeded. */
   fetchedAt?: string;
   ttlSeconds?: number;
   className?: string;
-  /** What this line describes when a page shows several datasets ("المباريات"). */
+  /** What this line describes when a page shows several datasets. */
   subject?: string;
 }) {
-  const origin = originLabel(provider, fromCache, ttlSeconds);
+  const tr = useT();
+  const locale = useLocale();
+  const origin = originLabel(locale, provider, fromCache, ttlSeconds);
   return (
     <div className={`flex flex-wrap items-center gap-2 text-[10.5px] text-muted ${className}`}>
       <span>
-        {subject ? `مصدر ${subject}: ` : "المصدر: "}
-        <span className="font-bold text-ink dark:text-white/80">{providerLabel(provider)}</span>
+        {subject ? tr("ds.subjectPrefix", { subject }) : tr("ds.prefix")}
+        <span className="font-bold text-ink dark:text-white/80">{providerLabel(locale, provider)}</span>
         {` · ${origin}`}
-        {fetchedAt ? ` · آخر تحديث ${timeOf(fetchedAt)}` : " · لا يوجد وقت تحديث ناجح مسجّل"}
+        {fetchedAtLabel(locale, fetchedAt)}
       </span>
       {stale ? (
         <span className="rounded-[3px] bg-warn-500/15 px-1.5 py-0.5 font-bold text-warn-600 dark:text-warn-400">
-          المصدر متعطّل مؤقتًا — نعرض آخر قيمة صحيحة
+          {tr("ds.stale")}
         </span>
       ) : null}
       {degraded ? (
         <span className="rounded-[3px] bg-warn-500/15 px-1.5 py-0.5 font-bold text-warn-600 dark:text-warn-400">
-          التغطية غير مكتملة — لا تعتبر هذه القائمة جدولًا كاملًا
+          {tr("ds.degraded")}
         </span>
       ) : null}
       {provider === "football_data" ? <PoweredByFootballData /> : null}
