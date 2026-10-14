@@ -15,8 +15,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ADSTERRA_BANNER, BANNER_SLOT_LABEL_AR, adFrameSrc, adsEnabled, type BannerSlot } from "@/lib/ads";
+import { useT, useDir, useLocale } from "@/lib/i18n/context";
 
 export default function AdsterraBanner({ slot, className = "" }: { slot: BannerSlot; className?: string }) {
+  const tr = useT();
   const holder = useRef<HTMLDivElement | null>(null);
   const [load, setLoad] = useState(false);
   const enabled = adsEnabled();
@@ -58,7 +60,7 @@ export default function AdsterraBanner({ slot, className = "" }: { slot: BannerS
     >
       {/* Disclosure: the repository's own ad rules (/admin/ads) require every
           placement to be visibly marked, never blended into editorial. */}
-      <span className="mb-1 text-[10px] font-bold tracking-wider text-muted">إعلان</span>
+      <span className="mb-1 text-[10px] font-bold tracking-wider text-muted">{tr("ads.label")}</span>
       <div
         ref={holder}
         // Full-bleed only on phones: a 320px viewport minus the page gutter is
@@ -69,7 +71,7 @@ export default function AdsterraBanner({ slot, className = "" }: { slot: BannerS
         {load ? (
           <iframe
             src={adFrameSrc(slot)}
-            title={`إعلان — ${BANNER_SLOT_LABEL_AR[slot]}`}
+            title={tr("ads.title", { slot: BANNER_SLOT_LABEL_AR[slot] })}
             width={width}
             height={height}
             frameBorder={0}
@@ -82,7 +84,7 @@ export default function AdsterraBanner({ slot, className = "" }: { slot: BannerS
             referrerPolicy="strict-origin-when-cross-origin"
           />
         ) : (
-          <p className="grid h-full w-full place-items-center text-[11px] text-muted">مساحة إعلانية</p>
+          <p className="grid h-full w-full place-items-center text-[11px] text-muted">{tr("ads.placeholder")}</p>
         )}
       </div>
     </aside>

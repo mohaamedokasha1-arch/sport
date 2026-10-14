@@ -1,4 +1,7 @@
-import Link from "next/link";
+"use client";
+
+import Link from "@/components/i18n/Link";
+import { useT, useLocale } from "@/lib/i18n/context";
 import type { Article } from "@/lib/data";
 import { compact, relative } from "@/lib/format";
 import { sportBySlug } from "@/lib/core-data";
@@ -25,6 +28,8 @@ function Cover({ seed, label, compactMode = false }: { seed: string; label: stri
 }
 
 export default function NewsCard({ article, layout = "grid" }: { article: Article; layout?: "grid" | "row" | "lead" }) {
+  const tr = useT();
+  const locale = useLocale();
   const sport = sportBySlug(article.sport);
   const ago = relative(new Date(Date.now() - article.publishedAgoMin * 60000).toISOString());
 
@@ -40,7 +45,7 @@ export default function NewsCard({ article, layout = "grid" }: { article: Articl
         <span className="min-w-0">
           <span className="mb-1 flex items-center gap-2">
             {article.breaking ? (
-              <span className="rounded-[3px] bg-live px-1.5 py-0.5 text-[9px] font-extrabold text-white">عاجل</span>
+              <span className="rounded-[3px] bg-live px-1.5 py-0.5 text-[9px] font-extrabold text-white">{tr("newsCard.breaking")}</span>
             ) : null}
             <span className="text-[10px] font-bold text-gold-600 dark:text-gold-400">{article.category}</span>
             <span className="num text-[10px] text-muted">{ago}</span>
@@ -62,12 +67,12 @@ export default function NewsCard({ article, layout = "grid" }: { article: Articl
           <Cover seed={article.slug} label={sport?.nameEn ?? "NEMO"} />
           {article.breaking ? (
             <span className="absolute end-2.5 top-2.5 rounded-[3px] bg-live px-2 py-1 text-[10px] font-extrabold text-white">
-              خبر عاجل
+              {tr("newsCard.breakingNews")}
             </span>
           ) : null}
           {article.kind === "external" ? (
             <span className="absolute start-2.5 top-2.5 rounded-[3px] bg-navy-950/80 px-2 py-1 text-[10px] font-bold text-white/80">
-              ملخص من مصدر خارجي
+              {tr("newsCard.externalSummary")}
             </span>
           ) : null}
         </div>
@@ -95,9 +100,9 @@ export default function NewsCard({ article, layout = "grid" }: { article: Articl
         <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-[11px] text-muted">
           <span className="truncate">{article.author}</span>
           <span className="num flex shrink-0 items-center gap-2">
-            <span>{article.readMinutes} دقائق قراءة</span>
+            <span>{tr("newsCard.readMinutes", { count: article.readMinutes })}</span>
             <span aria-hidden>·</span>
-            <span>{compact(article.views)} مشاهدة</span>
+            <span>{tr("newsCard.views", { count: compact(article.views) })}</span>
           </span>
         </div>
       </div>

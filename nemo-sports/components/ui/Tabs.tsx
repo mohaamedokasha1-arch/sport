@@ -1,16 +1,18 @@
 "use client";
 
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useT, useDir, useLocale } from "@/lib/i18n/context";
 
 export default function Tabs({
   items,
   initial,
-  label = "أقسام الصفحة",
+  label,
 }: {
   items: { id: string; label: string; content: ReactNode; disabled?: boolean }[];
   initial?: string;
   label?: string;
 }) {
+  const tr = useT();
   const initialActive = initial && items.some((item) => item.id === initial && !item.disabled)
     ? initial
     : items.find((item) => !item.disabled)?.id ?? items[0]?.id ?? "";

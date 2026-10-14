@@ -1,13 +1,14 @@
 "use client";
 
 import ScorePair from "@/components/ui/ScorePair";
-import Link from "next/link";
+import Link from "@/components/i18n/Link";
 import Crest from "@/components/ui/Crest";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useLive } from "@/components/live/LiveProvider";
 import { awayTeam, compact, compOf, homeTeam, number, timeOf } from "@/lib/format";
 import { teamBySlug } from "@/lib/core-data";
 import type { Match } from "@/lib/data";
+import { useT, useDir, useLocale } from "@/lib/i18n/context";
 
 const url = (m: Match) => `/matches/${m.slug}`;
 
@@ -18,6 +19,7 @@ export default function MatchCard({
   match: Match;
   variant?: "card" | "row" | "feature";
 }) {
+  const tr = useT();
   if (variant === "row") return <RowCard match={match} />;
   if (variant === "feature") return <FeatureCard match={match} />;
   return <GridCard match={match} />;
@@ -26,6 +28,7 @@ export default function MatchCard({
 /* ── grid card ─────────────────────────────────────────────── */
 
 function GridCard({ match: m }: { match: Match }) {
+  const tr = useT();
   const { live, justScored } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
@@ -65,7 +68,7 @@ function GridCard({ match: m }: { match: Match }) {
             </span>
           )}
           <span className="mt-1 text-[10px] font-semibold text-muted">
-            {isDone ? "النتيجة النهائية" : isLive ? "النتيجة الآن" : "التوقيت المحلي"}
+            {isDone ? tr("card.finalScore") : isLive ? tr("card.scoreNow") : tr("card.localTime")}
           </span>
         </div>
         <TeamCell slug={m.away} align="end" />
@@ -74,7 +77,7 @@ function GridCard({ match: m }: { match: Match }) {
       <footer className="mt-auto flex items-center justify-between gap-2 border-t border-line px-3 py-2">
         <div className="flex items-center gap-2 text-[11px] text-muted">
           {isLive ? (
-            <span className="font-semibold text-live">{number(m.viewers ?? 0)} مشاهد</span>
+            <span className="font-semibold text-live">{tr("card.viewers", { count: number(m.viewers ?? 0) })}</span>
           ) : (
             <span className="num">{m.round}</span>
           )}
@@ -103,6 +106,7 @@ function GridCard({ match: m }: { match: Match }) {
 /* ── list row ──────────────────────────────────────────────── */
 
 function RowCard({ match: m }: { match: Match }) {
+  const tr = useT();
   const { live } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
@@ -151,6 +155,7 @@ function RowCard({ match: m }: { match: Match }) {
 /* ── feature / hero card ───────────────────────────────────── */
 
 function FeatureCard({ match: m }: { match: Match }) {
+  const tr = useT();
   const { live } = useLive();
   const s = live[m.id];
   const status = s?.status ?? m.status;
@@ -195,7 +200,7 @@ function FeatureCard({ match: m }: { match: Match }) {
             <span className="font-display text-3xl font-bold tracking-wide text-gold-400">VS</span>
           )}
           <span className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-white/50">
-            {isLive ? "مباشر الآن" : isDone ? "انتهت" : m.round}
+            {isLive ? tr("card.liveNow") : isDone ? tr("status.FINISHED") : m.round}
           </span>
         </div>
 
@@ -208,7 +213,7 @@ function FeatureCard({ match: m }: { match: Match }) {
       <footer className="relative flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-3">
         <span className="text-[11px] text-white/60">
           {m.venue ? `${m.venue} · ` : ""}
-          {isLive ? `${compact(m.viewers ?? 0)} مشاهد` : timeOf(m.kickoff)}
+          {isLive ? tr("card.viewers", { count: compact(m.viewers ?? 0) }) : timeOf(m.kickoff)}
         </span>
         <span className="flex items-center gap-2">
           {m.broadcast ? (
