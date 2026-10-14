@@ -155,7 +155,7 @@ export default async function LivePage({ locale, searchParams, }: ViewProps & { 
       </nav>
 
       {/* Playable broadcasts only (live, or inside their window) */}
-      <LiveStreams cards={playableStreams} />
+      <LiveStreams cards={playableStreams} locale={locale} />
 
       {/* Live matches section */}
       {liveItems.length > 0 ? (

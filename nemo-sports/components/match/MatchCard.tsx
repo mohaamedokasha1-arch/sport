@@ -88,14 +88,14 @@ function GridCard({ match: m }: { match: Match }) {
               href={`${url(m)}#broadcast`}
               className="rounded-[3px] bg-live/10 px-2 py-1 text-[11px] font-bold text-live transition hover:bg-live hover:text-white focus-ring"
             >
-              بث
+              {tr("card.watch")}
             </Link>
           ) : null}
           <Link
             href={url(m)}
             className="rounded-[3px] bg-navy-850 px-2.5 py-1 text-[11px] font-bold text-white transition hover:bg-navy-700 focus-ring"
           >
-            التفاصيل
+            {tr("card.details")}
           </Link>
         </div>
       </footer>
@@ -221,14 +221,14 @@ function FeatureCard({ match: m }: { match: Match }) {
               href={`${url(m)}#broadcast`}
               className="rounded-[3px] bg-live px-3 py-1.5 text-[11px] font-bold transition hover:bg-live/85 focus-ring"
             >
-              مشاهدة البث
+              {tr("card.watchStream")}
             </Link>
           ) : null}
           <Link
             href={url(m)}
             className="rounded-[3px] bg-white/10 px-3 py-1.5 text-[11px] font-bold transition hover:bg-gold-500 hover:text-navy-900 focus-ring"
           >
-            تفاصيل المباراة
+            {tr("card.matchDetails")}
           </Link>
         </span>
       </footer>
