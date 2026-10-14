@@ -3,11 +3,11 @@
  * run→response mapping in lib/matches-update.ts, and the gate the other cron
  * routes share (lib/cron-auth.ts).
  * ─────────────────────────────────────────────────────────────────────────
- * `/api/cron/update-matches` is an OPEN, unauthenticated surface: it carries
- * no token / CRON_SECRET check and answers 200 `{ status: "success" }`
- * immediately, without running the `matches` job. The real, gated refresh
- * surfaces are `/api/cron/pipeline/[job]` and `/api/cron/fetch-news`, which
- * still go through `authorizeCron` — the gate tests below cover those.
+ * `/api/cron/update-matches` used to be an OPEN, unauthenticated surface
+ * that answered 200 `{ status: "success" }` without running anything.
+ * That fake success is fixed: it now shares the `authorizeCron` gate with
+ * `/api/cron/pipeline/[job]` and `/api/cron/fetch-news` and runs the real
+ * pipeline `matches` job (its run→response mapping is `outcomeFor`).
  *
  * Offline by design: no network, no database, no provider key.
  *
@@ -121,19 +121,21 @@ test("some sources updated and one failed is a 207 partial, not an ok", () => {
   assert.match(String(outcome.body.message), /partially/);
 });
 
-test("/api/cron/update-matches is open: anonymous calls answer 200 success immediately", async () => {
+test("/api/cron/update-matches is gated: anonymous calls never answer fake success", async () => {
   clearSecrets();
   try {
-    // No secret configured: still 200 — there is no token / CRON_SECRET gate.
+    // No secret configured: 503 not_configured — and crucially NOT the old
+    // unconditional 200 {status:"success"} that claimed work had happened.
     const anonymous = await updateMatchesGET(new Request(UPDATE_URL));
-    assert.equal(anonymous.status, 200);
-    assert.deepEqual(await anonymous.json(), { status: "success", message: "Matches updated successfully" });
+    assert.equal(anonymous.status, 503);
+    assert.equal((await anonymous.json()).error.code, "not_configured");
 
-    // A secret configured but not presented: still 200 — the gate does not apply.
+    // A secret configured but not presented (or wrong): 401, still no run.
     process.env.CRON_SECRET = "test-cron-secret";
     const ungated = await updateMatchesGET(new Request(`${UPDATE_URL}?token=nope`));
-    assert.equal(ungated.status, 200);
-    assert.equal((await ungated.json()).status, "success");
+    assert.equal(ungated.status, 401);
+    assert.equal((await ungated.json()).error.code, "unauthorized");
+    assert.equal((await updateMatchesGET(new Request(UPDATE_URL))).status, 401);
   } finally {
     clearSecrets();
   }

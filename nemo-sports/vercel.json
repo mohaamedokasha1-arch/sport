@@ -24,6 +24,18 @@
     {
       "path": "/api/cron/pipeline/competitions",
       "schedule": "15 4 * * 1"
+    },
+    {
+      "path": "/api/cron/discover-fixtures",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/sports-sync/catalog",
+      "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/sports-sync/tick",
+      "schedule": "15 5 * * *"
     }
   ]
 }

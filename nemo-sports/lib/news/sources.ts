@@ -44,6 +44,14 @@ const SEEDS: Seed[] = [
   { query: "Pyramids FC", language: "en", country: "EG", priority: 1, refreshInterval: 30, category: "Egyptian Football" },
   { query: "Ismaily SC", language: "en", country: "EG", priority: 1, refreshInterval: 30, category: "Egyptian Football" },
   { query: "CAF Champions League", language: "en", country: "EG", priority: 2, refreshInterval: 30, category: "CAF Champions League" },
+  // Arabic coverage for the Arabic-first audience: buildFeedUrl already maps
+  // language "ar" to hl=ar/ceid=EG:ar, but no Arabic seed existed, so Arabic
+  // headlines only ever arrived as a side effect of English queries.
+  { query: "الدوري المصري الممتاز", language: "ar", country: "EG", priority: 1, refreshInterval: 30, category: "Egyptian Football" },
+  { query: "الأهلي", language: "ar", country: "EG", priority: 1, refreshInterval: 30, category: "Egyptian Football" },
+  { query: "الزمالك", language: "ar", country: "EG", priority: 1, refreshInterval: 30, category: "Egyptian Football" },
+  { query: "دوري أبطال أفريقيا", language: "ar", country: "EG", priority: 2, refreshInterval: 30, category: "CAF Champions League" },
+  { query: "كرة القدم المصرية", language: "ar", country: "EG", priority: 2, refreshInterval: 60, category: "Egyptian Football" },
   // International football
   { query: "football", language: "en", country: "US", priority: 2, refreshInterval: 30, category: "Football" },
   { query: "Premier League", language: "en", country: "GB", priority: 2, refreshInterval: 60, category: "Premier League" },
