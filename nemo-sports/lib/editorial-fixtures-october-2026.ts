@@ -25,11 +25,19 @@
  *   · `channels` and `round` are editorial metadata (see AdminMatch): the TV
  *     list comes from the desk, not from a provider, so it is labelled as
  *     editorial wherever it is rendered.
- *   · Logos are only set where the crest URL is certain (Football-Data's
- *     well-known club ids, as already used by the 9 October seed). Teams whose
- *     crest we could not verify keep an EMPTY logo on purpose: the UI then
- *     draws its own monogram (components/ui/ProviderCrest.tsx) instead of a
- *     wrong club badge. Editors can paste a verified URL in the admin panel.
+ *   · Logos are only set where the crest URL is certain, and every URL comes
+ *     from a CDN the platform already trusts — see the `fd` / `api` / `tsd`
+ *     helpers below. Football-Data's club ids and API-Football's media CDN
+ *     cover the European clubs; the Arabic clubs (Egypt, Saudi, the Gulf) are
+ *     not in the Football-Data catalogue at all, so their badge comes from
+ *     TheSportsDB — the platform's approved metadata/image source — copied
+ *     verbatim from the provider's own team record.
+ *     Clubs the desk's sheet lists below the top divisions (second-division
+ *     sides with no provider record) keep an EMPTY logo on purpose: the UI
+ *     then draws its own monogram (components/ui/ProviderCrest.tsx) instead of
+ *     a wrong club badge. `docs/EDITORIAL_FIXTURES_2026-10-15.md` lists them,
+ *     and an editor can paste a verified URL per match in the admin panel
+ *     (/admin/matches → «شعار المضيف/الضيف (رابط)»).
  *
  * Data notes for the desk (three entries are inconsistent internally and are
  * flagged in docs/EDITORIAL_FIXTURES_2026-10-15.md for confirmation, but none
@@ -106,6 +114,22 @@ type Row = {
 
 const fd = (id: number) => `https://crests.football-data.org/${id}.png`;
 
+/**
+ * Crest from API-Football's media CDN. These are the club ids the platform
+ * already ships in the 9 October rows (`LEGACY_ADMIN_MATCHES`), reused here so
+ * one club never renders two different badges across matchdays.
+ */
+const api = (id: number) => `https://media.api-sports.io/football/teams/${id}.png`;
+
+/**
+ * TheSportsDB badge off its r2 CDN — the URL is copied VERBATIM from the
+ * provider's own team record (TheSportsDB is the platform's approved
+ * metadata/image source, see COMPLIANCE.md). Used for the clubs the
+ * Football-Data crest set does not cover (Egypt, Saudi, the Gulf), so an
+ * Arabic-club fixture shows the real badge instead of a monogram.
+ */
+const tsd = (hash: string) => `https://r2.thesportsdb.com/images/media/team/badge/${hash}.png`;
+
 const ROWS: Row[] = [
   /* ═══ الخميس 15 أكتوبر 2026 ══════════════════════════════════════════ */
 
@@ -136,8 +160,8 @@ const ROWS: Row[] = [
     competition: "sau",
     kickoff: "2026-10-15T13:00:00.000Z",
     round: "الجولة 6",
-    home: { name: "الفيصلي", nameEn: "Al Faisaly" },
-    away: { name: "الخليج", nameEn: "Al Khaleej" },
+    home: { name: "الفيصلي", nameEn: "Al Faisaly", logo: tsd("a81pz21646835057") },
+    away: { name: "الخليج", nameEn: "Al Khaleej", logo: tsd("mvf6ga1755192630") },
     venue: "ملعب الفيصلي - الرياض",
     channels: ["SSC Sports"],
   },
@@ -158,7 +182,7 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-15T14:00:00.000Z",
     round: "الجولة 5",
-    home: { name: "بيراميدز", nameEn: "Pyramids FC" },
+    home: { name: "بيراميدز", nameEn: "Pyramids FC", logo: tsd("8liy611607352549") },
     away: { name: "حرس الحدود", nameEn: "Haras El Hodoud" },
     venue: "استاد بيراميدز - الجيزة",
     channels: ["Koora Live"],
@@ -180,7 +204,7 @@ const ROWS: Row[] = [
     competition: "uae",
     kickoff: "2026-10-15T15:00:00.000Z",
     round: "الجولة 5",
-    home: { name: "الشارقة", nameEn: "Sharjah" },
+    home: { name: "الشارقة", nameEn: "Sharjah", logo: tsd("kccfg11753982654") },
     away: { name: "الوحدة", nameEn: "Al Wahda" },
     venue: "ملعب الشارقة",
     channels: ["ADTV"],
@@ -202,8 +226,8 @@ const ROWS: Row[] = [
     competition: "sau",
     kickoff: "2026-10-15T15:30:00.000Z",
     round: "الجولة 6",
-    home: { name: "الحزم", nameEn: "Al Hazem" },
-    away: { name: "الفتح", nameEn: "Al Fateh" },
+    home: { name: "الحزم", nameEn: "Al Hazem", logo: tsd("3uy27p1635871755") },
+    away: { name: "الفتح", nameEn: "Al Fateh", logo: api(2939) },
     venue: "ملعب الحزم - الرياض",
     channels: ["SSC Sports"],
   },
@@ -224,8 +248,8 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-15T16:00:00.000Z",
     round: "الجولة 5",
-    home: { name: "الأهلي", nameEn: "Al Ahly" },
-    away: { name: "الإسماعيلي", nameEn: "Ismaily" },
+    home: { name: "الأهلي", nameEn: "Al Ahly", logo: tsd("x8753q1751421890") },
+    away: { name: "الإسماعيلي", nameEn: "Ismaily", logo: tsd("1g46qo1589807617") },
     venue: "استاد الدفاع الجوي - القاهرة",
     channels: ["ON Time Sports 1", "Koora Live"],
   },
@@ -257,7 +281,7 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-15T16:30:00.000Z",
     round: "الجولة 5",
-    home: { name: "المقاولون العرب", nameEn: "El Mokawloon" },
+    home: { name: "المقاولون العرب", nameEn: "El Mokawloon", logo: tsd("gi170k1589807275") },
     away: { name: "غزل المحلة", nameEn: "Ghazl El Mahalla" },
     venue: "استاد المقاولون العرب",
     channels: ["ON Time Sports 4"],
@@ -279,8 +303,8 @@ const ROWS: Row[] = [
     competition: "sau",
     kickoff: "2026-10-15T17:00:00.000Z",
     round: "الجولة 6",
-    home: { name: "الاتحاد", nameEn: "Al Ittihad" },
-    away: { name: "التعاون", nameEn: "Al Taawoun" },
+    home: { name: "الاتحاد", nameEn: "Al Ittihad", logo: tsd("8n1t1j1755192418") },
+    away: { name: "التعاون", nameEn: "Al Taawoun", logo: tsd("rlsmp91646835052") },
     venue: "ملعب الاتحاد - جدة",
     channels: ["SSC Sports"],
   },
@@ -334,7 +358,7 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-15T18:30:00.000Z",
     round: "الجولة 5",
-    home: { name: "الزمالك", nameEn: "Zamalek" },
+    home: { name: "الزمالك", nameEn: "Zamalek", logo: tsd("tgekj81580930027") },
     away: { name: "طنطا", nameEn: "Tanta" },
     venue: "استاد الدفاع الجوي - القاهرة",
     channels: ["ON Time Sports 2"],
@@ -391,7 +415,7 @@ const ROWS: Row[] = [
     competition: "sau",
     kickoff: "2026-10-16T14:30:00.000Z",
     round: "الجولة 6",
-    home: { name: "الهلال", nameEn: "Al Hilal" },
+    home: { name: "الهلال", nameEn: "Al Hilal", logo: tsd("w0b80d1661656916") },
     away: { name: "الشباب", nameEn: "Al Shabab" },
     venue: "ملعب المملكة أرينا - الرياض",
     channels: ["SSC Sports"],
@@ -435,8 +459,8 @@ const ROWS: Row[] = [
     competition: "qatar",
     kickoff: "2026-10-16T15:30:00.000Z",
     round: "الجولة 4",
-    home: { name: "السد", nameEn: "Al Sadd" },
-    away: { name: "الريان", nameEn: "Al Rayyan" },
+    home: { name: "السد", nameEn: "Al Sadd", logo: tsd("908a011774579337") },
+    away: { name: "الريان", nameEn: "Al Rayyan", logo: tsd("hvb3r41653090047") },
     venue: "ملعب جاسم بن حمد - الدوحة",
     channels: ["beIN SPORTS"],
   },
@@ -446,7 +470,7 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-16T16:00:00.000Z",
     round: "الجولة 5",
-    home: { name: "سموحة", nameEn: "Smouha" },
+    home: { name: "سموحة", nameEn: "Smouha", logo: tsd("qq4pkd1589807413") },
     away: { name: "المقاصة", nameEn: "Misr Lel Makkasa" },
     venue: "ملعب سموحة - الإسكندرية",
     channels: ["ON Time Sports 1"],
@@ -490,8 +514,8 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-16T16:30:00.000Z",
     round: "الجولة 5",
-    home: { name: "فيوتشر", nameEn: "Modern Future" },
-    away: { name: "الزمالك", nameEn: "Zamalek" },
+    home: { name: "فيوتشر", nameEn: "Modern Future", logo: tsd("larnky1729784569") },
+    away: { name: "الزمالك", nameEn: "Zamalek", logo: tsd("tgekj81580930027") },
     venue: "ملعب نجيب ساويرس",
     channels: ["ON Time Sports 4"],
   },
@@ -501,8 +525,8 @@ const ROWS: Row[] = [
     competition: "uae",
     kickoff: "2026-10-16T16:30:00.000Z",
     round: "الجولة 5",
-    home: { name: "العين", nameEn: "Al Ain" },
-    away: { name: "الجزيرة", nameEn: "Al Jazira" },
+    home: { name: "العين", nameEn: "Al Ain", logo: tsd("0w2bk51747334688") },
+    away: { name: "الجزيرة", nameEn: "Al Jazira", logo: tsd("uknsoq1642708421") },
     venue: "استاد هزاع بن زايد - العين",
     channels: ["ADTV"],
   },
@@ -523,8 +547,8 @@ const ROWS: Row[] = [
     competition: "sau",
     kickoff: "2026-10-16T17:00:00.000Z",
     round: "الجولة 6",
-    home: { name: "النصر", nameEn: "Al Nassr" },
-    away: { name: "الأهلي السعودي", nameEn: "Al Ahli (Saudi)" },
+    home: { name: "النصر", nameEn: "Al Nassr", logo: api(2934) },
+    away: { name: "الأهلي السعودي", nameEn: "Al Ahli (Saudi)", logo: api(2932) },
     venue: "الأول بارك - الرياض",
     channels: ["SSC Sports"],
   },
@@ -567,8 +591,8 @@ const ROWS: Row[] = [
     competition: "egy",
     kickoff: "2026-10-16T18:00:00.000Z",
     round: "الجولة 5",
-    home: { name: "الجونة", nameEn: "El Gouna" },
-    away: { name: "بيراميدز", nameEn: "Pyramids FC" },
+    home: { name: "الجونة", nameEn: "El Gouna", logo: tsd("6vdj631589807310") },
+    away: { name: "بيراميدز", nameEn: "Pyramids FC", logo: tsd("8liy611607352549") },
     venue: "ملعب الجونة - الغردقة",
     channels: ["ON Time Sports 3"],
   },
@@ -643,7 +667,7 @@ export const UNPUBLISHED_EDITORIAL_FIXTURES: AdminMatch[] = [
       kickoff: "2026-10-16T17:30:00.000Z",
       round: "الجولة 5",
       home: { name: "أسوان", nameEn: "Aswan" },
-      away: { name: "الأهلي جدة", nameEn: "Al Ahli Jeddah" },
+      away: { name: "الأهلي جدة", nameEn: "Al Ahli Jeddah", logo: api(2932) },
       venue: "ملعب أسوان",
       channels: ["ON Time Sports 2"],
     }),

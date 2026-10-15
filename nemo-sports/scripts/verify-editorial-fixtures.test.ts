@@ -9,7 +9,9 @@
  *     moment (the exact error that moves a fixture to the wrong day on every
  *     page at once);
  *   · slugs and ids are unique and URL-safe, because they are public links;
- *   · logos are only real crest URLs — a placeholder CDN sneaking back in is a
+ *   · logos are only real crest URLs from a CDN the platform already trusts
+ *     (Football-Data, API-Football, TheSportsDB's r2 badge CDN) — a typo, a
+ *     placeholder or a copy-paste that puts one club's badge on both sides is a
  *     broken badge on the site;
  *   · channel lists are clean (bounded, deduped, trimmed) and the parser is
  *     the only way they are written;
@@ -170,12 +172,37 @@ test("channels are declared per match, bounded, deduped and trimmed", () => {
 });
 
 test("logos are real crest URLs or empty — never a placeholder CDN", () => {
-  const allowedHosts = ["https://crests.football-data.org/", "https://media.api-sports.io/"];
+  // Only CDNs the platform already renders elsewhere, and only the plain
+  // image URL of each one — a truncated hash or a swapped club id is a broken
+  // badge that no other test would catch.
+  const sources: Array<[string, RegExp]> = [
+    ["https://crests.football-data.org/", /^https:\/\/crests\.football-data\.org\/\d+\.png$/],
+    ["https://media.api-sports.io/", /^https:\/\/media\.api-sports\.io\/football\/teams\/\d+\.png$/],
+    ["https://r2.thesportsdb.com/", /^https:\/\/r2\.thesportsdb\.com\/images\/media\/team\/badge\/[a-z0-9]+\.png$/],
+  ];
   for (const m of all) {
     for (const logo of [m.homeLogo, m.awayLogo]) {
       if (!logo) continue;
-      assert.ok(allowedHosts.some((host) => logo.startsWith(host)), `${m.slug}: unexpected logo host ${logo}`);
+      const source = sources.find(([host]) => logo.startsWith(host));
+      assert.ok(source, `${m.slug}: unexpected logo host ${logo}`);
+      assert.match(logo, source![1], `${m.slug}: logo is not a plain crest URL — ${logo}`);
     }
+    if (m.homeLogo && m.awayLogo) {
+      assert.notEqual(m.homeLogo, m.awayLogo, `${m.slug}: both sides wear the same crest`);
+    }
+  }
+});
+
+test("the Arabic headline clubs keep a real badge (a silent loss shows up as a monogram)", () => {
+  // The crest set for Egypt/Saudi/Gulf clubs is what the desk cannot check by
+  // eye on every deploy — so pin the ones whose badge disappearing would be
+  // noticed on the homepage first.
+  const mustHaveCrest = ["Al Ahly", "Zamalek", "Pyramids FC", "Ismaily", "Al Hilal", "Al Nassr", "Al Ittihad", "Al Sadd", "Al Rayyan", "Sharjah", "Al Ain"];
+  for (const name of mustHaveCrest) {
+    const row = all.find((m) => m.homeNameEn === name || m.awayNameEn === name);
+    assert.ok(row, `${name}: no longer in the editorial seed`);
+    const logo = row!.homeNameEn === name ? row!.homeLogo : row!.awayLogo;
+    assert.ok(logo, `${name}: lost its crest — the site would fall back to a monogram`);
   }
 });
 
@@ -225,6 +252,8 @@ test("the disk store mirrors the code seed", () => {
     assert.deepEqual(record.channels, seeded.channels, `${record.slug}: channels drifted`);
     assert.equal(record.competitionNameEn, seeded.competitionNameEn, `${record.slug}: English competition name drifted`);
     assert.equal(record.round, seeded.round, `${record.slug}: round drifted`);
+    assert.equal(record.homeLogo, seeded.homeLogo, `${record.slug}: home crest drifted`);
+    assert.equal(record.awayLogo, seeded.awayLogo, `${record.slug}: away crest drifted`);
     assert.equal(record.isPublished, seeded.isPublished, `${record.slug}: publish state drifted`);
   }
 });
