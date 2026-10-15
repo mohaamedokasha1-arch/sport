@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { AD_FRAME_PATH, adFrameSecurityHeaders, contentSecurityPolicy } from "./lib/security-csp";
+import { AD_FRAME_PATH, adFrameSecurityHeaders, contentSecurityPolicy, previewFrameOrigins, siteFrameAncestors } from "./lib/security-csp";
 
 /**
  * Site-wide security headers.
@@ -29,7 +29,20 @@ import { AD_FRAME_PATH, adFrameSecurityHeaders, contentSecurityPolicy } from "./
  */
 
 const IS_DEV = process.env.NODE_ENV === "development";
-const CONTENT_SECURITY_POLICY = contentSecurityPolicy(IS_DEV);
+
+/**
+ * Empty unless a hosted preview asked to be framed (lib/security-csp.ts
+ * `previewFrameOrigins`). With it empty the headers below are exactly what the
+ * site has always shipped, and what `npm run smoke` + `npm run ads:test` pin.
+ *
+ * Next.js bakes the `headers()` rules into the build, so this must be set for
+ * the BUILD (see the note in lib/security-csp.ts) — `npm start` cannot change
+ * it afterwards.
+ */
+const PREVIEW_FRAME_ORIGINS = previewFrameOrigins();
+const CONTENT_SECURITY_POLICY = contentSecurityPolicy(IS_DEV, {
+  frameAncestors: siteFrameAncestors(PREVIEW_FRAME_ORIGINS),
+});
 
 /** HSTS is only safe once the site is served from an origin it controls. */
 function hstsHeaders(): Record<string, string> {
@@ -59,7 +72,10 @@ const nextConfig: NextConfig = {
     const base: Record<string, string> = {
       "Content-Security-Policy": CONTENT_SECURITY_POLICY,
       "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
+      // X-Frame-Options cannot express an origin allowlist (`ALLOW-FROM` is
+      // dead), so a preview run drops it and keeps only the CSP line, which the
+      // preview origin itself is validated against. Production keeps DENY.
+      ...(PREVIEW_FRAME_ORIGINS.length > 0 ? {} : { "X-Frame-Options": "DENY" }),
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
       "Cross-Origin-Opener-Policy": "same-origin",

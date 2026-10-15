@@ -24,6 +24,23 @@ npm run check    # فحص شامل لكل المسارات مقابل خادم �
 > بدونه يفحص الاختبار رفضها فقط:
 > `ADMIN_ACCESS_TOKEN=… BASE=http://127.0.0.1:3000 npm run check`
 
+### معاينة مُستضافة داخل إطار (iframe)
+
+كل صفحة قراءة ترد بـ `frame-ancestors 'none'` + `X-Frame-Options: DENY` عن قصد، فلا
+يمكن تضمين الموقع في أي إطار — وهذا يجعل أي معاينة مُستضافة (لوحة معاينة، CodeSandbox،
+صفحة داخل iframe) تظهر فارغة. لتشغيل معاينة قابلة للتضمين من أصل محدَّد:
+
+```bash
+NEMO_PREVIEW_FRAME_ORIGINS="https://3000-<sandbox-id>.e2b.app" npm run build
+NEMO_PREVIEW_FRAME_ORIGINS="https://3000-<sandbox-id>.e2b.app" npm run start
+```
+
+- المتغير يُقرأ **وقت البناء**: قواعد `headers()` تُسلسَل داخل ناتج `next build`، فلا
+  يغيّرها `npm start` بعده. وبدون المتغير (وكذلك في CI والإنتاج) يبقى الوضع الصارم.
+- المعاينة تستبدل `X-Frame-Options` بـ `frame-ancestors 'self' <الأصل>` فقط (لا يمكن
+  لـ `X-Frame-Options` التعبير عن قائمة أصول). صفحات `/admin*` تبقى `DENY` دائمًا.
+- `npm run smoke` يشرح السبب إذا وجّهته إلى بناء معاينة دون ضبط المتغير.
+
 ---
 
 ## متغيرات البيئة
@@ -38,6 +55,7 @@ npm run check    # فحص شامل لكل المسارات مقابل خادم �
 | `SPORTRADAR_KEY` · `SPORTMONKS_TOKEN` · `API_FOOTBALL_KEY` · `THESPORTSDB_KEY` | تفعيل المزوّد في سلسلة الأولويات؛ وأول مفتاح ينقل الوضع من `demo` إلى `live` فيعيد الفهرسة |
 | `DATABASE_URL` | المخزن الكنسي الدائم في Postgres (بدونه: ذاكرة داخل العملية) |
 | `REDIS_URL` | طبقات الكاش الخمس مشتركة بين النسخ (بدونه: LRU داخل العملية) |
+| `NEMO_PREVIEW_FRAME_ORIGINS` | أصل/أصول المعاينة المسموح لها بتضمين الموقع في إطار — **وقت البناء**، وللمعاينة المُستضافة فقط. بدونه يبقى الموقع غير قابل للتضمين (الوضع الافتراضي والإنتاج) |
 | `NEMO_INGEST_TOKEN` | مهمة الاستيعاب؛ بدونه يرفض `/api/v1/ingest` بالعمل (503) حتى لا يُصرف رصيد مدفوع بلا حراسة |
 | `CRON_SECRET` | بديل لنفس المهمة — Vercel Cron يرسله تلقائيًا في ترويسة `Authorization: Bearer` |
 | `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` | **تسجيل دخول لوحة التحكم.** يُولَّد الهاش عبر `npm run admin:hash -- '<كلمة طويلة>'`; لا تُخزّن كلمة المرور بصيغة صريحة. الجلسة كوكي HMAC `httpOnly` صالحة 12 ساعة |

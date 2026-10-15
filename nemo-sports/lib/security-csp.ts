@@ -30,13 +30,50 @@ export const AD_FRAME_PATH = "/ad-frame";
 export type CspOptions = {
   /**
    * Who may put THIS document in a frame. `'none'` for every reader page (the
-   * site is never meant to be embedded); `'self'` only for AD_FRAME_PATH.
-   * `frame-ancestors` never falls back to default-src, so it is always set.
+   * site is never meant to be embedded); `'self'` only for AD_FRAME_PATH. A
+   * preview run may add an origin allowlist instead — see
+   * `siteFrameAncestors()`. `frame-ancestors` never falls back to default-src,
+   * so it is always set.
    */
-  frameAncestors?: "'none'" | "'self'";
+  frameAncestors?: string;
   /** Ad creatives may reference remote media; reader pages do not need it. */
   remoteMedia?: boolean;
 };
+
+/**
+ * Opt-in escape hatch for the hosted preview sandbox.
+ * ─────────────────────────────────────────────────────────────────────────
+ * The site is deliberately unframeable (`frame-ancestors 'none'` +
+ * `X-Frame-Options: DENY`): nothing may wrap nemo-sports, and that pair is
+ * asserted by `npm run smoke` and `npm run ads:test`.
+ *
+ * A hosted preview, however, is exactly that — an iframe. Setting
+ * `NEMO_PREVIEW_FRAME_ORIGINS` to the preview origin(s) (comma or space
+ * separated, e.g. `https://3000-abc123.e2b.app`) relaxes the pair to
+ * `frame-ancestors 'self' <origins>` and drops `X-Frame-Options`, which cannot
+ * express a wildcard allowlist and would win over CSP in older browsers.
+ *
+ * Unset (the default, and always in CI and production) means the strict pair,
+ * byte for byte what the tests pin.
+ *
+ * Timing matters: Next.js serialises the `headers()` rules from next.config.ts
+ * into the BUILD output, so this variable is read at `npm run build` time, not
+ * at `npm start` time. A preview is therefore a build of its own — set the
+ * variable, build, start — and a plain `npm run build` restores the strict
+ * artifacts. `npm run smoke` says so out loud if it is pointed at a preview
+ * build.
+ */
+export function previewFrameOrigins(raw: string | undefined = process.env.NEMO_PREVIEW_FRAME_ORIGINS): string[] {
+  return (raw ?? "")
+    .split(/[\s,]+/)
+    .map((origin) => origin.trim())
+    .filter((origin) => /^https?:\/\/[a-z0-9.*-]+(:\d+)?$/i.test(origin));
+}
+
+/** `frame-ancestors` for reader pages: the strict default unless a preview run opted in. */
+export function siteFrameAncestors(origins: string[] = previewFrameOrigins()): string {
+  return origins.length > 0 ? ["'self'", ...origins].join(" ") : "'none'";
+}
 
 export function contentSecurityPolicy(isDev: boolean, options: CspOptions = {}): string {
   const { frameAncestors = "'none'", remoteMedia = false } = options;
