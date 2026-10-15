@@ -96,9 +96,27 @@ export type NormalizedFixture = {
   /** Optional display metadata a provider may attach (never persisted). */
   homeName?: string | null;
   awayName?: string | null;
+  /**
+   * Latin/Arabic display pair for an editorial record (lib/admin-matches.ts):
+   * `homeName` is the Arabic name the desk publishes, `homeNameEn` its English
+   * counterpart. Both are display-only; every identity check keeps using the
+   * provider ids and the canonical names.
+   */
+  homeNameEn?: string | null;
+  awayNameEn?: string | null;
   homeLogoUrl?: string | null;
   awayLogoUrl?: string | null;
   competitionName?: string | null;
+  /** English competition name for the `/en` surfaces (editorial records). */
+  competitionNameEn?: string | null;
+  /**
+   * Editorial TV list for this match («ON Time Sports 1»), attached by the
+   * admin/editorial layer (lib/admin-matches.ts) — no provider supplies it.
+   * Same bucket as `homeName`/`competitionName`: display metadata that is
+   * never persisted to the canonical store. Absent/null means "not declared",
+   * which must render as nothing at all, never as an invented channel.
+   */
+  channels?: string[] | null;
   /** provider-side permalink for the match (attribution / deep-link) */
   sourceUrl?: string | null;
   /** Explicit editorial provenance when a manual record is merged into a feed. */

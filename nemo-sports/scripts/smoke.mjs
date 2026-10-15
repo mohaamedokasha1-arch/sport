@@ -755,18 +755,33 @@ async function main() {
     if (!good) failures++;
   }
 
-  /* ── baseline security headers on the public site ── */
+  /* ── baseline security headers on the public site ──
+     The site is normally unframeable. A hosted preview run opts into being
+     framed by its own origin (NEMO_PREVIEW_FRAME_ORIGINS, lib/security-csp.ts)
+     and then drops X-Frame-Options; that is decided at BUILD time, so this run
+     asserts the matching shape when the variable is set and the strict pair
+     otherwise. Pointed at a preview build without the variable, the CSP line
+     below is the one that fails — with an explanation, not a mystery. */
   const secRes = await fetch(`${BASE}/`);
+  const previewFramed = (process.env.NEMO_PREVIEW_FRAME_ORIGINS ?? "").trim().length > 0;
+  const cspHeader = secRes.headers.get("content-security-policy") ?? "";
+  const previewBuild = /frame-ancestors\s+'self'\s+https?:/.test(cspHeader);
   for (const [header, mustMatch] of [
     ["x-content-type-options", /nosniff/i],
-    ["x-frame-options", /DENY|SAMEORIGIN/i],
+    ...(previewFramed ? [] : [["x-frame-options", /DENY|SAMEORIGIN/i]]),
     ["referrer-policy", /.+/],
-    ["content-security-policy", /frame-ancestors\s+'none'/],
+    ["content-security-policy", previewFramed ? /frame-ancestors\s+'self'/ : /frame-ancestors\s+'none'/],
     ["permissions-policy", /.+/],
   ]) {
     const value = secRes.headers.get(header) ?? "";
     const good = mustMatch.test(value);
-    console.log(`  ${good ? "✓" : "✗"} security header ${header}${good ? "" : ` missing (got "${value}")`}`);
+    let hint = "";
+    if (!good && header === "content-security-policy" && !previewFramed && previewBuild) {
+      hint =
+        " — this build was produced with NEMO_PREVIEW_FRAME_ORIGINS set (a hosted preview)." +
+        " Run `npm run build` without it to get the production headers back.";
+    }
+    console.log(`  ${good ? "✓" : "✗"} security header ${header}${good ? "" : ` missing (got "${value}")${hint}`}`);
     if (!good) failures++;
   }
 

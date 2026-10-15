@@ -7,6 +7,7 @@ import ConfirmForm from "@/components/admin/ConfirmSubmit";
 import { requirePermission } from "@/lib/admin-session";
 import { allMatches } from "@/lib/data";
 import { competitions, sports, teamBySlug, competitionBySlug } from "@/lib/core-data";
+import { competitionByPath } from "@/lib/competition-catalog";
 import { dateAr, timeOf } from "@/lib/format";
 import { fixtures as sdlFixtures, invalidateMatch } from "@/lib/sdl-gateway";
 import {
@@ -67,6 +68,20 @@ async function competitionNameFor(slug: string): Promise<string> {
   return managed?.nameAr ?? slug;
 }
 
+/**
+ * English name for the same slug — what the /en fixtures list and match page
+ * render. Falls back to the Arabic name only when nothing else is known; an
+ * operator can also type the English name in the form field.
+ */
+async function competitionNameEnFor(slug: string): Promise<string> {
+  const builtIn = competitions.find((c) => c.slug === slug);
+  if (builtIn) return builtIn.nameEn;
+  const canonical = competitionByPath(slug);
+  if (canonical) return canonical.name;
+  const managed = await getAdminCompetitionBySlug(slug);
+  return managed?.nameEn ?? managed?.nameAr ?? slug;
+}
+
 /* ── server actions: admin-managed matches ──────────────────── */
 
 async function createMatchAction(form: FormData): Promise<void> {
@@ -79,6 +94,7 @@ async function createMatchAction(form: FormData): Promise<void> {
       sport: String(form.get("sport") ?? "football"),
       competitionSlug: compSlug,
       competitionName: await competitionNameFor(compSlug),
+      competitionNameEn: String(form.get("competitionNameEn") ?? "") || (await competitionNameEnFor(compSlug)),
       season: String(form.get("season") ?? ""),
       homeName: String(form.get("homeName") ?? ""),
       homeNameEn: String(form.get("homeNameEn") ?? ""),
@@ -93,6 +109,8 @@ async function createMatchAction(form: FormData): Promise<void> {
       awayScore: parseScore(form.get("awayScore")),
       venue: String(form.get("venue") ?? ""),
       referee: String(form.get("referee") ?? ""),
+      round: String(form.get("round") ?? ""),
+      channels: String(form.get("channels") ?? ""),
       isPublished: form.get("isPublished") === "on",
       slug: String(form.get("slug") ?? ""),
     },
@@ -123,6 +141,7 @@ async function updateMatchAction(form: FormData): Promise<void> {
     sport: String(form.get("sport") ?? "football"),
     competitionSlug: compSlug,
     competitionName: await competitionNameFor(compSlug),
+    competitionNameEn: String(form.get("competitionNameEn") ?? "") || (await competitionNameEnFor(compSlug)),
     season: String(form.get("season") ?? ""),
     homeName: String(form.get("homeName") ?? ""),
     homeNameEn: String(form.get("homeNameEn") ?? ""),
@@ -137,6 +156,8 @@ async function updateMatchAction(form: FormData): Promise<void> {
     awayScore: parseScore(form.get("awayScore")),
     venue: String(form.get("venue") ?? ""),
     referee: String(form.get("referee") ?? ""),
+    round: String(form.get("round") ?? ""),
+    channels: String(form.get("channels") ?? ""),
     isPublished: form.get("isPublished") === "on",
     slug: String(form.get("slug") ?? ""),
   });
@@ -397,7 +418,15 @@ export default async function AdminMatches({
                   head={["المباراة", "البطولة", "الموعد", "الحالة", "النتيجة", "الظهور", "إجراءات"]}
                   rows={managed.map((m) => [
                     teamCell(m),
-                    <span key="c" className="max-w-[10rem] truncate text-white/60">{m.competitionName || m.competitionSlug}</span>,
+                    <span key="c" className="max-w-[10rem] text-white/60">
+                      <span className="block truncate">{m.competitionName || m.competitionSlug}</span>
+                      {m.round ? <span className="block text-[10.5px] text-white/40">{m.round}</span> : null}
+                      {m.channels.length ? (
+                        <span className="block truncate text-[10.5px] text-gold-400" title={m.channels.join(" · ")}>
+                          📺 {m.channels.join(" · ")}
+                        </span>
+                      ) : null}
+                    </span>,
                     <span key="d" className="num whitespace-nowrap text-[11px]">{dateAr(m.scheduledAt)} · {timeOf(m.scheduledAt)}</span>,
                     <Pill key="s" tone={statusTone(m.status)}>{ADMIN_MATCH_STATUS_AR[m.status]}</Pill>,
                     <span key="r" className="num font-extrabold">
@@ -486,6 +515,16 @@ export default async function AdminMatches({
                   <Field label="الموسم">
                     <input name="season" defaultValue={editing?.season ?? ""} maxLength={40} className={inputCls} placeholder="2026/2027" />
                   </Field>
+                  <Field label="اسم البطولة (إنجليزي) — يُستخدم في /en">
+                    <input
+                      name="competitionNameEn"
+                      defaultValue={editing?.competitionNameEn ?? ""}
+                      maxLength={160}
+                      className={`${inputCls} num`}
+                      dir="ltr"
+                      placeholder="Egyptian Premier League"
+                    />
+                  </Field>
                   <Field label="الرياضة">
                     <select name="sport" defaultValue={editing?.sport ?? "football"} className={inputCls}>
                       {sportOptions.map((s) => (
@@ -511,6 +550,18 @@ export default async function AdminMatches({
                   </Field>
                   <Field label="الحكم">
                     <input name="referee" defaultValue={editing?.referee ?? ""} maxLength={160} className={inputCls} />
+                  </Field>
+                  <Field label="الجولة / الدور">
+                    <input name="round" defaultValue={editing?.round ?? ""} maxLength={60} className={inputCls} placeholder="الجولة 5" />
+                  </Field>
+                  <Field label="قنوات النقل (افصل بينها بفاصلة)">
+                    <input
+                      name="channels"
+                      defaultValue={editing ? editing.channels.join(", ") : ""}
+                      maxLength={400}
+                      className={inputCls}
+                      placeholder="ON Time Sports 1, beIN SPORTS"
+                    />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="أهداف المضيف">
