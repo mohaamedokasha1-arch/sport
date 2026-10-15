@@ -19,6 +19,7 @@ import { getRedisKv, redisHealth } from "@/lib/cache/redis";
 import { applyFixtureOverrides } from "@/lib/match-overrides";
 import { adminMatchToFixture, getAdminMatchBySlug, publishedAdminFixtures } from "@/lib/admin-matches";
 import { fixtureBelongsToCompetition } from "@/lib/competition-catalog";
+import { absorbLiveState, combineFixtureLists, isSameMeeting, mergeFixturePair } from "@/lib/fixture-merge";
 import { resolveMatchSlug } from "@/lib/match-links";
 import { resolveCurrentMeetingForSlug } from "@/lib/match-resolution";
 import { decodeSlug } from "@/lib/slug";
@@ -192,9 +193,18 @@ export function adminFixtureInScope(
 }
 
 /**
- * Layer admin corrections (lib/match-overrides.ts) over provider fixtures.
- * Runs AFTER wrap() so provider accounting (cost, cache, health) is untouched;
- * when no override exists the input is returned untouched (same references).
+ * Layer admin corrections (lib/match-overrides.ts) over provider fixtures and
+ * fold the editorial schedule (lib/admin-matches.ts) into ONE row per real
+ * meeting (lib/fixture-merge.ts). Runs AFTER wrap() so provider accounting
+ * (cost, cache, health) is untouched.
+ *
+ * The editorial list is merged — never appended blindly: a match the desk
+ * entered AND the provider carries appears once, keeping the provider's
+ * official id/status/score and gaining the desk's channels, venue, round and
+ * bilingual names. Editorial records with no provider twin stay visible even
+ * when every provider is down, and operator overrides (score/status
+ * corrections) apply to BOTH lists — they used to skip editorial rows on the
+ * success path.
  */
 async function corrected(
   res: GatewayResult<NormalizedFixture[]>,
@@ -203,21 +213,23 @@ async function corrected(
   scope: { competitionProviderId?: string; date?: string } = {},
 ): Promise<GatewayResult<NormalizedFixture[]>> {
   const allAdmin = await publishedAdminFixtures().catch(() => []);
-  const adminFixtures = allAdmin
-    .filter((f) => {
-      if (f.sport !== sport) return false;
-      if (onlyLive) {
-        return isLiveStatus(f.status);
-      }
-      return true;
-    })
-    .filter((f) => adminFixtureInScope(f, scope));
+  const adminFixtures = await applyFixtureOverrides(
+    allAdmin
+      .filter((f) => {
+        if (f.sport !== sport) return false;
+        if (onlyLive) {
+          return isLiveStatus(f.status);
+        }
+        return true;
+      })
+      .filter((f) => adminFixtureInScope(f, scope)),
+  );
   if (!res.ok) {
     // Operator-entered matches stay visible even when every provider is down.
     if (adminFixtures.length === 0) return res;
     return {
       ok: true,
-      data: await applyFixtureOverrides(adminFixtures),
+      data: adminFixtures,
       provider: "admin",
       fromCache: false,
       stale: false,
@@ -229,9 +241,7 @@ async function corrected(
   }
   const providerData = await applyFixtureOverrides(res.data);
   if (adminFixtures.length === 0) return { ...res, data: providerData };
-  const known = new Set(providerData.map((f) => f.providerId));
-  const extra = adminFixtures.filter((f) => !known.has(f.providerId));
-  return { ...res, data: [...providerData, ...extra] };
+  return { ...res, data: combineFixtureLists(providerData, adminFixtures) };
 }
 
 /** In-play matches across every supported sport. */
@@ -329,7 +339,36 @@ export async function matchEvents(providerMatchId: string, provider?: GatewayPro
 /**
  * Full detail for one match by provider slug (e.g. "cruz-azul-vs-inter-miami-cf").
  * Score, status, live minute and display metadata.
+ *
+ * Both detail doors enrich with the other source when the SAME meeting exists
+ * there (lib/fixture-merge.ts): an editorial page absorbs the feed's live
+ * status/score (it used to stay «قادمة» forever — a schedule entry never
+ * becomes a result by itself), and a provider page gains the desk's channels,
+ * venue, round and bilingual names. Identity never moves: the requested slug
+ * keeps resolving to the record whose id it is.
  */
+async function enrichAdminDetail(adminFixture: NormalizedFixture): Promise<NormalizedFixture> {
+  try {
+    const day = await fixturesForCairoDate({ sport: adminFixture.sport ?? "football", date: siteDateKey(adminFixture.scheduledAt) });
+    if (!day.ok) return adminFixture;
+    const twin = day.data.find((f) => f.providerId !== adminFixture.providerId && isSameMeeting(f, adminFixture));
+    return twin ? absorbLiveState(adminFixture, twin) : adminFixture;
+  } catch {
+    // Enrichment is best-effort: the editorial record stands on its own.
+    return adminFixture;
+  }
+}
+
+async function enrichProviderDetail(providerFixture: NormalizedFixture): Promise<NormalizedFixture> {
+  try {
+    const admins = await publishedAdminFixtures().catch(() => []);
+    const twin = admins.find((a) => a.sport === providerFixture.sport && a.providerId !== providerFixture.providerId && isSameMeeting(providerFixture, a));
+    return twin ? mergeFixturePair(providerFixture, twin) : providerFixture;
+  } catch {
+    return providerFixture;
+  }
+}
+
 export async function matchDetail(sport: string, providerMatchId: string): Promise<GatewayResult<NormalizedFixture>> {
   // Operator-entered matches resolve locally first: no provider quota is spent,
   // and a draft (unpublished) match is never served to the public.
@@ -338,7 +377,7 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
     const [fixture] = await applyFixtureOverrides([adminMatchToFixture(adminMatch)]);
     return {
       ok: true,
-      data: fixture,
+      data: await enrichAdminDetail(fixture),
       provider: "admin",
       fromCache: false,
       stale: false,
@@ -359,7 +398,7 @@ export async function matchDetail(sport: string, providerMatchId: string): Promi
     "match_detail",
   );
   if (!res.ok) return res;
-  const patched = await applyFixtureOverrides([res.data]);
+  const patched = await applyFixtureOverrides([await enrichProviderDetail(res.data)]);
   return { ...res, data: patched[0] ?? res.data };
 }
 
@@ -667,6 +706,11 @@ export async function dataServable(): Promise<boolean> {
 /** Provider date filters use UTC. Cairo days overlap the previous UTC day.
  * Fetch both, then apply the Cairo boundary; never assume a fixed DST offset.
  * Incomplete responses are returned as degraded, not a complete schedule.
+ *
+ * When one of the two days answers from a provider and the other degrades to
+ * the editorial schedule (a total provider outage for that call), the desk's
+ * rows are still merged in — they are platform-owned data, never a second
+ * provider's conflicting snapshot. The mixed result stays marked `degraded`.
  */
 export async function fixturesForCairoDate(input: { sport?: string; date: string; competitionProviderId?: string }): Promise<GatewayResult<NormalizedFixture[]>> {
   if (!isDateKey(input.date)) return { ok: false, error: { kind: "unsupported", message: "Invalid date", dataType: "fixtures", attempts: [] } };
@@ -674,9 +718,23 @@ export async function fixturesForCairoDate(input: { sport?: string; date: string
   const valid = results.filter((r) => r.ok);
   if (!valid.length) return results[0];
   const first = valid[0];
-  const same = valid.filter((r) => r.provider === first.provider);
-  const data = [...new Map(same.flatMap((r) => r.data).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date).map((f) => [f.providerId, f])).values()];
-  return { ...first, data, stale: same.some((r) => r.stale), degraded: same.length !== results.length || same.some((r) => r.degraded), fromCache: same.every((r) => r.fromCache), fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt };
+  // Provider rows are kept homogeneous (one provider's snapshot, never two
+  // competing ones); editorial rows are platform-owned and always fold in.
+  const providerRows = valid.filter((r) => r.provider !== "admin");
+  const mainProvider = providerRows[0]?.provider ?? first.provider;
+  const same = valid.filter((r) => r.provider === mainProvider);
+  const primary = [...new Map(providerRows.filter((r) => r.provider === mainProvider).flatMap((r) => r.data).map((f) => [f.providerId, f])).values()];
+  const adminRows = valid.filter((r) => r.provider === "admin").flatMap((r) => r.data);
+  const data = combineFixtureLists(primary, adminRows).filter((f) => Number.isFinite(Date.parse(f.scheduledAt)) && siteDateKey(f.scheduledAt) === input.date);
+  return {
+    ...first,
+    data,
+    provider: mainProvider,
+    stale: same.some((r) => r.stale),
+    degraded: same.length !== results.length || same.some((r) => r.degraded),
+    fromCache: same.every((r) => r.fromCache),
+    fetchedAt: same.map((r) => r.fetchedAt).sort().pop() ?? first.fetchedAt,
+  };
 }
 
 /**

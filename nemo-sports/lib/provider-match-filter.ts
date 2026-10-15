@@ -89,6 +89,24 @@ export function filterProviderMatches(
   return fixtures.filter((fixture) => withinScope(fixture, query) && onDate(fixture, query.date, now) && onStatus(fixture, query.status, now));
 }
 
+/**
+ * Egyptian competitions lead the display (the site's top priority): the
+ * Premier League, the cups, the second division and every other Egyptian
+ * tournament the sources cover. Detection is on the competition fields only —
+ * never on team names («Al Nasr (Egypt)» is a club, not a competition) — and
+ * it only affects ORDER: no match is ever filtered out by it.
+ */
+export function isEgyptianCompetition(
+  fixture: Pick<NormalizedFixture, "competitionProviderId" | "competitionName" | "competitionNameEn">,
+): boolean {
+  const hay = [fixture.competitionProviderId, fixture.competitionName, fixture.competitionNameEn]
+    .filter((v): v is string => Boolean(v))
+    .join(" ");
+  return /egypt|مصر/i.test(hay);
+}
+
+const egyptianRank = (fixture: NormalizedFixture) => (isEgyptianCompetition(fixture) ? 0 : 1);
+
 export function providerMatchCounts(
   fixtures: NormalizedFixture[],
   query: ProviderMatchQuery,
@@ -130,9 +148,24 @@ export function providerMatchCounts(
   return counts;
 }
 
+/**
+ * The /matches browser order: in play first, then upcoming, then the rest —
+ * and inside every group the Egyptian competitions lead (site priority),
+ * followed by kickoff time. Stable across Arabic/English surfaces and the
+ * public API, so a card's place never depends on which page renders it.
+ */
 export function sortProviderMatches(fixtures: NormalizedFixture[], now = Date.now()): NormalizedFixture[] {
   return [...fixtures].sort((a, b) => {
     const rank = (fixture: NormalizedFixture) => isFixtureLive(fixture, now) ? 0 : isFixtureUpcoming(fixture, now) ? 1 : 2;
-    return rank(a) - rank(b) || +new Date(a.scheduledAt) - +new Date(b.scheduledAt);
+    return rank(a) - rank(b) || egyptianRank(a) - egyptianRank(b) || +new Date(a.scheduledAt) - +new Date(b.scheduledAt);
   });
+}
+
+/**
+ * The home day-sections order («مباريات اليوم» / «مباريات الغد»): a kickoff
+ * schedule that still puts the Egyptian competitions first — so the site's
+ * top-priority matches stay visible even when the section truncates.
+ */
+export function sortDayFixtures(fixtures: NormalizedFixture[]): NormalizedFixture[] {
+  return [...fixtures].sort((a, b) => egyptianRank(a) - egyptianRank(b) || +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
 }

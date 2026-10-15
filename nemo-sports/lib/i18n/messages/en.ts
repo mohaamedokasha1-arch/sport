@@ -382,6 +382,7 @@ const en: Record<keyof typeof ar, string> = {
   "home.tomorrowEyebrow": "Tomorrow · football",
   "home.tomorrowTitle": "Tomorrow's matches",
   "home.tomorrowAll": "All of tomorrow's fixtures",
+  "home.tomorrowTruncated": "Showing the first {shown} of {total} matches tomorrow · ",
   "home.tomorrowEmpty": "No confirmed fixtures for tomorrow in the source's last update. ",
   "home.browseFixtures": "browse the fixture list",
   "home.tomorrowFailTitle": "Tomorrow's fixtures could not be updated",

@@ -387,6 +387,7 @@ const ar = {
   "home.tomorrowEyebrow": "غدًا · كرة القدم",
   "home.tomorrowTitle": "مباريات الغد",
   "home.tomorrowAll": "كل مواعيد الغد",
+  "home.tomorrowTruncated": "نعرض أول {shown} من {total} مباراة الغد · ",
   "home.tomorrowEmpty": "لا تتوفر مواعيد مؤكدة للغد في آخر تحديث من المصدر. ",
   "home.browseFixtures": "تصفّح جدول المواعيد",
   "home.tomorrowFailTitle": "تعذّر تحديث مواعيد الغد",
