@@ -14,7 +14,8 @@ import { fixturesForCairoDate, cachePolicyFor, fixtures as sdlFixtures, hasMatch
 import { footballTopScorers } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { siteDay, siteDateKey, shiftDateKey } from "@/lib/tz";
-import { isFinishedStatus, matchStateOf } from "@/lib/match-state";
+import { isFinishedStatus } from "@/lib/match-state";
+import { sortDayFixtures } from "@/lib/provider-match-filter";
 import { liveBoard, reconcileResult } from "@/lib/live-board";
 import {
   articles,
@@ -81,17 +82,21 @@ async function HomePageBody({ locale }: { locale: Locale }) {
   const todayKey = siteDay(now);
   const tomorrowKey = todayKey + 86_400_000;
   // Football sections, reconciled with the same board so a match never shows
-  // "live" here and something else on /live.
+  // "live" here and something else on /live. Day sections keep the kickoff
+  // schedule order with Egyptian competitions first (site priority), and the
+  // tomorrow section carries EVERY state — a postponed or cancelled match is
+  // part of tomorrow's programme and must appear with its true status — while
+  // never crossing the Cairo midnight boundary in either direction.
   const dayRows = (result: typeof todayResult) => (result.ok && result.source === "provider" ? reconcileResult(result, board.boards, now).filter(hasMatchIdentity) : []);
-  const todayFixtures = dayRows(todayResult)
-    .filter((fixture) => siteDay(fixture.scheduledAt) === todayKey)
-    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+  const todayFixtures = sortDayFixtures(
+    dayRows(todayResult).filter((fixture) => siteDay(fixture.scheduledAt) === todayKey),
+  );
   const todayShown = todayFixtures.slice(0, 12);
   const tomorrowData = tomorrowResult.ok && tomorrowResult.source === "provider" ? tomorrowResult : null;
-  const tomorrowFixtures = dayRows(tomorrowResult)
-    .filter((fixture) => matchStateOf(fixture.status, fixture.scheduledAt, now) === "upcoming" && siteDay(fixture.scheduledAt) === tomorrowKey)
-    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))
-    .slice(0, 9);
+  const tomorrowFixtures = sortDayFixtures(
+    dayRows(tomorrowResult).filter((fixture) => siteDay(fixture.scheduledAt) === tomorrowKey),
+  );
+  const tomorrowShown = tomorrowFixtures.slice(0, 9);
   const resultsData = todayResult.ok && todayResult.source === "provider" ? todayResult : yesterdayResult.ok && yesterdayResult.source === "provider" ? yesterdayResult : null;
   const latestResults = [...dayRows(yesterdayResult), ...dayRows(todayResult)]
     .filter((fixture) => isFinishedStatus(fixture.status))
@@ -181,7 +186,13 @@ async function HomePageBody({ locale }: { locale: Locale }) {
           <SectionHead eyebrow={tr("home.tomorrowEyebrow")} title={tr("home.tomorrowTitle")} href="/matches?date=tomorrow&sport=football" linkLabel={tr("home.tomorrowAll")} />
           {tomorrowFixtures.length > 0 ? (
             <>
-              <ProviderMatchList fixtures={tomorrowFixtures} />
+              {tomorrowFixtures.length > tomorrowShown.length ? (
+                <p className="-mt-2 mb-3 text-[12px] text-muted">
+                  {tr("home.tomorrowTruncated", { shown: tomorrowShown.length, total: tomorrowFixtures.length })}
+                  <Link href="/matches?date=tomorrow" className="font-bold text-gold-600 dark:text-gold-400">{tr("home.tomorrowAll")}</Link>
+                </p>
+              ) : null}
+              <ProviderMatchList fixtures={tomorrowShown} />
               {tomorrowData ? <DataSourceNote className="mt-3" provider={tomorrowData.provider} fromCache={tomorrowData.fromCache} stale={tomorrowData.stale} degraded={tomorrowData.degraded} fetchedAt={tomorrowData.fetchedAt} ttlSeconds={cacheTtl} /> : null}
             </>
           ) : tomorrowData ? (

@@ -52,6 +52,7 @@ export const EN_ROUTE_ROOTS: readonly string[] = [
   "teams",
   "terms",
   "today",
+  "tomorrow",
   "watch",
 ];
 
