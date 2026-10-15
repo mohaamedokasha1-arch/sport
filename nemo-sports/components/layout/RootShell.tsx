@@ -7,6 +7,7 @@ import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/locales";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import AdScripts from "@/components/ads/AdScripts";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import LiveProvider from "@/components/live/LiveProvider";
 import { getLiveStates } from "@/lib/live";
 import { demoContentVisible } from "@/lib/site";
@@ -68,6 +69,7 @@ export function RootShell({
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <head>
+        <GoogleAnalytics />
         {/* Google Search Console — ownership verification tag (must sit in <head>). */}
         <meta name="google-site-verification" content="6nwKbe3UwHbbzzDg0S8a6TRE_rEEIAdyGgIJD6q6ua4" />
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
