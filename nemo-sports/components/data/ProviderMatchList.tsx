@@ -5,11 +5,13 @@ import { useT, useLocale } from "@/lib/i18n/context";
 import PoweredBy from "@/components/ui/PoweredBy";
 import ProviderCrest from "@/components/ui/ProviderCrest";
 import ScorePair from "@/components/ui/ScorePair";
-import { SITE_TZ } from "@/lib/tz";
 import { matchStateOf } from "@/lib/match-state";
 import { matchStateLabel, unconfirmedNote } from "@/lib/i18n/match-state";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import { isLiveNow } from "@/lib/match-state";
+import { formatClock } from "@/lib/i18n/dates";
+import type { Locale } from "@/lib/i18n/locales";
+import { competitionLabelFromRecord, fixtureTeamName } from "@/lib/i18n/names";
 
 /**
  * Renders REAL matches coming from the Sports Data Layer (SportScore) in the
@@ -17,8 +19,10 @@ import { isLiveNow } from "@/lib/match-state";
  * when a field is missing it renders "—" rather than an invented value.
  */
 
-const timeOf = (iso: string) =>
-  new Date(iso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", timeZone: SITE_TZ });
+/* Locale-aware clock: a hardcoded "ar-EG" printed Arabic-Indic digits (٠٢:٠٠ م)
+   as soon as this list had a fixture to render on /en. The shared formatter
+   (lib/i18n/dates.ts) is the same one every other surface uses. */
+const timeOf = (locale: Locale, iso: string) => formatClock(locale, iso);
 
 export function MatchStatePill({ fixture, now = Date.now() }: { fixture: NormalizedFixture; now?: number }) {
   const tr = useT();
@@ -33,7 +37,7 @@ export function MatchStatePill({ fixture, now = Date.now() }: { fixture: Normali
     );
   }
   if (state === "upcoming") {
-    return <span className="num shrink-0 text-[12px] font-bold text-muted">{timeOf(fixture.scheduledAt)}</span>;
+    return <span className="num shrink-0 text-[12px] font-bold text-muted">{timeOf(locale, fixture.scheduledAt)}</span>;
   }
   if (state === "finished") {
     return <span className="shrink-0 text-[11px] font-bold text-muted">{tr("state.finished")}</span>;
@@ -44,7 +48,7 @@ export function MatchStatePill({ fixture, now = Date.now() }: { fixture: Normali
     // unverified, instead of presenting it as a match still to come.
     return (
       <span className="shrink-0 text-center text-[11px] font-bold text-warn-600 dark:text-warn-400" title={unconfirmedNote(locale, fixture.status)}>
-        <span className="num">{timeOf(fixture.scheduledAt)}</span>
+        <span className="num">{timeOf(locale, fixture.scheduledAt)}</span>
         <span className="mt-0.5 block text-[10px] font-extrabold">{tr("ui.unconfirmed")}</span>
       </span>
     );
@@ -83,17 +87,25 @@ export default function ProviderMatchList({
               >
                 <div className="min-w-0 flex-1">
                   {f.editorialUpdatedAt && <p className="mb-1 text-[10px] text-muted">{tr("ui.editorialEntry")}</p>}
-                  {showCompetition && f.competitionName ? (
-                    <p dir="auto" className="mb-1 truncate text-right text-[10.5px] text-muted">{f.competitionName}</p>
+                  {showCompetition && (f.competitionName || f.competitionNameEn) ? (
+                    <p dir="auto" className="mb-1 truncate text-right text-[10.5px] text-muted">{competitionLabelFromRecord(locale, f)}</p>
                   ) : null}
                   <p className="flex min-w-0 items-center gap-2 text-[13px] font-bold">
-                    <ProviderCrest name={f.homeName ?? f.homeProviderId ?? tr("ui.homeTeamFallback")} logoUrl={f.homeLogoUrl} size={22} />
-                    <span dir="auto" className="min-w-0 truncate" title={f.homeName ?? f.homeProviderId ?? undefined}>{f.homeName ?? f.homeProviderId ?? "—"}</span>
+                    <ProviderCrest name={fixtureTeamName(locale, f, "home", tr("ui.homeTeamFallback"))} logoUrl={f.homeLogoUrl} size={22} />
+                    <span dir="auto" className="min-w-0 truncate" title={fixtureTeamName(locale, f, "home", undefined)}>{fixtureTeamName(locale, f, "home")}</span>
                   </p>
                   <p className="mt-1 flex min-w-0 items-center gap-2 text-[13px] font-bold">
-                    <ProviderCrest name={f.awayName ?? f.awayProviderId ?? tr("ui.awayTeamFallback")} logoUrl={f.awayLogoUrl} size={22} />
-                    <span dir="auto" className="min-w-0 truncate" title={f.awayName ?? f.awayProviderId ?? undefined}>{f.awayName ?? f.awayProviderId ?? "—"}</span>
+                    <ProviderCrest name={fixtureTeamName(locale, f, "away", tr("ui.awayTeamFallback"))} logoUrl={f.awayLogoUrl} size={22} />
+                    <span dir="auto" className="min-w-0 truncate" title={fixtureTeamName(locale, f, "away", undefined)}>{fixtureTeamName(locale, f, "away")}</span>
                   </p>
+                  {/* Declared TV channels for this match only (editorial). No
+                      list → no line, instead of a guess or a site-wide answer. */}
+                  {f.channels && f.channels.length > 0 ? (
+                    <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] text-muted" title={f.channels.join(" · ")}>
+                      <span aria-hidden>📺</span>
+                      <span dir="auto" className="min-w-0 truncate">{f.channels.join(" · ")}</span>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex shrink-0 flex-col items-center gap-1">
                   {played ? (

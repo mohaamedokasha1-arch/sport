@@ -592,6 +592,9 @@ const en: Record<keyof typeof ar, string> = {
   "md.bench": "Substitutes",
   "md.coach": "Coach: {name}",
   "md.demoNotice": "Development preview data — this does not represent a real match result.",
+  "md.channelsHeading": "TV channels",
+  "md.channelsSource": "Editorial list from the NEMO desk",
+  "md.channelsNote": "Channels are declared by the editorial desk and can change before kickoff. A listed channel means a declared broadcaster only — it is not a free stream and NEMO Sports hosts no player for it.",
   "md.otherMatches": "Other matches in {comp}",
 
   /* ── team detail ────────────────────────────────────────── */

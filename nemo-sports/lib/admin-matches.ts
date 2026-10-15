@@ -22,6 +22,7 @@ import { getDb } from "@/lib/db/pg";
 import { persistOrThrow, storeErrorMessage } from "@/lib/db/store-policy";
 import { SITE_TZ } from "@/lib/tz";
 import { decodeSlug } from "@/lib/slug";
+import { EDITORIAL_FIXTURES_OCTOBER_2026, UNPUBLISHED_EDITORIAL_FIXTURES } from "@/lib/editorial-fixtures-october-2026";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 
 export type AdminMatchStatus = "upcoming" | "live" | "finished" | "postponed" | "cancelled";
@@ -51,6 +52,13 @@ export interface AdminMatch {
   sport: string;
   competitionSlug: string;
   competitionName: string;
+  /**
+   * English competition name for the `/en` surfaces. The major leagues resolve
+   * from the canonical catalogue (lib/competition-catalog.ts); this field is
+   * what the competitions the catalogue does not carry (second division, UAE,
+   * Qatar, Eredivisie …) show to an English reader instead of Arabic chrome.
+   */
+  competitionNameEn: string;
   season: string;
   homeName: string;
   homeNameEn: string;
@@ -64,6 +72,21 @@ export interface AdminMatch {
   awayScore: number | null;
   venue: string;
   referee: string;
+  /**
+   * Matchweek / round as the desk writes it («الجولة 5»). Optional and free
+   * text on purpose: providers round differently per competition, and this
+   * field is never used for logic — only displayed.
+   */
+  round: string;
+  /**
+   * Declared TV channels for THIS match («ON Time Sports 1»).
+   *
+   * Editorial metadata: the operator owns it, exactly like the venue. It is
+   * deliberately NOT the broadcast-rights registry (lib/broadcasts.ts) — that
+   * answers "who holds the rights to this competition", while this answers
+   * "which channels the desk says will carry this match". Order is preserved.
+   */
+  channels: string[];
   isPublished: boolean;
   createdBy: string;
   createdAt: string;
@@ -79,13 +102,14 @@ export interface AdminMatch {
  *  4. لانس × أولمبيك ليون: 21:45 (9:45 PM) → 18:45 UTC
  *  5. مالقا × إسبانيول: 22:00 (10:00 PM) → 19:00 UTC
  */
-export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
+const LEGACY_ADMIN_MATCHES: AdminMatch[] = [
   {
     id: "adm_match_fateh_ahli_20261009",
     slug: "al-fateh-vs-al-ahli",
     sport: "football",
     competitionSlug: "saudi-pro-league",
     competitionName: "دوري روشن السعودي",
+    competitionNameEn: "Saudi Pro League",
     season: "2026/2027",
     homeName: "الفتح",
     homeNameEn: "Al-Fateh",
@@ -99,6 +123,8 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     awayScore: null,
     venue: "ملعب الأمير عبد الله بن جلوي (الأحساء)",
     referee: "",
+    round: "",
+    channels: [],
     isPublished: true,
     createdBy: "editorial",
     createdAt: "2026-10-08T12:00:00.000Z",
@@ -110,6 +136,7 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     sport: "football",
     competitionSlug: "saudi-pro-league",
     competitionName: "دوري روشن السعودي",
+    competitionNameEn: "Saudi Pro League",
     season: "2026/2027",
     homeName: "النصر",
     homeNameEn: "Al-Nassr",
@@ -123,6 +150,8 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     awayScore: null,
     venue: "الأول بارك (الرياض)",
     referee: "",
+    round: "",
+    channels: [],
     isPublished: true,
     createdBy: "editorial",
     createdAt: "2026-10-08T12:00:00.000Z",
@@ -134,6 +163,7 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     sport: "football",
     competitionSlug: "bundesliga",
     competitionName: "الدوري الألماني",
+    competitionNameEn: "Bundesliga",
     season: "2026/2027",
     homeName: "بوروسيا دورتموند",
     homeNameEn: "Borussia Dortmund",
@@ -147,6 +177,8 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     awayScore: null,
     venue: "سيغنال إيدونا بارك (دورتموند)",
     referee: "",
+    round: "",
+    channels: [],
     isPublished: true,
     createdBy: "editorial",
     createdAt: "2026-10-08T12:00:00.000Z",
@@ -158,6 +190,7 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     sport: "football",
     competitionSlug: "ligue-1",
     competitionName: "الدوري الفرنسي",
+    competitionNameEn: "Ligue 1",
     season: "2026/2027",
     homeName: "لانس",
     homeNameEn: "RC Lens",
@@ -171,6 +204,8 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     awayScore: null,
     venue: "ملعب بولار ديلولي (لانس)",
     referee: "",
+    round: "",
+    channels: [],
     isPublished: true,
     createdBy: "editorial",
     createdAt: "2026-10-08T12:00:00.000Z",
@@ -182,6 +217,7 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     sport: "football",
     competitionSlug: "la-liga",
     competitionName: "الدوري الإسباني",
+    competitionNameEn: "LaLiga",
     season: "2026/2027",
     homeName: "مالقا",
     homeNameEn: "Málaga CF",
@@ -195,11 +231,28 @@ export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
     awayScore: null,
     venue: "ملعب لا روزاليدا (مالقة)",
     referee: "",
+    round: "",
+    channels: [],
     isPublished: true,
     createdBy: "editorial",
     createdAt: "2026-10-08T12:00:00.000Z",
     updatedAt: "2026-10-08T12:00:00.000Z",
   },
+];
+
+/**
+ * Everything a fresh install (or a reset database) starts with.
+ *
+ * Order matters: the 9 October records first (their slugs are already public),
+ * then the current matchdays (lib/editorial-fixtures-october-2026.ts) and,
+ * last, the records that are stored but NOT published. An unpublished record
+ * exists for the desk — it is invisible everywhere on the public site until an
+ * operator publishes it.
+ */
+export const INITIAL_ADMIN_MATCHES: AdminMatch[] = [
+  ...LEGACY_ADMIN_MATCHES,
+  ...EDITORIAL_FIXTURES_OCTOBER_2026,
+  ...UNPUBLISHED_EDITORIAL_FIXTURES,
 ];
 
 /* ── validation ───────────────────────────────────────────────── */
@@ -293,10 +346,57 @@ function parseScheduledAt(date: string, time: string): string | null {
   return scheduledAtFromLocal(date, time);
 }
 
+/** Bounds for the editorial TV list — enough for a shared feed, never a dump. */
+export const MAX_MATCH_CHANNELS = 6;
+const MAX_CHANNEL_LENGTH = 80;
+
+/**
+ * Any editorial input (a form string "ON Time Sports 1, beIN SPORTS", a JSON
+ * array from the store, or an already-parsed array) → the clean channel list.
+ * Split on the separators people actually type, drop empties, collapse
+ * duplicates case-insensitively and cap the list.
+ */
+export function parseChannelList(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value.map((item) => String(item)) : String(value ?? "").split(/[\n,،;؛|]+/);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const text = cleanText(item, MAX_CHANNEL_LENGTH);
+    if (!text) continue;
+    const key = text.toLowerCase().replace(/\s+/g, " ");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out.slice(0, MAX_MATCH_CHANNELS);
+}
+
+/** Channel list → the single TEXT column value (JSON keeps names intact). */
+function channelsToStorage(list: string[]): string {
+  return list.length ? JSON.stringify(list) : "";
+}
+
+/** The TEXT column → a channel list, tolerating legacy delimiter-separated rows. */
+function channelsFromStorage(raw: unknown): string[] {
+  const text = String(raw ?? "").trim();
+  if (!text) return [];
+  if (text.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (Array.isArray(parsed)) return parseChannelList(parsed);
+    } catch {
+      // Malformed JSON: fall through and treat the text as a delimiter list.
+    }
+  }
+  return parseChannelList(text);
+}
+
 export interface AdminMatchInput {
   sport: string;
   competitionSlug: string;
   competitionName: string;
+  /** English competition name for /en (optional; falls back to the Arabic one). */
+  competitionNameEn?: string;
   season?: string;
   homeName: string;
   homeNameEn?: string;
@@ -311,6 +411,10 @@ export interface AdminMatchInput {
   awayScore?: number | null;
   venue?: string;
   referee?: string;
+  /** Matchweek / round label, e.g. «الجولة 5» (optional). */
+  round?: string;
+  /** TV channels for this match — array or one delimited string (optional). */
+  channels?: string[] | string;
   isPublished?: boolean;
   slug?: string;
 }
@@ -322,6 +426,12 @@ export function validateMatchInput(input: AdminMatchInput): string | null {
   if (!parseScheduledAt(input.date, input.time)) return "التاريخ غير صالح (YYYY-MM-DD)";
   if (!ADMIN_MATCH_STATUSES.includes(input.status)) return "الحالة غير صالحة";
   if (!cleanText(input.sport, 2)) return "الرياضة مطلوبة";
+  if (Array.isArray(input.channels) && parseChannelList(input.channels).length !== input.channels.filter((c) => cleanText(c, MAX_CHANNEL_LENGTH)).length) {
+    return `قنوات النقل: ${MAX_MATCH_CHANNELS} قنوات كحد أقصى، وبلا تكرار`;
+  }
+  if (typeof input.channels === "string" && input.channels.split(/[\n,،;؛|]+/).filter((c) => cleanText(c, MAX_CHANNEL_LENGTH)).length > MAX_MATCH_CHANNELS) {
+    return `قنوات النقل: ${MAX_MATCH_CHANNELS} قنوات كحد أقصى`;
+  }
   for (const [label, raw] of [["أهداف المضيف", input.homeScore], ["أهداف الضيف", input.awayScore]] as const) {
     if (raw !== null && raw !== undefined && (!Number.isInteger(raw) || raw < 0)) return `${label} يجب أن يكون رقمًا صحيحًا غير سالب`;
   }
@@ -336,8 +446,9 @@ CREATE TABLE IF NOT EXISTS admin_matches (
   slug             TEXT NOT NULL UNIQUE,
   sport            TEXT NOT NULL DEFAULT 'football',
   competition_slug TEXT NOT NULL,
-  competition_name TEXT NOT NULL DEFAULT '',
-  season           TEXT NOT NULL DEFAULT '',
+  competition_name    TEXT NOT NULL DEFAULT '',
+  competition_name_en TEXT NOT NULL DEFAULT '',
+  season              TEXT NOT NULL DEFAULT '',
   home_name        TEXT NOT NULL,
   home_name_en     TEXT NOT NULL DEFAULT '',
   home_logo        TEXT NOT NULL DEFAULT '',
@@ -351,6 +462,8 @@ CREATE TABLE IF NOT EXISTS admin_matches (
   away_score       INTEGER,
   venue            TEXT NOT NULL DEFAULT '',
   referee          TEXT NOT NULL DEFAULT '',
+  round            TEXT NOT NULL DEFAULT '',
+  channels         TEXT NOT NULL DEFAULT '',
   is_published     BOOLEAN NOT NULL DEFAULT false,
   created_by       TEXT NOT NULL DEFAULT '',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -360,6 +473,12 @@ CREATE INDEX IF NOT EXISTS idx_admin_matches_scheduled ON admin_matches(schedule
 CREATE INDEX IF NOT EXISTS idx_admin_matches_competition ON admin_matches(competition_slug);
 CREATE INDEX IF NOT EXISTS idx_admin_matches_status ON admin_matches(status);
 CREATE INDEX IF NOT EXISTS idx_admin_matches_published ON admin_matches(is_published);
+-- Columns added after the table shipped (16 Oct 2026 editorial fields). They
+-- run on every boot: an existing database gains them without a manual
+-- migration, and a fresh one is a no-op because CREATE TABLE already has them.
+ALTER TABLE admin_matches ADD COLUMN IF NOT EXISTS round TEXT NOT NULL DEFAULT '';
+ALTER TABLE admin_matches ADD COLUMN IF NOT EXISTS competition_name_en TEXT NOT NULL DEFAULT '';
+ALTER TABLE admin_matches ADD COLUMN IF NOT EXISTS channels TEXT NOT NULL DEFAULT '';
 `;
 
 const mem = new Map<string, AdminMatch>();
@@ -420,12 +539,13 @@ async function pg() {
         if (existing[0]?.c === "0" && process.env.NEMO_BOOTSTRAP_LEGACY_DATA === "1") {
           for (const m of INITIAL_ADMIN_MATCHES) {
             await db.run(
-              `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, is_published, created_by)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (slug) DO NOTHING`,
+              `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, competition_name_en, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, round, channels, is_published, created_by)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) ON CONFLICT (slug) DO NOTHING`,
               [
-                m.id, m.slug, m.sport, m.competitionSlug, m.competitionName, m.season,
+                m.id, m.slug, m.sport, m.competitionSlug, m.competitionName, m.competitionNameEn, m.season,
                 m.homeName, m.homeNameEn, m.homeLogo, m.awayName, m.awayNameEn, m.awayLogo,
-                m.scheduledAt, m.status, m.homeScore, m.awayScore, m.venue, m.referee, m.isPublished, m.createdBy,
+                m.scheduledAt, m.status, m.homeScore, m.awayScore, m.venue, m.referee,
+                m.round, channelsToStorage(m.channels), m.isPublished, m.createdBy,
               ],
             );
           }
@@ -454,6 +574,7 @@ function fromRow(r: Row): AdminMatch {
     sport: String(r.sport ?? "football"),
     competitionSlug: String(r.competition_slug ?? ""),
     competitionName: String(r.competition_name ?? ""),
+    competitionNameEn: String(r.competition_name_en ?? ""),
     season: String(r.season ?? ""),
     homeName: String(r.home_name ?? ""),
     homeNameEn: String(r.home_name_en ?? ""),
@@ -467,6 +588,8 @@ function fromRow(r: Row): AdminMatch {
     awayScore: r.away_score === null || r.away_score === undefined ? null : Number(r.away_score),
     venue: String(r.venue ?? ""),
     referee: String(r.referee ?? ""),
+    round: String(r.round ?? ""),
+    channels: channelsFromStorage(r.channels),
     isPublished: r.is_published === true,
     createdBy: String(r.created_by ?? ""),
     createdAt: iso(r.created_at),
@@ -592,7 +715,7 @@ export function adminMatchToFixture(m: AdminMatch): NormalizedFixture {
     sport: m.sport,
     competitionProviderId: m.competitionSlug,
     seasonProviderId: m.season || null,
-    round: null,
+    round: m.round || null,
     homeProviderId: null,
     awayProviderId: null,
     scheduledAt: m.scheduledAt,
@@ -606,9 +729,14 @@ export function adminMatchToFixture(m: AdminMatch): NormalizedFixture {
     minute: m.status === "live" ? null : null,
     homeName: m.homeName,
     awayName: m.awayName,
+    homeNameEn: m.homeNameEn || null,
+    awayNameEn: m.awayNameEn || null,
     homeLogoUrl: m.homeLogo || null,
     awayLogoUrl: m.awayLogo || null,
     competitionName: m.competitionName || null,
+    competitionNameEn: m.competitionNameEn || null,
+    // Editorial TV list (never provider data → only admin fixtures carry it).
+    channels: m.channels.length ? [...m.channels] : null,
     sourceUrl: null,
     editorialUpdatedAt: m.updatedAt,
   };
@@ -641,6 +769,7 @@ export async function createAdminMatch(
     sport: cleanText(input.sport, 40) || "football",
     competitionSlug: cleanText(input.competitionSlug, 120),
     competitionName: cleanText(input.competitionName, 160),
+    competitionNameEn: cleanText(input.competitionNameEn, 160),
     season: cleanText(input.season, 40),
     homeName: cleanText(input.homeName, 160),
     homeNameEn: cleanText(input.homeNameEn, 160),
@@ -654,6 +783,8 @@ export async function createAdminMatch(
     awayScore: parseScore(input.awayScore),
     venue: cleanText(input.venue, 200),
     referee: cleanText(input.referee, 160),
+    round: cleanText(input.round, 60),
+    channels: parseChannelList(input.channels),
     isPublished: input.isPublished === true,
     createdBy,
     createdAt: t,
@@ -664,15 +795,16 @@ export async function createAdminMatch(
   try {
     const inDb = await persistOrThrow(db, (d) =>
       d.run(
-        `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, season,
+        `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, competition_name_en, season,
            home_name, home_name_en, home_logo, away_name, away_name_en, away_logo,
-           scheduled_at, status, home_score, away_score, venue, referee, is_published,
-           created_by, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+           scheduled_at, status, home_score, away_score, venue, referee, round, channels,
+           is_published, created_by, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
         [
-          match.id, match.slug, match.sport, match.competitionSlug, match.competitionName, match.season,
+          match.id, match.slug, match.sport, match.competitionSlug, match.competitionName, match.competitionNameEn, match.season,
           match.homeName, match.homeNameEn, match.homeLogo, match.awayName, match.awayNameEn, match.awayLogo,
           match.scheduledAt, match.status, match.homeScore, match.awayScore, match.venue, match.referee,
+          match.round, channelsToStorage(match.channels),
           match.isPublished, match.createdBy, match.createdAt, match.updatedAt,
         ],
       ),
@@ -699,6 +831,7 @@ export async function updateAdminMatch(
     sport: patch.sport ?? found.sport,
     competitionSlug: patch.competitionSlug ?? found.competitionSlug,
     competitionName: patch.competitionName ?? found.competitionName,
+    competitionNameEn: patch.competitionNameEn ?? found.competitionNameEn,
     season: patch.season ?? found.season,
     homeName: patch.homeName ?? found.homeName,
     homeNameEn: patch.homeNameEn ?? found.homeNameEn,
@@ -713,6 +846,8 @@ export async function updateAdminMatch(
     awayScore: patch.awayScore !== undefined ? patch.awayScore : found.awayScore,
     venue: patch.venue ?? found.venue,
     referee: patch.referee ?? found.referee,
+    round: patch.round ?? found.round,
+    channels: patch.channels ?? found.channels,
     isPublished: patch.isPublished !== undefined ? patch.isPublished : found.isPublished,
     slug: patch.slug ?? found.slug,
   };
@@ -722,6 +857,7 @@ export async function updateAdminMatch(
   found.sport = cleanText(merged.sport, 40) || "football";
   found.competitionSlug = cleanText(merged.competitionSlug, 120);
   found.competitionName = cleanText(merged.competitionName, 160);
+  found.competitionNameEn = cleanText(merged.competitionNameEn, 160);
   found.season = cleanText(merged.season, 40);
   found.homeName = cleanText(merged.homeName, 160);
   found.homeNameEn = cleanText(merged.homeNameEn, 160);
@@ -735,6 +871,8 @@ export async function updateAdminMatch(
   found.awayScore = parseScore(merged.awayScore);
   found.venue = cleanText(merged.venue, 200);
   found.referee = cleanText(merged.referee, 160);
+  found.round = cleanText(merged.round, 60);
+  found.channels = parseChannelList(merged.channels);
   found.isPublished = merged.isPublished === true;
   if (patch.slug && patch.slug.trim() && patch.slug.trim() !== found.slug) {
     const newSlug = cleanText(patch.slug, 120);
@@ -747,15 +885,16 @@ export async function updateAdminMatch(
   try {
     const inDb = await persistOrThrow(db, (d) =>
       d.run(
-        `UPDATE admin_matches SET slug=$2, sport=$3, competition_slug=$4, competition_name=$5, season=$6,
+        `UPDATE admin_matches SET slug=$2, sport=$3, competition_slug=$4, competition_name=$5,
+           competition_name_en=$22, season=$6,
            home_name=$7, home_name_en=$8, home_logo=$9, away_name=$10, away_name_en=$11, away_logo=$12,
            scheduled_at=$13, status=$14, home_score=$15, away_score=$16, venue=$17, referee=$18,
-           is_published=$19, updated_at=now() WHERE id=$1`,
+           round=$19, channels=$20, is_published=$21, updated_at=now() WHERE id=$1`,
         [
           found.id, found.slug, found.sport, found.competitionSlug, found.competitionName, found.season,
           found.homeName, found.homeNameEn, found.homeLogo, found.awayName, found.awayNameEn, found.awayLogo,
           found.scheduledAt, found.status, found.homeScore, found.awayScore, found.venue, found.referee,
-          found.isPublished,
+          found.round, channelsToStorage(found.channels), found.isPublished, found.competitionNameEn,
         ],
       ),
     );

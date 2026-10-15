@@ -32,6 +32,58 @@ export function sportName(locale: Locale, slugOrSport: string | Sport | null | u
 }
 
 /**
+ * Competition label built from the fixture's OWN fields — safe for every
+ * consumer, including client components.
+ *
+ * It deliberately does not consult the canonical catalogue: the catalogue pulls
+ * the Sports Data Layer (and with it the provider hostnames) into any bundle
+ * that imports it, and the shipped client bundle must never carry one
+ * (scripts/smoke.mjs asserts exactly that). Server surfaces that may load the
+ * catalogue use `fixtureCompetitionLabel` in lib/competition-label.ts instead.
+ */
+export function competitionLabelFromRecord(
+  locale: Locale,
+  fixture: {
+    competitionName?: string | null;
+    competitionNameEn?: string | null;
+  },
+  fallback = "",
+): string {
+  const canonical = fixture.competitionName ?? fallback;
+  if (locale === "en" && fixture.competitionNameEn && fixture.competitionNameEn !== canonical) return fixture.competitionNameEn;
+  return canonical;
+}
+
+/**
+ * Team label for one side of a fixture, in the reader's language.
+ *
+ * Provider fixtures carry a single name (whatever the provider sends), so it is
+ * used for both locales. Editorial fixtures carry the desk's Arabic name plus
+ * an English one — an English reader gets `homeNameEn`, while every lookup
+ * (streams, aliases, links, overrides) keeps using the canonical Arabic name.
+ * A name absent in the requested language falls back to the one that exists,
+ * never to an invented translation.
+ */
+export function fixtureTeamName(
+  locale: Locale,
+  fixture: {
+    homeName?: string | null;
+    homeNameEn?: string | null;
+    homeProviderId?: string | null;
+    awayName?: string | null;
+    awayNameEn?: string | null;
+    awayProviderId?: string | null;
+  },
+  side: "home" | "away",
+  fallback = "—",
+): string {
+  const canonical = (side === "home" ? fixture.homeName : fixture.awayName) ?? (side === "home" ? fixture.homeProviderId : fixture.awayProviderId) ?? fallback;
+  const latin = side === "home" ? fixture.homeNameEn : fixture.awayNameEn;
+  if (locale === "en" && latin && latin !== canonical) return latin;
+  return canonical;
+}
+
+/**
  * Best available display name for a team, competition, league or player record.
  *
  * Provider records usually carry only `name` (English); admin-curated records

@@ -20,6 +20,7 @@ import { localeAlternates } from "@/lib/i18n/metadata";
 import { hasMatchIdentity } from "@/lib/sdl-gateway";
 import { validateMatchStatus } from "@/lib/match-query";
 import { competitionByPath } from "@/lib/competition-catalog";
+import { fixtureCompetitionLabel } from "@/lib/competition-label";
 import { siteDay, siteDateKey, isDateKey, shiftDateKey } from "@/lib/tz";
 import type { NormalizedFixture } from "@/packages/sdl/src";
 import type { Locale } from "@/lib/i18n/locales";
@@ -102,7 +103,10 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
     for (const fixture of fixtures) {
       if (!fixture.competitionProviderId && !fixture.competitionName) continue;
       const id = fixture.competitionProviderId || fixture.competitionName || "";
-      optionMap.set(id, { id, name: fixture.competitionName || id, sport: fixture.sport });
+      // The filter label follows the reader's language: the catalogue first,
+      // then the record's own English name (editorial fixtures carry one), then
+      // whatever the source sent. The `id` stays untouched — it is the URL.
+      optionMap.set(id, { id, name: fixtureCompetitionLabel(locale, fixture, id), sport: fixture.sport });
     }
     // Keep a requested competition selected even when the current date has no
     // fixtures for it (the feed-derived options may not contain that league).
@@ -110,7 +114,7 @@ export default async function MatchesPage({ locale, searchParams, }: ViewProps &
       const canonical = competitionByPath(query.competition);
       optionMap.set(query.competition, {
         id: query.competition,
-        name: canonical?.name ?? query.competition,
+        name: (canonical ? (locale === "ar" ? canonical.nameAr : canonical.name) : query.competition),
         sport: query.sport || "football",
       });
     }

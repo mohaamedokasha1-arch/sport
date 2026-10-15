@@ -33,7 +33,8 @@ import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { localeAlternates } from "@/lib/i18n/metadata";
 import { formatClock, formatDate } from "@/lib/i18n/dates";
-import { countryName } from "@/lib/i18n/names";
+import { countryName, fixtureTeamName } from "@/lib/i18n/names";
+import { fixtureCompetitionLabel } from "@/lib/competition-label";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -261,9 +262,9 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const real = await sdlMatchDetail(await matchSport(slug), slug);
   if (real.ok && real.source === "provider" && hasMatchIdentity(real.data)) {
     const f = real.data;
-    const home = f.homeName ?? f.homeProviderId ?? "—";
-    const away = f.awayName ?? f.awayProviderId ?? "—";
-    const comp = f.competitionName ?? "";
+    const home = fixtureTeamName(locale, f, "home");
+    const away = fixtureTeamName(locale, f, "away");
+    const comp = fixtureCompetitionLabel(locale, f);
     const date = formatDate(locale, f.scheduledAt);
     const title = t(locale, "md.metaTitle", { home, away, comp, date });
     const description = t(locale, "md.metaDescription", { home, away, comp });
@@ -367,6 +368,11 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
     if (!hasMatchIdentity(f)) notFound();
     const home = f.homeName ?? f.homeProviderId ?? "—";
     const away = f.awayName ?? f.awayProviderId ?? "—";
+    // Reader-facing pair. `home`/`away` stay canonical: they key the stream
+    // registry, the demo team catalogue and the share metadata, so translating
+    // them would break the lookups an English page must still perform.
+    const homeLabel = fixtureTeamName(locale, f, "home");
+    const awayLabel = fixtureTeamName(locale, f, "away");
     const live = isLiveStatus(f.status);
     const played = f.homeScore !== null && f.awayScore !== null;
     // One state rule for the whole site (lib/match-state.ts): a stored
@@ -433,11 +439,14 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
       : undefined;
     const compSlug = compRef?.canonicalSlug ?? (competitionBySlug(f.competitionProviderId ?? "") ? f.competitionProviderId : null);
     const compUrl = compSlug ? `/competitions/${compSlug}` : null;
+    // Competition label in the reader's language: the canonical catalogue first,
+    // then the English name an operator typed on the record, then the source's.
+    const compLabel = fixtureCompetitionLabel(locale, f);
 
     const ld = {
       "@context": "https://schema.org",
       "@type": "SportsEvent",
-      name: `${home} vs ${away}`,
+      name: `${homeLabel} vs ${awayLabel}`,
       startDate: f.scheduledAt,
       eventStatus:
         f.status === "finished"
@@ -451,9 +460,9 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
               : "https://schema.org/EventScheduled",
       sport: schemaSportName(f.sport),
       url: matchUrl(slug),
-      homeTeam: { "@type": "SportsTeam", name: home },
-      awayTeam: { "@type": "SportsTeam", name: away },
-      competitor: [{ "@type": "SportsTeam", name: home }, { "@type": "SportsTeam", name: away }],
+      homeTeam: { "@type": "SportsTeam", name: homeLabel },
+      awayTeam: { "@type": "SportsTeam", name: awayLabel },
+      competitor: [{ "@type": "SportsTeam", name: homeLabel }, { "@type": "SportsTeam", name: awayLabel }],
     };
 
     return (
@@ -467,12 +476,12 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
             <span aria-hidden>/</span>
             <Link href="/live" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("md.liveStream")}</Link>
             <span aria-hidden>/</span>
-            <span className="font-semibold text-ink">{home} × {away}</span>
+            <span className="font-semibold text-ink">{homeLabel} × {awayLabel}</span>
           </nav>
 
           {/* H1 Title */}
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-ink text-center mb-3 tracking-tight">
-            {home} {tr("md.vs")} {away}
+            {homeLabel} {tr("md.vs")} {awayLabel}
           </h1>
 
           {/* scoreboard */}
@@ -481,21 +490,21 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
             {compUrl ? (
               <p className="mb-4 text-center text-[12px]">
                 <Link href={compUrl} className="font-bold text-gold-600 dark:text-gold-400 hover:underline">
-                  {f.competitionName ?? ""}
+                  {compLabel}
                 </Link>
               </p>
             ) : (
-              <p className="mb-4 text-center text-[12px] font-bold text-muted">{f.competitionName ?? ""}</p>
+              <p className="mb-4 text-center text-[12px] font-bold text-muted">{compLabel}</p>
             )}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="flex flex-col items-center gap-2 text-center">
-                <ProviderCrest name={home} logoUrl={f.homeLogoUrl} size={48} />
+                <ProviderCrest name={homeLabel} logoUrl={f.homeLogoUrl} size={48} />
                 {homeTeamObj ? (
                   <Link href={`/teams/${homeTeamObj.slug}`} className="text-[13px] font-extrabold hover:text-gold-500 transition">
-                    {home}
+                    {homeLabel}
                   </Link>
                 ) : (
-                  <span className="text-[13px] font-extrabold">{home}</span>
+                  <span className="text-[13px] font-extrabold">{homeLabel}</span>
                 )}
               </div>
               <div className="flex flex-col items-center gap-1">
@@ -514,18 +523,19 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
                 ) : null}
               </div>
               <div className="flex flex-col items-center gap-2 text-center">
-                <ProviderCrest name={away} logoUrl={f.awayLogoUrl} size={48} />
+                <ProviderCrest name={awayLabel} logoUrl={f.awayLogoUrl} size={48} />
                 {awayTeamObj ? (
                   <Link href={`/teams/${awayTeamObj.slug}`} className="text-[13px] font-extrabold hover:text-gold-500 transition">
-                    {away}
+                    {awayLabel}
                   </Link>
                 ) : (
-                  <span className="text-[13px] font-extrabold">{away}</span>
+                  <span className="text-[13px] font-extrabold">{awayLabel}</span>
                 )}
               </div>
             </div>
             <p className="mt-4 text-center text-[11.5px] text-muted">
               {formatDate(locale, f.scheduledAt)} · {formatClock(locale, f.scheduledAt)}
+              {f.round && (locale === "ar" || !/[\u0600-\u06FF]/.test(f.round)) ? ` · ${f.round}` : ""}
               {f.venueName ? ` · ${f.venueName}` : ""}
               {" · "}
               {stateNote}
@@ -545,7 +555,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
           </header>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <ShareMatch title={`${home} × ${away} — NEMO Sports`} path={matchPath(slug)} />
+            <ShareMatch title={`${homeLabel} × ${awayLabel} — NEMO Sports`} path={matchPath(slug)} />
             {matchState === "upcoming" && !stale ? (
               <>
                 <a className="focus-ring min-h-11 rounded border border-line px-3 py-3 text-sm" href={`/api/v1/calendar/${encodeURIComponent(slug)}`}>{tr("md.calendarLink")} (.ics)</a>
@@ -566,8 +576,8 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
             <MatchStreamPlayer
               stream={stream}
               phase={broadcast.state === "live" ? "live" : broadcast.state === "standby" ? "upcoming" : "inactive"}
-              home={home}
-              away={away}
+              home={homeLabel}
+              away={awayLabel}
               inactiveNote={tr(broadcastNoticeKey(broadcast.noticeAr, broadcast.matchState))}
             />
           ) : (
@@ -585,6 +595,30 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
               </div>
             </section>
           )}
+
+          {/* Declared TV channels — editorial metadata (lib/admin-matches.ts),
+              never provider data: it renders ONLY when the desk declared a list
+              for this match, and it never implies NEMO hosts a stream. */}
+          {f.channels && f.channels.length > 0 ? (
+            <section id="channels" className="mt-8">
+              <h2 className="mb-3 border-b-2 border-line pb-2 text-[15px] font-extrabold flex items-center justify-between">
+                <span>{tr("md.channelsHeading")}</span>
+                <span className="text-[11px] font-normal text-muted">{tr("md.channelsSource")}</span>
+              </h2>
+              <ul className="flex flex-wrap gap-2">
+                {f.channels.map((channel) => (
+                  <li
+                    key={channel}
+                    className="inline-flex items-center gap-1.5 rounded-[3px] border border-gold-500/40 bg-navy-850/60 px-3 py-1.5 text-[12.5px] font-bold text-gold-600 dark:text-gold-400"
+                  >
+                    <span aria-hidden>📺</span>
+                    <span dir="auto">{channel}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 text-[11px] leading-5 text-muted">{tr("md.channelsNote")}</p>
+            </section>
+          ) : null}
 
           <AdsterraBanner slot="match-below-stream" />
 
