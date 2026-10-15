@@ -269,6 +269,16 @@ test("original broadcast/player/source stores/auth and deployment settings remai
   // one byte may move.
   for (const [path, expected] of Object.entries(raw.byteForByte)) assert.equal(sha(path), expected, path);
 
+  // next.config.ts (in that list) was reviewed and re-pinned once for the
+  // hosted-preview opt-in: a hash cannot tell "framing stays off unless an
+  // origin is named" from "framing was turned on for everyone", so the
+  // behaviour is asserted here, on the module the config reads.
+  const { previewFrameOrigins, siteFrameAncestors } = await import("@/lib/security-csp");
+  assert.equal(siteFrameAncestors([]), "'none'", "no configured preview origin still means unframeable");
+  assert.deepEqual(previewFrameOrigins(undefined), [], "unset env var is not an allowlist");
+  assert.deepEqual(previewFrameOrigins("not-a-url, javascript:alert(1)"), [], "garbage origins are dropped, not forwarded");
+  assert.equal(siteFrameAncestors(["https://3000-abc.e2b.app"]), "'self' https://3000-abc.e2b.app", "a named origin gets exactly itself");
+
   // Two UI components were deliberately edited by the i18n work — their Arabic
   // copy moved into the shared dictionaries. The diffs were reviewed line by
   // line and contain nothing but strings and imports (see the commit that

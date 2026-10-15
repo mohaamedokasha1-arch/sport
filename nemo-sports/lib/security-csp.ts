@@ -23,6 +23,7 @@
  */
 
 import { AD_SCRIPT_HOSTS, adsEnabled } from "./ads";
+import { GOOGLE_ANALYTICS_CONNECT_HOSTS, GOOGLE_ANALYTICS_SCRIPT_HOST } from "./analytics";
 
 /** The one first-party route the match page is allowed to frame. */
 export const AD_FRAME_PATH = "/ad-frame";
@@ -82,12 +83,12 @@ export function contentSecurityPolicy(isDev: boolean, options: CspOptions = {}):
   return [
     "default-src 'self'",
     isDev
-      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'${extra}`
-      : `script-src 'self' 'unsafe-inline'${extra}`,
+      ? `script-src 'self' 'unsafe-inline' 'unsafe-eval'${extra} ${GOOGLE_ANALYTICS_SCRIPT_HOST}`
+      : `script-src 'self' 'unsafe-inline'${extra} ${GOOGLE_ANALYTICS_SCRIPT_HOST}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' https: data:",
     "font-src 'self' data:",
-    `connect-src 'self'${extra}`,
+    `connect-src 'self'${extra} ${GOOGLE_ANALYTICS_CONNECT_HOSTS.join(" ")}`,
     remoteMedia ? "media-src 'self' https:" : "media-src 'self'",
     // Match-page live players (components/match/MatchStreamPlayer.tsx) and the
     // 300×250 ad frames (components/ads/AdsterraBanner.tsx → /ad-frame) are
