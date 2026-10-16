@@ -536,19 +536,25 @@ async function pg() {
       try {
         for (const stmt of DDL.split(";").map((s) => s.trim()).filter(Boolean)) await db.run(stmt, []);
         const existing = await db.select<{ c: string }>("SELECT COUNT(*)::text AS c FROM admin_matches", []);
-        if (existing[0]?.c === "0" && process.env.NEMO_BOOTSTRAP_LEGACY_DATA === "1") {
-          for (const m of INITIAL_ADMIN_MATCHES) {
-            await db.run(
-              `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, competition_name_en, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, round, channels, is_published, created_by)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23) ON CONFLICT (slug) DO NOTHING`,
-              [
-                m.id, m.slug, m.sport, m.competitionSlug, m.competitionName, m.competitionNameEn, m.season,
-                m.homeName, m.homeNameEn, m.homeLogo, m.awayName, m.awayNameEn, m.awayLogo,
-                m.scheduledAt, m.status, m.homeScore, m.awayScore, m.venue, m.referee,
-                m.round, channelsToStorage(m.channels), m.isPublished, m.createdBy,
-              ],
-            );
-          }
+        const seedRows =
+          existing[0]?.c === "0" && process.env.NEMO_BOOTSTRAP_LEGACY_DATA === "1"
+            ? INITIAL_ADMIN_MATCHES
+            : [...EDITORIAL_FIXTURES_OCTOBER_2026, ...UNPUBLISHED_EDITORIAL_FIXTURES];
+        for (const m of seedRows) {
+          await db.run(
+            `INSERT INTO admin_matches (id, slug, sport, competition_slug, competition_name, competition_name_en, season, home_name, home_name_en, home_logo, away_name, away_name_en, away_logo, scheduled_at, status, home_score, away_score, venue, referee, round, channels, is_published, created_by)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+             ON CONFLICT (slug) DO UPDATE SET
+               home_logo = CASE WHEN admin_matches.home_logo = '' THEN EXCLUDED.home_logo ELSE admin_matches.home_logo END,
+               away_logo = CASE WHEN admin_matches.away_logo = '' THEN EXCLUDED.away_logo ELSE admin_matches.away_logo END,
+               venue = CASE WHEN admin_matches.venue = '' THEN EXCLUDED.venue ELSE admin_matches.venue END`,
+            [
+              m.id, m.slug, m.sport, m.competitionSlug, m.competitionName, m.competitionNameEn, m.season,
+              m.homeName, m.homeNameEn, m.homeLogo, m.awayName, m.awayNameEn, m.awayLogo,
+              m.scheduledAt, m.status, m.homeScore, m.awayScore, m.venue, m.referee ?? "",
+              m.round, channelsToStorage(m.channels), m.isPublished, m.createdBy,
+            ],
+          );
         }
       } catch {
         return null;
@@ -704,7 +710,7 @@ export async function adminMatchCounts(): Promise<{
 }
 
 /** Published admin matches as SDL fixtures — the public merge boundary. */
-export async function publishedAdminFixtures(limit = 200): Promise<NormalizedFixture[]> {
+export async function publishedAdminFixtures(limit = 500): Promise<NormalizedFixture[]> {
   const list = await listAdminMatches({ publishedOnly: true, limit });
   return list.map(adminMatchToFixture);
 }

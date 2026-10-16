@@ -88,6 +88,84 @@ const DESK_SHEET: Record<string, string> = {
   "barcelona-vs-bayern-munich": "2026-10-16 21:00",
   "el-gouna-vs-pyramids": "2026-10-16 21:00",
   "al-ittihad-kalba-vs-al-raqqa": "2026-10-16 21:00",
+  // الجمعة 16 أكتوبر 2026 — مباريات مؤكدة مضافة (22 مباراة)
+  "el-sekka-el-hadid-vs-ismaily": "2026-10-16 15:30",
+  "tersana-vs-belqas": "2026-10-16 15:30",
+  "baladiyat-el-mahalla-vs-fc-masar": "2026-10-16 15:30",
+  "pharco-vs-maleyat-kafr-el-zayat": "2026-10-16 15:30",
+  "proxy-sc-vs-el-entag-al-harby": "2026-10-16 15:30",
+  "al-merrikh-vs-pyramids-fc": "2026-10-16 16:00",
+  "welwalo-adigrat-vs-al-ahli-tripoli": "2026-10-16 16:00",
+  "al-dhafra-vs-dubai-united": "2026-10-16 16:05",
+  "al-qadsiah-vs-abha": "2026-10-16 16:15",
+  "al-ahli-doha-vs-al-wakrah": "2026-10-16 17:30",
+  "baniyas-vs-al-wasl": "2026-10-16 18:45",
+  "apr-fc-vs-zamalek-sc": "2026-10-16 19:00",
+  "star-sport-academy-vs-rs-berkane": "2026-10-16 19:00",
+  "al-shahaniya-vs-al-arabi-qatar": "2026-10-16 19:45",
+  "zed-fc-vs-azam-fc": "2026-10-16 20:00",
+  "corum-fk-vs-caykur-rizespor": "2026-10-16 20:00",
+  "sc-heerenveen-vs-excelsior": "2026-10-16 21:00",
+  "eintracht-frankfurt-vs-fc-koln": "2026-10-16 21:30",
+  "frosinone-vs-sassuolo": "2026-10-16 21:45",
+  "le-mans-vs-toulouse": "2026-10-16 21:45",
+  "deportivo-la-coruna-vs-levante": "2026-10-16 22:00",
+  "burnley-vs-wolverhampton-wanderers": "2026-10-16 22:00",
+  // السبت 17 أكتوبر 2026 — الغد (54 مباراة مؤكدة مضافة)
+  "airtel-kitara-fc-vs-al-ahly-fc": "2026-10-17 16:00",
+  "saudi-arabia-u17-vs-egypt-u17": "2026-10-17 17:45",
+  "everton-vs-chelsea": "2026-10-17 14:30",
+  "brentford-vs-liverpool": "2026-10-17 17:00",
+  "manchester-city-vs-ipswich-town": "2026-10-17 17:00",
+  "fulham-vs-hull-city": "2026-10-17 17:00",
+  "newcastle-united-vs-aston-villa": "2026-10-17 19:30",
+  "espanyol-vs-atletico-madrid": "2026-10-17 15:00",
+  "villarreal-vs-elche": "2026-10-17 17:15",
+  "real-betis-vs-barcelona": "2026-10-17 19:30",
+  "valencia-vs-athletic-club": "2026-10-17 22:00",
+  "venezia-vs-napoli": "2026-10-17 16:00",
+  "bologna-vs-inter-milan": "2026-10-17 19:00",
+  "roma-vs-genoa": "2026-10-17 21:45",
+  "union-berlin-vs-borussia-dortmund": "2026-10-17 16:30",
+  "hamburger-sv-vs-stuttgart": "2026-10-17 16:30",
+  "schalke-04-vs-mainz-05": "2026-10-17 16:30",
+  "werder-bremen-vs-paderborn": "2026-10-17 16:30",
+  "elversberg-vs-augsburg": "2026-10-17 16:30",
+  "bayern-munich-vs-rb-leipzig": "2026-10-17 19:30",
+  "strasbourg-vs-paris-saint-germain": "2026-10-17 18:15",
+  "lille-vs-brest": "2026-10-17 21:45",
+  "troyes-vs-lens": "2026-10-17 21:45",
+  "neom-sc-vs-al-ettifaq": "2026-10-17 18:40",
+  "al-diraiyah-vs-al-taawoun": "2026-10-17 21:00",
+  "al-nasr-dubai-vs-hatta": "2026-10-17 16:05",
+  "shabab-al-ahli-vs-al-ain": "2026-10-17 18:45",
+  "al-sailiya-vs-qatar-sc": "2026-10-17 17:30",
+  "lusail-vs-al-shamal": "2026-10-17 19:45",
+  "codm-meknes-vs-union-touarga": "2026-10-17 19:00",
+  "difaa-el-jadidi-vs-moghreb-tetouan": "2026-10-17 23:00",
+  "es-hamam-sousse-vs-us-ben-guerdane": "2026-10-17 16:30",
+  "cffa-vs-young-africans": "2026-10-17 15:00",
+  "tp-mazembe-vs-club-africain": "2026-10-17 16:00",
+  "african-stars-vs-orlando-pirates": "2026-10-17 16:00",
+  "15-de-agosto-vs-simba-sc": "2026-10-17 18:00",
+  "san-pedro-vs-fc-nouadhibou": "2026-10-17 19:00",
+  "red-arrows-vs-kaizer-chiefs": "2026-10-17 16:00",
+  "es-zarzis-vs-as-real-bamako": "2026-10-17 17:30",
+  "rayon-sports-vs-black-bulls": "2026-10-17 19:00",
+  "academie-de-fad-vs-cs-sfaxien": "2026-10-17 19:00",
+  "co-korhogo-vs-as-far-rabat": "2026-10-17 19:00",
+  "as-douanes-nouakchott-vs-cr-belouizdad": "2026-10-17 20:00",
+  "ado-den-haag-vs-psv-eindhoven": "2026-10-17 17:30",
+  "sc-telstar-vs-feyenoord": "2026-10-17 21:00",
+  "sparta-rotterdam-vs-willem-ii": "2026-10-17 22:00",
+  "watford-vs-charlton-athletic": "2026-10-17 14:30",
+  "middlesbrough-vs-cardiff-city": "2026-10-17 14:30",
+  "bristol-city-vs-sheffield-united": "2026-10-17 17:00",
+  "norwich-city-vs-portsmouth": "2026-10-17 17:00",
+  "southampton-vs-bolton-wanderers": "2026-10-17 17:00",
+  "swansea-city-vs-west-ham-united": "2026-10-17 17:00",
+  "genclerbirligi-vs-galatasaray": "2026-10-17 16:00",
+  "fenerbahce-vs-alanyaspor": "2026-10-17 19:00",
 };
 
 const cairoDay = (iso: string) => {
@@ -104,11 +182,12 @@ const cairoDayTime = (iso: string) => {
 const published = EDITORIAL_FIXTURES_OCTOBER_2026;
 const all: AdminMatch[] = [...INITIAL_ADMIN_MATCHES];
 
-test("both matchdays are present, and only those two days", () => {
+test("all three matchdays (15, 16, 17 Oct 2026) are present with exact counts", () => {
   const days = new Set(published.map((m) => cairoDay(m.scheduledAt)));
-  assert.deepEqual([...days].sort(), ["2026-10-15", "2026-10-16"]);
+  assert.deepEqual([...days].sort(), ["2026-10-15", "2026-10-16", "2026-10-17"]);
   assert.equal(published.filter((m) => cairoDay(m.scheduledAt) === "2026-10-15").length, 21);
-  assert.equal(published.filter((m) => cairoDay(m.scheduledAt) === "2026-10-16").length, 22);
+  assert.equal(published.filter((m) => cairoDay(m.scheduledAt) === "2026-10-16").length, 44);
+  assert.equal(published.filter((m) => cairoDay(m.scheduledAt) === "2026-10-17").length, 54);
 });
 
 test("the UTC instant equals the Cairo wall clock the desk wrote", () => {
@@ -179,6 +258,7 @@ test("logos are real crest URLs or empty — never a placeholder CDN", () => {
     ["https://crests.football-data.org/", /^https:\/\/crests\.football-data\.org\/\d+\.png$/],
     ["https://media.api-sports.io/", /^https:\/\/media\.api-sports\.io\/football\/teams\/\d+\.png$/],
     ["https://r2.thesportsdb.com/", /^https:\/\/r2\.thesportsdb\.com\/images\/media\/team\/badge\/[a-z0-9]+\.png$/],
+    ["https://img.thesports.com/", /^https:\/\/img\.thesports\.com\/football\/team\/[a-f0-9]{32}\.(png|jpg|webp|jfif)$/],
   ];
   for (const m of all) {
     for (const logo of [m.homeLogo, m.awayLogo]) {
