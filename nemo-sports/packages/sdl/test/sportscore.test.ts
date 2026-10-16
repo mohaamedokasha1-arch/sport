@@ -123,7 +123,8 @@ test("REST v1 day endpoint: a date request returns that whole UTC day, not the 5
 });
 
 test("REST v1 competition request: one call per day of the window, scoped to the competition slug", async () => {
-  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") });
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const t = v1Transport({ [todayUtc]: fx("v1-fixtures-egypt-2026-10-12.json") });
   const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "egyptian-premier-league" });
   assert.equal(res.ok, true);
   if (!res.ok) return;
@@ -134,13 +135,15 @@ test("REST v1 competition request: one call per day of the window, scoped to the
 });
 
 test("REST v1 competition request: another competition's rows never leak in", async () => {
-  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") });
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const t = v1Transport({ [todayUtc]: fx("v1-fixtures-egypt-2026-10-12.json") });
   const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "english-premier-league" });
   assert.ok(res.ok && res.data.length === 0, "a competition with no rows in the answer yields [] — not the Egyptian rows the stub returned");
 });
 
 test("REST v1: a failed day fails the whole request — a partial schedule is never presented as complete", async () => {
-  const t = v1Transport({ "2026-10-12": fx("v1-fixtures-egypt-2026-10-12.json") }, { failDay: "2026-10-10" });
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const t = v1Transport({ [todayUtc]: fx("v1-fixtures-egypt-2026-10-12.json") }, { failDay: todayUtc });
   const res = await v1Adapter(t.impl).getFixtures({ sport: "football", competitionProviderId: "egyptian-premier-league" });
   assert.equal(res.ok, false, "a provider failure is not an empty result");
 });
