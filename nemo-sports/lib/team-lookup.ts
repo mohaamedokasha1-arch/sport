@@ -95,6 +95,48 @@ export function findTeamRow<T extends TeamIdentifiable>(rows: readonly T[], team
   return null;
 }
 
+/** Minimal result shape consumed by a lookup across provider standings tables. */
+export type TeamLookupTable<T extends TeamIdentifiable> = {
+  competitionId: string;
+  result:
+    | { ok: true; data: readonly T[]; source: { provider: string } }
+    | { ok: false; error: { code: string; attempts?: readonly unknown[] } };
+};
+
+export type TeamTableResolution<T extends TeamIdentifiable> =
+  | { kind: "found"; tableIndex: number; competitionId: string; row: T; provider: string }
+  | { kind: "not_found" }
+  | { kind: "unavailable" };
+
+/**
+ * Resolve one linked team from the same standings rows used to build its URL.
+ * A provider outage is not evidence that a team does not exist: without this
+ * distinction, a transient failure while reading the tables became a cached
+ * 404 for a perfectly valid team link. A successful row wins even if a
+ * different competition failed; an unavailable result only prevents a false
+ * not-found when no matching row could be confirmed.
+ */
+export function resolveTeamFromTables<T extends TeamIdentifiable>(
+  tables: readonly TeamLookupTable<T>[],
+  teamId: string,
+): TeamTableResolution<T> {
+  let unavailable = false;
+  for (let tableIndex = 0; tableIndex < tables.length; tableIndex += 1) {
+    const { competitionId, result } = tables[tableIndex];
+    if (!result.ok) {
+      // `no_provider_configured` is also wrapped as unavailable by the service,
+      // but its empty attempts list is a permanent deployment configuration,
+      // not a transient failure worth retrying on every request.
+      unavailable ||= result.error.code === "unavailable" && (result.error.attempts?.length ?? 0) > 0;
+      continue;
+    }
+    if (result.source.provider === "demo") continue;
+    const row = findTeamRow(result.data, teamId);
+    if (row) return { kind: "found", tableIndex, competitionId, row, provider: result.source.provider };
+  }
+  return unavailable ? { kind: "unavailable" } : { kind: "not_found" };
+}
+
 /**
  * Every football competition this deployment covers, in the order the tables
  * should be scanned: featured leagues first (they answer most lookups), then
