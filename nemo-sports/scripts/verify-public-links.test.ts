@@ -21,6 +21,7 @@ import {
   coveredFootballCompetitionIds,
   findTeamRow,
   rowLookupKeys,
+  resolveTeamFromTables,
   teamHref,
   teamHasFixtureInWindow,
   teamIdFromHref,
@@ -61,6 +62,77 @@ test("a slug link resolves, and so does the legacy name form already in the wild
   assert.equal(findTeamRow(rows, "al-ahly-fc"), ahly);
   assert.equal(findTeamRow(rows, "Al Ahly FC"), ahly);
   assert.equal(findTeamRow(rows, "al-ahly-fc")?.position, 1);
+});
+
+test("a provider slug from a standings row resolves to that row in a team page lookup", () => {
+  assert.deepEqual(
+    resolveTeamFromTables(
+      [{
+        competitionId: "egyptian-premier-league",
+        result: { ok: true, data: [pyramids], source: { provider: "sportscore" } },
+      }],
+      "pyramids-fc",
+    ),
+    {
+      kind: "found",
+      tableIndex: 0,
+      competitionId: "egyptian-premier-league",
+      row: pyramids,
+      provider: "sportscore",
+    },
+  );
+});
+
+test("a temporary standings failure is not classified as a nonexistent team", () => {
+  assert.deepEqual(
+    resolveTeamFromTables(
+      [{ competitionId: "egyptian-premier-league", result: { ok: false, error: { code: "unavailable", attempts: [{ provider: "sportscore" }] } } }],
+      "pyramids-fc",
+    ),
+    { kind: "unavailable" },
+  );
+});
+
+test("missing provider configuration still permits an honest not-found for an unknown slug", () => {
+  assert.deepEqual(
+    resolveTeamFromTables(
+      [{ competitionId: "egyptian-premier-league", result: { ok: false, error: { code: "unavailable", attempts: [] } } }],
+      "unknown-team",
+    ),
+    { kind: "not_found" },
+  );
+});
+
+test("a confirmed row wins over an unrelated standings outage", () => {
+  assert.deepEqual(
+    resolveTeamFromTables(
+      [
+        { competitionId: "premier-league", result: { ok: false, error: { code: "unavailable" } } },
+        { competitionId: "egyptian-premier-league", result: { ok: true, data: [pyramids], source: { provider: "sportscore" } } },
+      ],
+      "pyramids-fc",
+    ),
+    {
+      kind: "found",
+      tableIndex: 1,
+      competitionId: "egyptian-premier-league",
+      row: pyramids,
+      provider: "sportscore",
+    },
+  );
+});
+
+test("an unknown team stays not found when no lookup encountered a temporary failure", () => {
+  assert.deepEqual(
+    resolveTeamFromTables(
+      [
+        { competitionId: "premier-league", result: { ok: true, data: [ahly], source: { provider: "sportscore" } } },
+        { competitionId: "egyptian-premier-league", result: { ok: false, error: { code: "not_found" } } },
+      ],
+      "unknown-team",
+    ),
+    { kind: "not_found" },
+  );
 });
 
 test("an unnamed row renders no link instead of a guaranteed 404", () => {

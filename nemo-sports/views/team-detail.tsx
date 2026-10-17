@@ -25,7 +25,7 @@ import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
 import { cache } from "react";
 import { decodeSlug } from "@/lib/slug";
-import { coveredFootballCompetitionIds, findTeamRow, teamHasFixtureInWindow } from "@/lib/team-lookup";
+import { coveredFootballCompetitionIds, resolveTeamFromTables, teamHasFixtureInWindow } from "@/lib/team-lookup";
 import { isLiveStatus, matchStateOf } from "@/lib/match-state";
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
@@ -61,21 +61,27 @@ const findTeamInRealTables = cache(async function findTeamInRealTables(
   // is ordered featured-first, so the common lookup still stops early.
   const ids = coveredFootballCompetitionIds();
   const tables = await Promise.all(ids.map((id) => footballStandings(id)));
-  for (let i = 0; i < tables.length; i += 1) {
-    const res = tables[i];
-    if (!res.ok || res.source.provider === "demo") continue;
-    const row = findTeamRow(res.data, teamId);
-    if (!row) continue;
-    return {
-      row,
-      compId: ids[i] ?? "",
-      provider: res.source.provider,
-      fromCache: res.source.fromCache,
-      stale: res.source.stale,
-      fetchedAt: res.source.fetchedAt,
-    };
+  const resolution = resolveTeamFromTables(
+    tables.map((result, index) => ({ competitionId: ids[index] ?? "", result })),
+    teamId,
+  );
+  if (resolution.kind === "unavailable") {
+    // A failed league-table request cannot prove the linked club is absent.
+    // Throw so ISR does not cache a temporary provider failure as a team 404.
+    throw new Error("team_standings_unavailable");
   }
-  return null;
+  if (resolution.kind === "not_found") return null;
+
+  const res = tables[resolution.tableIndex];
+  if (!res?.ok || res.source.provider === "demo") return null;
+  return {
+    row: resolution.row,
+    compId: resolution.competitionId,
+    provider: res.source.provider,
+    fromCache: res.source.fromCache,
+    stale: res.source.stale,
+    fetchedAt: res.source.fetchedAt,
+  };
 });
 
 /**
