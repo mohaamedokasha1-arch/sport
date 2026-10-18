@@ -485,3 +485,133 @@ test("no public component renders the raw Arabic LiveState.clock", () => {
     );
   }
 });
+
+/* ── locale-aware entity names & Egyptian-priority surfaces (2026-10-18) ── */
+
+test("competitionDisplayName gives each locale its own name, with honest fallbacks", async () => {
+  const { competitionDisplayName } = await import("@/lib/competition-label");
+  const ref = { name: "Egyptian Premier League", nameAr: "الدوري المصري الممتاز" };
+  assert.equal(competitionDisplayName("en", ref), "Egyptian Premier League");
+  assert.equal(competitionDisplayName("ar", ref), "الدوري المصري الممتاز");
+  assert.equal(/[؀-ۿ]/.test(competitionDisplayName("en", ref)), false, "the English name has no Arabic left");
+  // A record missing one side falls back to the other, never to blank.
+  assert.equal(competitionDisplayName("en", { nameAr: "الزمالك" }), "الزمالك");
+  assert.equal(competitionDisplayName("ar", { name: "Zamalek" }), "Zamalek");
+  // nameEn wins over name on the English side (admin records carry both).
+  assert.equal(competitionDisplayName("en", { name: "Name", nameEn: "NameEn", nameAr: "اسم" }), "NameEn");
+  assert.equal(competitionDisplayName("en", null, "fallback-id"), "fallback-id");
+  assert.equal(competitionDisplayName("en", undefined), "");
+});
+
+test("the public catalogue lists the Egyptian Premier League first, losing no entry", async () => {
+  const { canonicalCompetitions, canonicalCompetitionsByPriority, EGYPT_CANONICAL_SLUG } = await import(
+    "@/lib/competition-catalog"
+  );
+  assert.equal(canonicalCompetitionsByPriority[0]?.canonicalSlug, EGYPT_CANONICAL_SLUG, "Egypt leads the catalogue");
+  assert.deepEqual(
+    [...canonicalCompetitionsByPriority].map((c) => c.canonicalSlug).sort(),
+    [...canonicalCompetitions].map((c) => c.canonicalSlug).sort(),
+    "priority ordering is a permutation — no competition added, removed or renamed",
+  );
+  const rest = canonicalCompetitionsByPriority.slice(1).map((c) => c.canonicalSlug);
+  const originalRest = canonicalCompetitions.filter((c) => c.canonicalSlug !== EGYPT_CANONICAL_SLUG).map((c) => c.canonicalSlug);
+  assert.deepEqual(rest, originalRest, "every other competition keeps its existing relative order");
+  const featuredBeforeExtras = canonicalCompetitionsByPriority.slice(1);
+  const firstNonFeatured = featuredBeforeExtras.findIndex((c) => !c.featured);
+  const lastFeatured = featuredBeforeExtras.map((c) => c.featured).lastIndexOf(true);
+  assert.ok(firstNonFeatured === -1 || lastFeatured === -1 || firstNonFeatured > lastFeatured, "featured majors still precede the extras");
+});
+
+test("the standings surface leads with the verified Egyptian table, then the majors", async () => {
+  const { standingsCompetitions } = await import("@/lib/football-data");
+  const list = standingsCompetitions();
+  assert.equal(list[0]?.slug, "egyptian-premier-league", "the Egyptian Premier League opens /standings");
+  assert.equal(list[0]?.code, "EGY");
+  assert.equal(list[0]?.name, "Egyptian Premier League");
+  assert.equal(list[0]?.nameAr, "الدوري المصري الممتاز");
+  const majors = list.slice(1).map((c) => c.code);
+  assert.deepEqual(majors, ["PL", "PD", "SA", "BL1", "FL1", "CL"], "the six majors follow in their existing order");
+  const slugs = list.map((c) => c.slug ?? c.code);
+  assert.equal(new Set(slugs).size, slugs.length, "no competition appears twice on the surface");
+});
+
+test("the English provider competition page no longer renders the Arabic name", () => {
+  const src = readFileSync(new URL("../views/competition-detail.tsx", import.meta.url), "utf8");
+  assert.match(src, /competitionDisplayName\(locale, competition/, "the breadcrumb/H1 name is locale-aware");
+  const providerPage = src.slice(src.indexOf("async function ProviderCompetitionPage"));
+  assert.equal(
+    /\{competition\.nameAr\}/.test(providerPage),
+    false,
+    "ProviderCompetitionPage still renders competition.nameAr unconditionally",
+  );
+});
+
+test("admin metadata picks the record's English name on English pages", () => {
+  const competition = readFileSync(new URL("../views/competition-detail.tsx", import.meta.url), "utf8");
+  const team = readFileSync(new URL("../views/team-detail.tsx", import.meta.url), "utf8");
+  assert.match(competition, /entityName\(locale, c\) \|\| c\.nameAr/, "competition metadata is locale-aware with an honest fallback");
+  assert.match(team, /entityName\(locale, adminTeam\) \|\| adminTeam\.nameAr/, "team metadata is locale-aware with an honest fallback");
+  assert.equal(
+    /name: adminTeam\.nameAr \}\)/.test(team),
+    false,
+    "team metadata still hardcodes the Arabic name",
+  );
+  assert.match(team, /competitionDisplayName\(locale, match, id\)/, "the provider team page's competition chip is locale-aware");
+});
+
+test("the manual-news metadata locale follows the page, never a hardcoded ar_AR", () => {
+  const src = readFileSync(new URL("../views/news-detail.tsx", import.meta.url), "utf8");
+  assert.equal(/locale: "ar_AR"/.test(src), false, "news-detail still hardcodes the OG locale");
+  assert.match(src, /locale: ogLocale\(locale\)/, "the OG locale comes from the site-wide mapping");
+  assert.match(src, /manual\.titleEn \|\| manual\.title/, "the English page falls back to the real Arabic title only when titleEn is missing");
+});
+
+test("the competitions page renders the priority-ordered catalogue", () => {
+  const src = readFileSync(new URL("../views/competitions.tsx", import.meta.url), "utf8");
+  assert.match(src, /canonicalCompetitionsByPriority/, "the catalogue page lists Egypt first");
+});
+
+test("alias and case redirects keep the visitor's language (EN alias never lands on the Arabic tree)", async () => {
+  // Next signals a redirect by throwing; the target travels in the digest.
+  const captureTarget = async (run: () => Promise<unknown>): Promise<string> => {
+    try {
+      await run();
+    } catch (error) {
+      const e = error as { digest?: string; message?: string };
+      return String(e.digest ?? e.message ?? "");
+    }
+    return "";
+  };
+
+  // CompetitionPage returns an async child element; invoking the child the
+  // way React would is what actually runs the redirect.
+  const competitionView = await import("@/views/competition-detail");
+  const runCompetitionPage = async (locale: "ar" | "en", slug: string): Promise<string> => {
+    const element = (await competitionView.default({ locale, params: Promise.resolve({ slug }) })) as unknown as {
+      type: (props: unknown) => Promise<unknown>;
+      props: unknown;
+    };
+    return captureTarget(() => element.type(element.props));
+  };
+  const enAlias = await runCompetitionPage("en", "english-premier-league");
+  assert.match(enAlias, /\/en\/competitions\/premier-league/, "the EN alias redirects to the EN canonical URL");
+  const arAlias = await runCompetitionPage("ar", "english-premier-league");
+  assert.match(arAlias, /\/competitions\/premier-league/, "the Arabic alias keeps its unchanged target");
+  assert.equal(arAlias.includes("/en/"), false, "the Arabic redirect must not gain an /en prefix");
+
+  const matchView = await import("@/views/match-detail");
+  const enUpper = await captureTarget(() =>
+    matchView.default({ locale: "en", params: Promise.resolve({ slug: "AL-AHLY-vs-ZAMALEK" }) }) as Promise<unknown>,
+  );
+  assert.match(enUpper, /\/en\/matches\/al-ahly-vs-zamalek/, "the EN uppercase-slug redirect stays in the EN tree");
+  const arUpper = await captureTarget(() =>
+    matchView.default({ locale: "ar", params: Promise.resolve({ slug: "AL-AHLY-vs-ZAMALEK" }) }) as Promise<unknown>,
+  );
+  assert.match(arUpper, /\/matches\/al-ahly-vs-zamalek/, "the Arabic redirect target is unchanged");
+  assert.equal(arUpper.includes("/en/"), false);
+
+  // The inbound-alias forward is deep inside the match page (it needs live
+  // data), so it is pinned at the source level instead.
+  const matchSrc = readFileSync(new URL("../views/match-detail.tsx", import.meta.url), "utf8");
+  assert.match(matchSrc, /redirect\(localizePath\(matchPath\(alias\), locale\)\)/, "the inbound-alias redirect is locale-aware");
+});

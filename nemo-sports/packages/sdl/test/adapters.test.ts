@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
  * rest of the platform depends on: provider payloads never escape the adapter.
  */
 
-import { ApiFootballAdapter, AF_STATUS } from "../src/adapters/api-football";
+import { ApiFootballAdapter, AF_STATUS, AF_LEAGUE_BY_SLUG, afLeagueId } from "../src/adapters/api-football";
 import { SportmonksAdapter, SM_STATUS, EVENT_TYPE_ID } from "../src/adapters/sportmonks";
 import { SportradarAdapter, SR_STATUS } from "../src/adapters/sportradar";
 import { TheSportsDbAdapter } from "../src/adapters/thesportsdb";
@@ -46,7 +46,7 @@ const afFixtureEnvelope = {
         venue: { id: 556, name: "Cairo International Stadium", city: "Cairo" },
         status: { long: "First Half", short: "1H", elapsed: 34, extra: null },
       },
-      league: { id: 1440, name: "Egyptian Premier League", country: "Egypt", logo: "https://cdn/1440.png", season: 2026, round: "Regular Season - 18" },
+      league: { id: 233, name: "Egyptian Premier League", country: "Egypt", logo: "https://cdn/233.png", season: 2026, round: "Regular Season - 18" },
       teams: {
         home: { id: 1063, name: "Al Ahly", logo: "https://cdn/1063.png", winner: null },
         away: { id: 1064, name: "Zamalek", logo: "https://cdn/1064.png", winner: null },
@@ -70,7 +70,7 @@ test("api-football: fixture envelope is normalized into canonical fixture fields
   const f = res.data;
   assert.equal(f.providerId, "12345");
   assert.equal(f.sport, "football");
-  assert.equal(f.competitionProviderId, "1440");
+  assert.equal(f.competitionProviderId, "233", "the verified API-Football league id for Egypt (documented in AF_LEAGUE_BY_SLUG)");
   assert.equal(f.seasonProviderId, "2026");
   assert.equal(f.homeProviderId, "1063");
   assert.equal(f.awayProviderId, "1064");
@@ -105,6 +105,62 @@ test("api-football: 429 and 401 map to typed errors", async () => {
   const b = await unauthorized.getLiveMatches({ sport: "football" });
   assert.equal(b.ok, false);
   if (!b.ok) assert.equal(b.error.code, "auth");
+});
+
+test("api-football: canonical slugs resolve to verified league ids, unmapped ones decline without spending a request", async () => {
+  // The pure resolver: numeric ids pass through, catalog slugs/codes translate,
+  // anything unknown is null — never a guessed id (a wrong numeric id would
+  // silently serve a different competition).
+  assert.equal(afLeagueId("egyptian-premier-league"), "233", "Egypt → 233 (verified, see AF_LEAGUE_BY_SLUG sources)");
+  assert.ok(
+    !Object.values(AF_LEAGUE_BY_SLUG).includes("1336"),
+    "1336 is Sportmonks' Barbados Premier League id — the exact kind of unverified cross-provider id this map must never carry",
+  );
+  assert.equal(afLeagueId("EGY"), "233");
+  assert.equal(afLeagueId("saudi-pro-league"), "307");
+  assert.equal(afLeagueId("english-premier-league"), "39");
+  assert.equal(afLeagueId("PL"), "39");
+  assert.equal(afLeagueId("spanish-la-liga"), "140");
+  assert.equal(afLeagueId("italian-serie-a"), "135");
+  assert.equal(afLeagueId("bundesliga"), "78");
+  assert.equal(afLeagueId("french-ligue-1"), "61");
+  assert.equal(afLeagueId("uefa-champions-league"), "2");
+  assert.equal(afLeagueId("uefa-europa-league"), "3");
+  assert.equal(afLeagueId("39"), "39", "a numeric league id passes through untouched");
+  assert.equal(afLeagueId("caf-champions-league"), null, "an unverified competition is declined, not guessed");
+  assert.equal(afLeagueId(""), null);
+  assert.equal(afLeagueId(null), null);
+
+  const calls: string[] = [];
+  const adapter = new ApiFootballAdapter({
+    apiKey: "test",
+    fetchImpl: fakeFetch([{ match: () => true, body: { get: "standings", errors: [], results: 0, response: [] } }], calls),
+  });
+
+  const egypt = await adapter.getStandings({ providerCompetitionId: "egyptian-premier-league", season: "2026" });
+  assert.equal(egypt.ok, true);
+  assert.ok(calls[0]?.startsWith("/standings?"), calls[0]);
+  assert.ok(calls[0]?.includes("league=233"), `the canonical Egypt slug must reach API-Football as league=233, got: ${calls[0]}`);
+  assert.ok(calls[0]?.includes("season=2026"), "the requested season is preserved");
+
+  await adapter.getFixtures({ sport: "football", competitionProviderId: "egyptian-premier-league" });
+  assert.ok(calls[1]?.includes("league=233"), `fixtures translate the slug too, got: ${calls[1]}`);
+  assert.ok(calls[1]?.includes(`season=${new Date().getFullYear()}`), "an unscoped fixture list asks for the current season");
+
+  await adapter.getStandings({ providerCompetitionId: "39" });
+  assert.ok(calls[2]?.includes("league=39"), "a numeric id passes through untouched");
+
+  const before = calls.length;
+  const unknown = await adapter.getStandings({ providerCompetitionId: "caf-champions-league" });
+  assert.equal(unknown.ok, false);
+  if (!unknown.ok) {
+    assert.equal(unknown.error.code, "not_supported", "an unmapped competition is a capability gap, so the chain falls through");
+    assert.match(unknown.error.message, /no verified league id/);
+  }
+  const unknownFixtures = await adapter.getFixtures({ sport: "football", competitionProviderId: "totally-unknown-league" });
+  assert.equal(unknownFixtures.ok, false);
+  if (!unknownFixtures.ok) assert.equal(unknownFixtures.error.code, "not_supported");
+  assert.equal(calls.length, before, "no rate-limited request is spent on a competition the adapter cannot serve");
 });
 
 test("api-football: events, standings and status maps are canonical", async () => {
@@ -152,7 +208,7 @@ test("api-football: events, standings and status maps are canonical", async () =
     assert.equal(events.data[1].type, "yellow_card");
   }
 
-  const standings = await adapter.getStandings({ providerCompetitionId: "1440", season: "2026" });
+  const standings = await adapter.getStandings({ providerCompetitionId: "233", season: "2026" });
   assert.equal(standings.ok, true);
   if (standings.ok) {
     assert.equal(standings.data.length, 2);

@@ -156,6 +156,21 @@ export const canonicalCompetitions: CanonicalCompetition[] = [
   ...EXTRA_COMPETITIONS,
 ];
 
+/** Public path of the site's highest-priority competition. */
+export const EGYPT_CANONICAL_SLUG = "egyptian-league";
+
+/**
+ * The catalogue in public display order: the Egyptian Premier League leads
+ * (site priority), then the featured majors, then everything else — each group
+ * keeping its existing catalogue order (Array#sort is stable, and no entry is
+ * added or removed, so every existing URL and label is untouched).
+ */
+export const canonicalCompetitionsByPriority: CanonicalCompetition[] = (() => {
+  const rank = (c: CanonicalCompetition): number =>
+    c.canonicalSlug === EGYPT_CANONICAL_SLUG ? 0 : c.featured ? 1 : 2;
+  return [...canonicalCompetitions].sort((a, b) => rank(a) - rank(b));
+})();
+
 export function competitionByPath(path: string): CanonicalCompetition | undefined {
   let value: string;
   try {

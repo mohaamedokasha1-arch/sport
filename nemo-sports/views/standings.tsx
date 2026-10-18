@@ -3,7 +3,7 @@ import Link from "@/components/i18n/Link";
 import SectionHead from "@/components/ui/SectionHead";
 import DataUnavailable from "@/components/ui/DataUnavailable";
 import DataSourceNote from "@/components/data/DataSourceNote";
-import { footballDataCompetitions, footballStandings, footballTopScorers, type FootballDataResult } from "@/lib/football-data";
+import { footballStandings, footballTopScorers, standingsCompetitions, type FootballDataResult } from "@/lib/football-data";
 import { demoContentVisible } from "@/lib/site";
 import { supportsPlayerStats } from "@/lib/sdl-gateway";
 import type { NormalizedStandingRow, NormalizedTopScorer, ProviderName } from "@/packages/sdl/src";
@@ -29,11 +29,12 @@ export function generateMetadata(locale: Locale, _props: ViewProps = {} as ViewP
 export const revalidate = 300;
 
 /**
- * Football-Data.org majors — the five big leagues + the Champions League.
- * The slug is passed down (both football-data.org and the keyless fallback
- * resolve it), so nothing here is provider-specific.
+ * The standings surface: the Egyptian Premier League first (site priority),
+ * then the Football-Data.org majors — the five big leagues + the Champions
+ * League. The slug is passed down (football-data.org, the keyless fallback and
+ * the canonical catalogue all resolve it), so nothing here is provider-specific.
  */
-const MAJORS = footballDataCompetitions(true);
+const MAJORS = standingsCompetitions();
 
 type CompetitionResult = {
   code: string;

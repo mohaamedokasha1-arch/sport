@@ -115,6 +115,77 @@ export const AF_STATUS: Record<string, string> = {
   WO: "walkover",
 };
 
+/**
+ * NEMO canonical competition identifiers → API-Football (api-sports.io v3)
+ * numeric league ids.
+ *
+ * API-Football only accepts numeric league ids, but the SDL chain hands every
+ * provider the SAME canonical competition identifier (the SportScore-style
+ * slug from lib/competition-catalog.ts, e.g. "egyptian-premier-league").
+ * Without this map the adapter sent that slug as `league=…`, API-Football
+ * rejected it, and the provider was silently useless for every
+ * competition-scoped request even when a key was configured.
+ *
+ * ONLY verified ids are listed — an unverified id can silently serve a
+ * DIFFERENT competition (e.g. "1336" is the Egyptian league in no provider:
+ * in Sportmonks it is Barbados). Sources, checked 2026-10-18:
+ *   · Egypt 233 — owner-documented league mapping (TheSportsDB 4829 for the
+ *     same competition independently confirmed at
+ *     thesportsdb.com/league/4829-egyptian-premier-league); 2026-27 season
+ *     cross-checked against Ahram Online / Flashscore matchday listings.
+ *   · Saudi Arabia 307 — verified live against a real API-Football request
+ *     for the 2026-27 table on 2026-10-03 (owner log).
+ *   · 39 / 140 / 135 / 78 / 61 / 2 / 3 — official api-football.com guides
+ *     ("the Premier League is always 39, La Liga is always 140, the Champions
+ *     League is always 2"; /teams docs use 78 and 61) corroborated by an
+ *     exported api-sports league dataset.
+ * Anything unmapped is declined as `not_supported` (a capability gap, not an
+ * outage) so the orchestrator falls through to the next provider without
+ * spending a rate-limited request on a query that cannot work.
+ */
+export const AF_LEAGUE_BY_SLUG: Record<string, string> = {
+  "egyptian-premier-league": "233",
+  egy: "233",
+  "saudi-pro-league": "307",
+  spl: "307",
+  "english-premier-league": "39",
+  pl: "39",
+  "premier-league": "39",
+  "spanish-la-liga": "140",
+  pd: "140",
+  "la-liga": "140",
+  "primera-division": "140",
+  "italian-serie-a": "135",
+  sa: "135",
+  "serie-a": "135",
+  bundesliga: "78",
+  bl1: "78",
+  "german-bundesliga": "78",
+  "french-ligue-1": "61",
+  fl1: "61",
+  "ligue-1": "61",
+  "uefa-champions-league": "2",
+  cl: "2",
+  "champions-league": "2",
+  ucl: "2",
+  "uefa-europa-league": "3",
+  "europa-league": "3",
+  uel: "3",
+};
+
+/**
+ * Resolve one canonical competition identifier to an API-Football league id.
+ * Numeric ids pass through untouched (direct API-Football callers keep
+ * working exactly as before); known slugs/codes translate; anything else is
+ * null so the caller can decline honestly instead of guessing.
+ */
+export function afLeagueId(id: string | null | undefined): string | null {
+  const raw = String(id ?? "").trim();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) return raw;
+  return AF_LEAGUE_BY_SLUG[raw.toLowerCase().replace(/[\s_]+/g, "-")] ?? null;
+}
+
 export class ApiFootballAdapter extends withDefaults("api_football") {
   readonly capabilities: DataType[] = [
     "fixtures",
@@ -211,7 +282,11 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
       params.to = input.range.to.slice(0, 10);
     }
     if (input.competitionProviderId) {
-      params.league = input.competitionProviderId;
+      const league = afLeagueId(input.competitionProviderId);
+      if (!league) {
+        return { ok: false, provider: this.name, requestKey: this.key("fixtures", input), fromCache: false, error: { code: "not_supported", message: `api-football has no verified league id for "${input.competitionProviderId}"` } };
+      }
+      params.league = league;
       if (!input.range && !input.date) params.season = new Date().getFullYear();
     }
     const res = await this.getJson<Envelope<AfFixture>>("fixtures", params);
@@ -384,7 +459,11 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
   }
 
   override async getCompetition(input: { providerCompetitionId: string }): Promise<ProviderResult<NormalizedCompetition>> {
-    const res = await this.getJson<Envelope<{ league: { id: number; name: string; type: string; logo: string }; country: { name: string; code: string | null } }>>("leagues", { id: input.providerCompetitionId });
+    const league = afLeagueId(input.providerCompetitionId);
+    if (!league) {
+      return { ok: false, provider: this.name, requestKey: this.key("competitions", input), fromCache: false, error: { code: "not_supported", message: `api-football has no verified league id for "${input.providerCompetitionId}"` } };
+    }
+    const res = await this.getJson<Envelope<{ league: { id: number; name: string; type: string; logo: string }; country: { name: string; code: string | null } }>>("leagues", { id: league });
     const list = this.unwrap(res);
     if (!list.ok) return list;
     const l = list.data[0];
@@ -408,7 +487,11 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
   }
 
   override async getStandings(input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedStandingRow[]>> {
-    const params: Record<string, unknown> = { league: input.providerCompetitionId, season: input.season ?? new Date().getFullYear() };
+    const league = afLeagueId(input.providerCompetitionId);
+    if (!league) {
+      return { ok: false, provider: this.name, requestKey: this.key("standings", input), fromCache: false, error: { code: "not_supported", message: `api-football has no verified league id for "${input.providerCompetitionId}"` } };
+    }
+    const params: Record<string, unknown> = { league, season: input.season ?? new Date().getFullYear() };
     const res = await this.getJson<Envelope<AfStanding>>("standings", params);
     const list = this.unwrap(res);
     if (!list.ok) return list;
@@ -436,7 +519,11 @@ export class ApiFootballAdapter extends withDefaults("api_football") {
   }
 
   override async getTopScorers(input: { providerCompetitionId: string; season?: string }): Promise<ProviderResult<NormalizedTopScorer[]>> {
-    const params: Record<string, unknown> = { league: input.providerCompetitionId, season: input.season ?? new Date().getFullYear() };
+    const league = afLeagueId(input.providerCompetitionId);
+    if (!league) {
+      return { ok: false, provider: this.name, requestKey: this.key("scorers", input), fromCache: false, error: { code: "not_supported", message: `api-football has no verified league id for "${input.providerCompetitionId}"` } };
+    }
+    const params: Record<string, unknown> = { league, season: input.season ?? new Date().getFullYear() };
     const res = await this.getJson<Envelope<{ player: { id: number; name: string; photo: string }; statistics: { team: { id: number; name: string }; goals: { total: number | null; penalty: number | null }; games: { appearences: number | null } }[] }>>("players/topscorers", params);
     const list = this.unwrap(res);
     if (!list.ok) return list;

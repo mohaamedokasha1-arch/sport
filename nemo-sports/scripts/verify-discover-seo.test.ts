@@ -335,3 +335,85 @@ test("⑩ the published article renders as a complete news page (real route, rea
     await deleteManualNews(created.article.id);
   }
 });
+
+test("⑪ the English article page gets English metadata and English structured data", async () => {
+  const [{ createManualNews, deleteManualNews }, { default: ArticlePage, generateMetadata }, { SITE_URL }] =
+    await Promise.all([
+      import("@/lib/manual-news"),
+      import("@/views/news-detail"),
+      import("@/lib/site"),
+    ]);
+
+  const created = await createManualNews({
+    title: "الأهلي يفوز على الزمالك في الكلاسيكو",
+    titleEn: "Al Ahly beat Zamalek in the classic",
+    imageUrl: "https://cdn.example.com/media/classico-en.jpg",
+    description: "ملخص المباراة والأهداف.",
+    content: "فقرة أولى.\n\nفقرة ثانية.",
+    sourceName: "نيمو سبورتس",
+    sourceUrl: "https://example.com/live",
+    category: "الدوري المصري",
+    status: "published",
+  }, "tester");
+  assert.equal(created.ok, true, created.ok ? "" : created.error);
+  if (!created.ok) return;
+  const slug = created.article.slug;
+
+  try {
+    // Metadata: the English page carries the desk's English headline, the
+    // site-wide OG locale mapping, and its own /en canonical.
+    const meta = await generateMetadata("en", { params: Promise.resolve({ slug }) });
+    assert.equal(meta.title, created.article.titleEn, "the English page gets the English headline");
+    assert.equal((meta.alternates as { canonical?: string })?.canonical, `/en/news/${slug}`);
+    const og = meta.openGraph as { locale?: string; alternateLocale?: string; title?: string };
+    assert.equal(og.locale, "en_GB", "the preview locale describes the page being shared, not the record's origin");
+    assert.equal(og.alternateLocale, "ar_AR");
+    assert.equal(og.title, created.article.titleEn);
+
+    // Structured data: rendered through the real route, as a crawler receives it.
+    // editorial-seo percent-encodes the slug inside URLs (existing behaviour),
+    // so the expectation is compared against the encoded form.
+    const encSlug = encodeURIComponent(slug);
+    const page = await ArticlePage({ locale: "en", params: Promise.resolve({ slug }) });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup(page as never);
+    assert.match(html, /"inLanguage":"en"/, "NewsArticle declares the English page's language");
+    assert.ok(html.includes(`"headline":"${created.article.titleEn}"`), "the English headline reaches the graph");
+    assert.ok(html.includes(`${SITE_URL}/en/news/${encSlug}`), "the structured-data URL is the English URL");
+    assert.ok(html.includes(`"item":"${SITE_URL}/en/news"`), "the breadcrumb points at the English news hub");
+    assert.ok(html.includes('"name":"Home"') && html.includes('"name":"News"'), "the breadcrumb labels are English");
+    assert.ok(!html.includes('"inLanguage":"ar"'), "no Arabic graph is emitted on the English page");
+
+    // The Arabic side is untouched by the locale parameter (default "ar").
+    const arPage = await ArticlePage({ locale: "ar", params: Promise.resolve({ slug }) });
+    const arHtml = renderToStaticMarkup(arPage as never);
+    assert.match(arHtml, /"inLanguage":"ar"/);
+    assert.ok(arHtml.includes(`"headline":"${created.article.title}"`), "the Arabic page keeps the Arabic headline");
+    assert.ok(arHtml.includes(`${SITE_URL}/news/${encSlug}`), "the Arabic structured-data URL keeps the Arabic path");
+    assert.ok(arHtml.includes(`"item":"${SITE_URL}/news"`), "the Arabic breadcrumb keeps the Arabic hub URL");
+
+    // An article with no English headline falls back to the published Arabic
+    // one — honest, never invented — while the page locale stays the page's own.
+    const arOnly = await createManualNews({
+      title: "خبر بدون ترجمة إنجليزية",
+      content: "فقرة.",
+      sourceName: "نيمو سبورتس",
+      sourceUrl: "https://example.com/report",
+      category: "الدوري المصري",
+      status: "published",
+    }, "tester");
+    assert.equal(arOnly.ok, true, arOnly.ok ? "" : arOnly.error);
+    if (arOnly.ok) {
+      try {
+        const meta2 = await generateMetadata("en", { params: Promise.resolve({ slug: arOnly.article.slug }) });
+        assert.equal(meta2.title, arOnly.article.title, "a missing titleEn falls back to the real Arabic title");
+        const og2 = meta2.openGraph as { locale?: string };
+        assert.equal(og2.locale, "en_GB", "the page locale is still the page's own");
+      } finally {
+        await deleteManualNews(arOnly.article.id);
+      }
+    }
+  } finally {
+    await deleteManualNews(created.article.id);
+  }
+});

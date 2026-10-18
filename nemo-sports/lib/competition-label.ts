@@ -17,6 +17,25 @@ import { competitionByPath } from "@/lib/competition-catalog";
 import { competitionLabelFromRecord } from "@/lib/i18n/names";
 import type { Locale } from "@/lib/i18n/locales";
 
+/**
+ * Locale-aware display name for any competition reference that carries both
+ * names (catalogue entries, admin records, provider refs). Each side falls
+ * back to the other before falling back to `fallback`, so a page never renders
+ * an empty heading — and an English page never renders an Arabic-only name
+ * when the reference actually carries an English one.
+ */
+export function competitionDisplayName(
+  locale: Locale,
+  ref: { name?: string | null; nameAr?: string | null; nameEn?: string | null } | null | undefined,
+  fallback = "",
+): string {
+  if (!ref) return fallback;
+  const ar = (ref.nameAr ?? "").trim();
+  const en = (ref.nameEn ?? ref.name ?? "").trim();
+  if (locale === "ar") return ar || en || fallback;
+  return en || ar || fallback;
+}
+
 export function fixtureCompetitionLabel(
   locale: Locale,
   fixture: {

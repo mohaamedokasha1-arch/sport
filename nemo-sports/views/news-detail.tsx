@@ -9,7 +9,7 @@ import { competitionBySlug, sportBySlug } from "@/lib/core-data";
 import { compact } from "@/lib/format";
 import { formatDate } from "@/lib/i18n/dates";
 import { t } from "@/lib/i18n/translate";
-import { localeAlternates } from "@/lib/i18n/metadata";
+import { localeAlternates, ogLocale } from "@/lib/i18n/metadata";
 import { categoryMeta } from "@/lib/news/categorize";
 import { SITE_NAME, absoluteUrl, demoContentVisible } from "@/lib/site";
 import { absoluteMediaUrl } from "@/lib/seo-discovery";
@@ -269,7 +269,12 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const slug = decodeSlug(rawSlug);
   const manual = await getManualNewsBySlug(slug);
   if (manual && manual.status === "published") {
-    const description = manual.description || manual.title;
+    // Admin records carry `title` (Arabic) + optional `titleEn`: the English
+    // page gets the English headline when the desk entered one, and falls back
+    // to the published Arabic title instead of inventing a translation. The
+    // page body already resolves names this way (components/public/AdminPublished.tsx).
+    const title = (locale === "ar" ? manual.title : manual.titleEn || manual.title) || manual.title;
+    const description = manual.description || title;
     // A preview card is only as good as its picture: the image must be an
     // absolute URL a crawler can fetch (lib/seo-discovery.ts), so a relative or
     // malformed value is dropped instead of emitting a broken card.
@@ -278,21 +283,25 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
     // decision (lib/sdl-gateway → app/layout.tsx), which already carries the
     // Discover preview directives. Only the preview metadata is added.
     return {
-      title: manual.title,
+      title,
       description,
       alternates: localeAlternates(locale, `/news/${slug}`),
       openGraph: {
-        title: manual.title,
+        title,
         description,
         type: "article",
         publishedTime: manual.publishedAt,
         modifiedTime: manual.updatedAt,
-        locale: "ar_AR",
-        ...(image ? { images: [{ url: image, alt: manual.title }] } : {}),
+        // The preview locale must describe the page being shared, not the
+        // language the record was first written in — the site-wide mapping
+        // (lib/i18n/metadata.ts ogLocale) decides the tag, as on every other page.
+        locale: ogLocale(locale),
+        alternateLocale: ogLocale(locale === "ar" ? "en" : "ar"),
+        ...(image ? { images: [{ url: image, alt: title }] } : {}),
       },
       twitter: {
         card: "summary_large_image",
-        title: manual.title,
+        title,
         description,
         ...(image ? { images: [image] } : {}),
       },

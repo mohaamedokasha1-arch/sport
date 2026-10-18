@@ -25,22 +25,31 @@ import type { ManualNews } from "@/lib/manual-news";
 import { SITE_NAME, absoluteUrl } from "@/lib/site";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { absoluteMediaUrl } from "@/lib/seo-discovery";
+import { localizePath } from "@/lib/i18n/paths";
+import type { Locale } from "@/lib/i18n/locales";
 
-export function editorialNewsArticleLd(article: ManualNews): Record<string, unknown> {
+/** The headline of a record in the reader's language — never blank, never invented. */
+function headlineFor(article: ManualNews, locale: Locale): string {
+  return (locale === "ar" ? article.title : article.titleEn || article.title) || article.title;
+}
+
+export function editorialNewsArticleLd(article: ManualNews, locale: Locale = "ar"): Record<string, unknown> {
   const image = absoluteMediaUrl(article.imageUrl);
-  const url = absoluteUrl(`/news/${encodeURIComponent(article.slug)}`);
+  const url = absoluteUrl(localizePath(`/news/${encodeURIComponent(article.slug)}`, locale));
+  const headline = headlineFor(article, locale);
+  const alternative = locale === "ar" ? article.titleEn : article.title;
   return {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
-    headline: article.title,
-    description: article.description || article.title,
-    inLanguage: "ar",
+    headline,
+    description: article.description || headline,
+    inLanguage: locale === "ar" ? "ar" : "en",
     url,
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
     datePublished: article.publishedAt,
     dateModified: article.updatedAt,
     articleSection: article.category,
-    ...(article.titleEn ? { alternativeHeadline: article.titleEn } : {}),
+    ...(alternative && alternative !== headline ? { alternativeHeadline: alternative } : {}),
     ...(image ? { image: [image] } : {}),
     author: { "@type": "Organization", name: SITE_NAME },
     publisher: {
@@ -54,19 +63,19 @@ export function editorialNewsArticleLd(article: ManualNews): Record<string, unkn
   };
 }
 
-export function editorialBreadcrumbLd(article: ManualNews): Record<string, unknown> {
+export function editorialBreadcrumbLd(article: ManualNews, locale: Locale = "ar"): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      { "@type": "ListItem", position: 1, name: "الرئيسية", item: absoluteUrl("/") },
-      { "@type": "ListItem", position: 2, name: "الأخبار", item: absoluteUrl("/news") },
-      { "@type": "ListItem", position: 3, name: article.title, item: absoluteUrl(`/news/${encodeURIComponent(article.slug)}`) },
+      { "@type": "ListItem", position: 1, name: locale === "ar" ? "الرئيسية" : "Home", item: absoluteUrl(localizePath("/", locale)) },
+      { "@type": "ListItem", position: 2, name: locale === "ar" ? "الأخبار" : "News", item: absoluteUrl(localizePath("/news", locale)) },
+      { "@type": "ListItem", position: 3, name: headlineFor(article, locale), item: absoluteUrl(localizePath(`/news/${encodeURIComponent(article.slug)}`, locale)) },
     ],
   };
 }
 
 /** Both graph nodes, ready to be embedded as `<script type="application/ld+json">`. */
-export function editorialStructuredData(article: ManualNews): string[] {
-  return [serializeJsonLd(editorialNewsArticleLd(article)), serializeJsonLd(editorialBreadcrumbLd(article))];
+export function editorialStructuredData(article: ManualNews, locale: Locale = "ar"): string[] {
+  return [serializeJsonLd(editorialNewsArticleLd(article, locale)), serializeJsonLd(editorialBreadcrumbLd(article, locale))];
 }

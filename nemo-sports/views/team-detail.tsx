@@ -20,6 +20,7 @@ import { footballDataCompetitions, footballMatches, footballStandings } from "@/
 import { team as sdlTeam, PERMANENT_FAILURE_KINDS } from "@/lib/sdl-gateway";
 import { demoContentVisible } from "@/lib/site";
 import { canonicalCompetitions, competitionByPath } from "@/lib/competition-catalog";
+import { competitionDisplayName } from "@/lib/competition-label";
 import type { NormalizedFixture, NormalizedStandingRow } from "@/packages/sdl/src";
 import { getAdminTeamBySlug } from "@/lib/admin-teams";
 import { AdminTeamDetail } from "@/components/public/AdminPublished";
@@ -31,7 +32,7 @@ import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { localeAlternates } from "@/lib/i18n/metadata";
 import { formatDate, formatDateTime } from "@/lib/i18n/dates";
-import { countryName } from "@/lib/i18n/names";
+import { countryName, entityName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -100,11 +101,11 @@ export function generateStaticParams() {
   return demoContentVisible() ? teams.map((t) => ({ slug: t.slug })) : [];
 }
 
-/** Local name of a competition id (code, SportScore slug or catalogue entry). */
-function competitionNameAr(id: string): string {
+/** Locale-aware name of a competition id (code, SportScore slug or catalogue entry). */
+function competitionName(locale: Locale, id: string): string {
   const catalogue = [...footballDataCompetitions(false), ...canonicalCompetitions];
   const match = catalogue.find((c) => c.slug === id || c.code === id) ?? competitionByPath(id);
-  return match?.nameAr ?? id;
+  return competitionDisplayName(locale, match, id);
 }
 
 async function teamMetadataBody({
@@ -564,7 +565,7 @@ async function RealTeamView({ locale, ...props }: { locale: Locale;
             {props.shortName ? <span>{props.shortName}</span> : null}
             {compId ? (
               <Link className="chip hover:text-white" href={`/competitions/${compId}`}>
-                {competitionNameAr(compId)}
+                {competitionName(locale, compId)}
               </Link>
             ) : null}
             {props.primaryColor ? (
@@ -626,9 +627,13 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const slug = decodeSlug(rawSlug);
   const adminTeam = await getAdminTeamBySlug(slug);
   if (adminTeam?.isPublished) {
+    // Admin records carry `nameAr` + optional `nameEn`: the English page gets
+    // the English name when the desk entered one, and falls back to the Arabic
+    // name instead of inventing a translation.
+    const name = entityName(locale, adminTeam) || adminTeam.nameAr;
     return {
-      title: t(locale, "td.metaTitle", { name: adminTeam.nameAr }),
-      description: `${adminTeam.nameAr}${adminTeam.country ? ` — ${adminTeam.country}` : ""}: ${t(locale, "td.adminMetaDescription", { name: adminTeam.nameAr })}`,
+      title: t(locale, "td.metaTitle", { name }),
+      description: `${name}${adminTeam.country ? ` — ${adminTeam.country}` : ""}: ${t(locale, "td.adminMetaDescription", { name })}`,
       alternates: localeAlternates(locale, `/teams/${slug}`),
     };
   }

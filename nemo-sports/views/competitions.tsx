@@ -4,7 +4,7 @@ import Link from "@/components/i18n/Link";
 import CompetitionCard from "@/components/competition/CompetitionCard";
 import SectionHead from "@/components/ui/SectionHead";
 import { competitions, sports } from "@/lib/core-data";
-import { canonicalCompetitions } from "@/lib/competition-catalog";
+import { canonicalCompetitionsByPriority } from "@/lib/competition-catalog";
 import { demoContentVisible } from "@/lib/site";
 import { AdminCompetitionsSection } from "@/components/public/AdminPublished";
 import type { Locale } from "@/lib/i18n/locales";
@@ -27,7 +27,8 @@ function CompetitionsPageBody({ locale }: { locale: Locale }) {
   const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
   if (!demoContentVisible()) {
     // Every catalogue entry is a competition whose provider slug was verified.
-    const supported = canonicalCompetitions;
+    // Display order is the site priority order: the Egyptian Premier League first.
+    const supported = canonicalCompetitionsByPriority;
     return (
       <div className="mx-auto max-w-[1280px] px-4 py-6">
         <header className="mb-6 border-b-2 border-line pb-3">
