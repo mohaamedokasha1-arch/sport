@@ -4,6 +4,7 @@ import { SyncedCompetitionDetail } from "@/components/data/SyncedSports";
 import type { Metadata } from "next";
 import Link from "@/components/i18n/Link";
 import { notFound, permanentRedirect } from "next/navigation";
+import { localizePath } from "@/lib/i18n/paths";
 import Tabs from "@/components/ui/Tabs";
 import MatchCard from "@/components/match/MatchCard";
 import StandingsTable from "@/components/competition/StandingsTable";
@@ -17,6 +18,7 @@ import { footballMatches, footballStandings, footballTopScorers, type FootballDa
 import { demoContentVisible } from "@/lib/site";
 import { hasMatchIdentity, supportsPlayerStats } from "@/lib/sdl-gateway";
 import { competitionByPath } from "@/lib/competition-catalog";
+import { competitionDisplayName } from "@/lib/competition-label";
 import { teamHref, teamLinkSlug } from "@/lib/team-lookup";
 import type { NormalizedFixture, NormalizedStandingRow, NormalizedTopScorer } from "@/packages/sdl/src";
 import {
@@ -34,7 +36,7 @@ import { isLiveStatus, matchStateOf, isFinishedStatus } from "@/lib/match-state"
 import type { Locale } from "@/lib/i18n/locales";
 import { t } from "@/lib/i18n/translate";
 import { localeAlternates } from "@/lib/i18n/metadata";
-import { countryName } from "@/lib/i18n/names";
+import { countryName, entityName } from "@/lib/i18n/names";
 
 export type ViewProps = { params: Promise<{ slug: string }> };
 
@@ -108,9 +110,11 @@ async function CompetitionPageBody({ locale, params }: { locale: Locale; params:
   const { slug } = await params;
   const providerCompetition = competitionByPath(slug);
   // One public URL per competition: aliases (PL, english-premier-league, ...)
-  // permanently redirect to the registered canonical path.
+  // permanently redirect to the registered canonical path — in the SAME
+  // language the visitor arrived in, so an /en alias never lands on the
+  // Arabic page (localizePath keeps the Arabic target byte-identical).
   if (providerCompetition && providerCompetition.canonicalSlug !== decodeSlug(slug)) {
-    permanentRedirect(`/competitions/${encodeURIComponent(providerCompetition.canonicalSlug)}`);
+    permanentRedirect(localizePath(`/competitions/${encodeURIComponent(providerCompetition.canonicalSlug)}`, locale));
   }
   if (providerCompetition) return <ProviderCompetitionPage locale={locale} competition={providerCompetition} id={providerCompetition.slug ?? providerCompetition.code} />;
 
@@ -304,6 +308,10 @@ async function CompetitionPageBody({ locale, params }: { locale: Locale; params:
 
 async function ProviderCompetitionPage({ locale, competition, id }: { locale: Locale; competition: FootballDataCompetitionRef; id: string }) {
   const tr = (k: Parameters<typeof t>[1], v?: Parameters<typeof t>[2]) => t(locale, k, v);
+  // One locale-aware name for the breadcrumb and the H1: the English page
+  // shows the English name (the Arabic one stays on the Arabic page). Both
+  // refs carry both names, so nothing is ever blank or invented.
+  const compName = competitionDisplayName(locale, competition, competition.nameAr);
   const [tableResult, matchesResult] = await Promise.all([
     footballStandings(id),
     footballMatches({ competitionId: id }),
@@ -333,14 +341,14 @@ async function ProviderCompetitionPage({ locale, competition, id }: { locale: Lo
       <nav aria-label={tr("cd.breadcrumbAria")} className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
         <Link href="/" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.home")}</Link><span aria-hidden>/</span>
         <Link href="/competitions" className="hover:text-gold-600 dark:hover:text-gold-400">{tr("cd.competitions")}</Link><span aria-hidden>/</span>
-        <span className="font-semibold text-ink">{competition.nameAr}</span>
+        <span className="font-semibold text-ink">{compName}</span>
       </nav>
       <header className="stripes overflow-hidden rounded-[8px] border border-navy-700 bg-navy-850 text-white">
         <div className="flex flex-wrap items-center gap-4 px-5 py-5">
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-gold-500 font-display text-sm font-extrabold text-navy-900">{competition.code}</span>
           <div className="min-w-0 flex-1">
             <p className="eyebrow !text-white/50">{locale === "ar" ? competition.countryAr : competition.country} · {tr("cd.coverageEyebrow")}</p>
-            <h1 className="text-2xl font-extrabold tracking-tight">{competition.nameAr}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">{compName}</h1>
           </div>
           <Link href={`/matches?competition=${encodeURIComponent(id)}`} className="inline-flex min-h-11 items-center rounded-[3px] bg-white/10 px-3 text-[12px] font-bold transition hover:bg-gold-500 hover:text-navy-900 focus-ring">{tr("cd.browseMatches")}</Link>
         </div>
@@ -469,9 +477,13 @@ export async function generateMetadata(locale: Locale, { params }: ViewProps): P
   const slug = decodeSlug(rawSlug);
   const c = await getAdminCompetitionBySlug(slug);
   if (c?.isPublished) {
+    // Admin records carry `nameAr` + optional `nameEn`: the English page gets
+    // the English name when the desk entered one, and falls back to the Arabic
+    // name instead of inventing a translation.
+    const name = entityName(locale, c) || c.nameAr;
     return {
-      title: t(locale, "cd.adminMetaTitle", { name: c.nameAr }),
-      description: `${c.nameAr}${c.season ? ` — ${c.season}` : ""}: ${t(locale, "cd.adminMetaDescription", { name: c.nameAr })}`,
+      title: t(locale, "cd.adminMetaTitle", { name }),
+      description: `${name}${c.season ? ` — ${c.season}` : ""}: ${t(locale, "cd.adminMetaDescription", { name })}`,
       alternates: localeAlternates(locale, `/competitions/${slug}`),
     };
   }

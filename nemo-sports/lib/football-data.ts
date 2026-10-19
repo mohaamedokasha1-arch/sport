@@ -35,6 +35,7 @@ import {
   type GatewayResult,
 } from "@/lib/sdl-gateway";
 import { FOOTBALL_DATA_COMPETITIONS, FOOTBALL_DATA_HOME, footballDataCode, type DataType, type NormalizedFixture, type NormalizedStandingRow, type NormalizedTopScorer, type ProviderName } from "@/packages/sdl/src";
+import { canonicalCompetitions, EGYPT_CANONICAL_SLUG } from "@/lib/competition-catalog";
 
 /** The provider name inside the Sports Data Layer. */
 export const FOOTBALL_DATA_PROVIDER: ProviderName = "football_data";
@@ -98,6 +99,31 @@ export function footballDataCompetitions(featuredOnly = false): FootballDataComp
     countryAr: c.countryAr,
     featured: c.featured,
   }));
+}
+
+/**
+ * The /standings surface list: the Egyptian Premier League leads (site
+ * priority — its table is served by the same slug-driven chain as every other
+ * entry, verified against the keyless SportScore provider), then the
+ * football-data.org majors in their existing order. Nothing is added to or
+ * removed from the underlying catalogues; this is display order only.
+ */
+export function standingsCompetitions(): FootballDataCompetitionRef[] {
+  const majors = footballDataCompetitions(true);
+  const egypt = canonicalCompetitions.find((c) => c.canonicalSlug === EGYPT_CANONICAL_SLUG);
+  if (!egypt) return majors;
+  return [
+    {
+      code: egypt.code,
+      slug: egypt.slug,
+      name: egypt.name,
+      nameAr: egypt.nameAr,
+      country: egypt.country,
+      countryAr: egypt.countryAr,
+      featured: egypt.featured,
+    },
+    ...majors.filter((c) => c.slug !== egypt.slug && c.code !== egypt.code),
+  ];
 }
 
 /**

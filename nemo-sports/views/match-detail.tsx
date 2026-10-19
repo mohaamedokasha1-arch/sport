@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "@/components/i18n/Link";
 import { cache } from "react";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { localizePath } from "@/lib/i18n/paths";
 import MatchLive from "@/components/match/MatchLive";
 import MatchStreamPlayer from "@/components/match/MatchStreamPlayer";
 import AdsterraBanner from "@/components/ads/AdsterraBanner";
@@ -335,7 +336,10 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
   // Provider and admin slugs are lowercase (slugifyMatch, SportScore URLs), and the
   // store matches them case-insensitively. Without this, `/matches/MALAGA-vs-espanyol`
   // answered 200 with a self-referencing canonical: a second copy of the same page.
-  if (/[A-Z]/.test(slug)) permanentRedirect(`/matches/${encodeURIComponent(slug.toLowerCase())}`);
+  // The lowercase canonical keeps the visitor's language: an /en match URL
+  // must not be redirected onto the Arabic tree (localizePath is a no-op for
+  // Arabic, so existing AR redirects stay byte-identical).
+  if (/[A-Z]/.test(slug)) permanentRedirect(localizePath(`/matches/${encodeURIComponent(slug.toLowerCase())}`, locale));
 
   /* ══ 1) real match (SportScore via SDL or admin-managed fixture) ══════ */
   let f: NormalizedFixture | null = null;
@@ -738,7 +742,7 @@ export default async function MatchPage({ locale, params }: ViewProps & { locale
      the current data contains exactly one tie between those two clubs.
   */
   const alias = await resolveInboundMatchSlug(slug);
-  if (alias) redirect(matchPath(alias));
+  if (alias) redirect(localizePath(matchPath(alias), locale));
 
   /* ══ 3) development/demo fallback ══════════════════════════════════════ */
   if (demoContentVisible()) {

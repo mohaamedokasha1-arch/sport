@@ -18,6 +18,6 @@
   "localisedOnly": {
     "components/match/MatchStreamPlayer.tsx": "cca519f5b674375c25a05b1b877cb62d1b02773a2b51a202ba789877357172dd",
     "components/public/LiveStreams.tsx": "83553bbf236c10e34735e6df71b5a56d7356d8bbcbef145a99b69350fafaca74",
-    "views/match-detail.tsx": "4fd5b65326c2a5cca861307d1f0cfc7554ca9767ae143c30868a1471fecbd900"
+    "views/match-detail.tsx": "0ebde980e153ea8695c177e7c68c22c00362a8f18da32f9ed2a959cbf18618a9"
   }
 }

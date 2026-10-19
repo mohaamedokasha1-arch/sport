@@ -266,7 +266,7 @@ export function AdminNewsDetail({
   const paragraphs = newsParagraphs(article.content);
   const headline = displayName(locale, article.title, article.titleEn);
   const section = categoryLabel(locale, article.category);
-  const structuredData = editorialStructuredData(article);
+  const structuredData = editorialStructuredData(article, locale);
 
   return (
     <article className="mx-auto max-w-[800px] px-4 py-6">
