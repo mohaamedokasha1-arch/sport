@@ -154,6 +154,14 @@ test("REST v1: an empty day is a genuine empty result (ok, zero rows)", async ()
   assert.ok(res.ok && res.data.length === 0);
 });
 
+test("REST v1: a truncated unscoped day is an error, not a claim of complete league coverage", async () => {
+  const day = "2026-10-13";
+  const t = v1Transport({ [day]: { sport: "football", date: day, count: 201, matches: [{ home: "Home", away: "Away", status: "upcoming", time: `${day}T18:00:00Z`, competition: "Egyptian Premier League" }] } });
+  const res = await v1Adapter(t.impl).getFixtures({ sport: "football", date: day });
+  assert.equal(res.ok, false);
+  if (!res.ok) assert.match(res.error.message, /truncated/);
+});
+
 test("REST v1: the compatibility relay cannot serve day fixtures and says so instead of guessing", async () => {
   const t = v1Transport({});
   const res = await v1Adapter(t.impl, "https://nemo.example/api/v1/sportscore-relay").getFixtures({ sport: "football", date: "2026-10-12" });

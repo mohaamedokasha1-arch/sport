@@ -3,9 +3,11 @@ import { slugify, type NormalizedFixture, type ProviderName } from "@/packages/s
 import { isLiveStatus, isFinishedStatus } from "@/lib/match-state";
 
 export type Kind = "competition" | "season" | "fixture" | "team" | "player" | "standings" | "scorers";
-export type Job = "catalog" | "seasons" | "upcoming" | "live" | "results" | "statistics" | "metadata" | "backfill" | "quality";
-export const JOBS: Job[] = ["catalog", "seasons", "upcoming", "live", "results", "statistics", "metadata", "backfill", "quality"];
-export const CADENCE: Record<Job, number> = { catalog: 86400, seasons: 86400, upcoming: 3600, live: 60, results: 900, statistics: 21600, metadata: 604800, backfill: 3600, quality: 86400 };
+export type Job = "catalog" | "seasons" | "matchday" | "upcoming" | "live" | "results" | "statistics" | "metadata" | "backfill" | "quality";
+export const JOBS: Job[] = ["catalog", "seasons", "matchday", "upcoming", "live", "results", "statistics", "metadata", "backfill", "quality"];
+// The matchday job keeps the full football day feed fresh independently of the
+// 50-match live widget and the much slower catalog/backfill queue.
+export const CADENCE: Record<Job, number> = { catalog: 86400, seasons: 86400, matchday: 600, upcoming: 3600, live: 60, results: 900, statistics: 21600, metadata: 604800, backfill: 3600, quality: 86400 };
 export type RecordData = {
   id: string; canonicalId?: string; kind: Kind; provider: ProviderName; sourceKey: string; slug: string;
   competitionKey: string | null; sport: string; data: Record<string, unknown>;

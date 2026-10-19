@@ -1,5 +1,6 @@
 /** Bounded source-local synchronization. No catalog guesses, demo writes or destructive replacement. */
 import { randomUUID } from "node:crypto";
+import { shiftDateKey, siteDateKey } from "@/lib/tz";
 import type { DataType, DateRange, NormalizedCatalogCompetition, NormalizedFixture, NormalizedSeason, NormalizedStandingRow, NormalizedTopScorer, ProviderResult, SportsDataProvider } from "@/packages/sdl/src";
 import { CADENCE, fixtureErrors, keyOf, makeRecord, seasonKey, type Job, type Kind, type RecordData, type Run } from "./model";
 import { qualityChecks } from "./quality";
@@ -24,8 +25,19 @@ export function windows(from: string, to: string, days: number): DateRange[] {
 function plan(job: Job, providers: SportsDataProvider[], records: RecordData[], now: number): Task[] {
   const tasks: Task[] = [];
   const add = (t: Omit<Task, "key">, suffix: string) => tasks.push({ ...t, key: `${t.p.name}|${t.sport}|${t.competition?.sourceKey ?? ""}|${suffix}` });
+  // A Cairo day can straddle two UTC dates. Yesterday UTC covers late games
+  // still in play after midnight; tomorrow UTC covers the next Cairo day.
+  const today = siteDateKey(now);
+  const matchdayDays = [today, shiftDateKey(today, -1), shiftDateKey(today, 1)];
   for (const p of providers.filter(p => p.name !== "demo")) {
-    if (job === "catalog" && p.capabilities.includes("competitions")) {
+    if (job === "matchday") {
+      // Only a VERIFIED unscoped day endpoint can discover every competition
+      // represented in its answer. Never turn the 50-match widget into a
+      // purportedly complete league schedule, nor guess a competition ID.
+      if (p.syncFixturesAreUnscoped && p.capabilities.includes("fixtures") && p.supportedSports.includes("football")) {
+        for (const day of matchdayDays) add({ p, sport: "football", type: "fixtures", range: { from: day, to: shiftDateKey(day, 1) } }, `matchday:${day}`);
+      }
+    } else if (job === "catalog" && p.capabilities.includes("competitions")) {
       for (const sport of p.supportedSports) add({ p, sport, type: "competitions" }, "catalog");
     } else if (job === "live" && p.capabilities.includes("live_matches")) {
       for (const sport of p.supportedSports) add({ p, sport, type: "live_matches" }, "live");
@@ -60,6 +72,15 @@ function plan(job: Job, providers: SportsDataProvider[], records: RecordData[], 
       }
     }
   }
+  if (job === "matchday") {
+    // Egypt is first inside the unscoped football feed; ask SportScore (the
+    // keyless source) and TODAY before spending the batch on older/later days.
+    // Keep a deterministic order so a checkpoint can resume on the next run.
+    return tasks.sort((a, b) =>
+      Number(a.p.name !== "sportscore") - Number(b.p.name !== "sportscore") ||
+      a.p.name.localeCompare(b.p.name) ||
+      matchdayDays.indexOf(a.range!.from) - matchdayDays.indexOf(b.range!.from));
+  }
   return tasks.sort((a, b) => a.key.localeCompare(b.key));
 }
 
@@ -93,11 +114,14 @@ export async function runSync(job: Job, store: SyncStore, transport: SyncTranspo
     }
     // Recover abandoned run history on the next lease-holder startup via application composition.
     const tasks = plan(job, transport.providers, await store.list(), clock);
-    let index = state.cursor ? tasks.findIndex(t => t.key >= state.cursor!) : 0;
-    if (index < 0) index = tasks.length;
+    // Matchday is ordered by urgency rather than key. If midnight changed its
+    // three-day window, an old cursor must restart at today's task, not skip
+    // the entire new window. Other jobs retain lexicographic resume semantics.
+    let index = state.cursor ? tasks.findIndex(t => job === "matchday" ? t.key === state.cursor : t.key >= state.cursor!) : 0;
+    if (index < 0) index = job === "matchday" ? 0 : tasks.length;
     const sameTask = state.cursor === tasks[index]?.key;
     let page = sameTask ? state.page : null, pageCount = sameTask ? state.pageCount : 0;
-    const maxTasks = Math.max(1, Math.min(20, options.maxTasks ?? 2));
+    const maxTasks = Math.max(1, Math.min(20, options.maxTasks ?? (job === "matchday" ? 3 : 2)));
     const budget = Math.max(1000, Math.min(40000, options.budgetMs ?? 20000));
     while (index < tasks.length && run.tasks < maxTasks && Date.now() - started < budget) {
       const task = tasks[index];
@@ -125,12 +149,24 @@ export async function runSync(job: Job, store: SyncStore, transport: SyncTranspo
         fetched(receivedKind, received);
         await store.atomic(async tx => {
           const deadline = () => { if (Date.now() - started > 40000) throw new Error("batch time budget exhausted; records/checkpoint rolled back for retry"); };
+          // One snapshot per day/task. Re-reading the entire fixture table for
+          // EACH incoming match was quadratic and made broad matchdays time out
+          // after only a handful of leagues on remote Postgres.
+          const fixtureSnapshot = ["fixtures", "live_matches"].includes(task.type) ? await tx.list("fixture") : [];
+          const existingFixtures = new Map(fixtureSnapshot.filter(r => r.provider === task.p.name).map(r => [r.sourceKey, r]));
+          const otherSourceMeetings = new Set(fixtureSnapshot.filter(r => r.provider !== task.p.name)
+            .map(r => JSON.stringify([r.data.homeName, r.data.awayName, r.data.scheduledAt])));
+          const previousRecords = new Map<string, RecordData>();
+          const checkedCompetitions = new Set<string>();
           const put = async (kind: Kind, key: string, data: Record<string, unknown>, comp: string | null = task.competition?.sourceKey ?? null) => {
             deadline();
-            const previous = await tx.get(kind, task.p.name, key);
+            const recordKey = keyOf(kind, task.p.name, key);
+            const previous = kind === "fixture" ? existingFixtures.get(key) : previousRecords.get(recordKey) ?? await tx.get(kind, task.p.name, key);
             const row = makeRecord(kind, task.p.name, key, task.sport, data, response.at, previous, comp);
             // Preserve existing canonical mapping where authorized source IDs already have one.
             await tx.put(row);
+            previousRecords.set(recordKey, row);
+            if (kind === "fixture") existingFixtures.set(key, row);
             if (previous) { run.updated++; count(kind).updated++; } else { run.inserted++; count(kind).inserted++; }
             return row;
           };
@@ -183,24 +219,32 @@ export async function runSync(job: Job, store: SyncStore, transport: SyncTranspo
               if (task.season && f.seasonProviderId && f.seasonProviderId !== task.season.providerId) { await tx.issue("wrong_season", `${task.key}: ${f.providerId}`); run.failures.push(`${task.key}: wrong season`); continue; }
               if (seen.has(f.providerId)) continue;
               seen.add(f.providerId);
-              // Live feeds can confirm competitions without claiming a complete catalog.
-              if (!await tx.get("competition", task.p.name, f.competitionProviderId)) {
-                if (!f.competitionName) { run.failures.push(`${task.key}: competition name missing`); continue; }
-                await put("competition", f.competitionProviderId, { providerId: f.competitionProviderId, name: f.competitionName, sport: f.sport, discoveryMethod: "observed_fixture" }, null);
+              // Live/day feeds can confirm competitions without claiming a
+              // complete catalog; check each league only once per day response.
+              if (!checkedCompetitions.has(f.competitionProviderId)) {
+                const existing = await tx.get("competition", task.p.name, f.competitionProviderId);
+                if (!existing) {
+                  if (!f.competitionName) { run.failures.push(`${task.key}: competition name missing`); continue; }
+                  await put("competition", f.competitionProviderId, { providerId: f.competitionProviderId, name: f.competitionName, sport: f.sport, discoveryMethod: "observed_fixture" }, null);
+                } else {
+                  // A real fixture confirms coverage again. Refresh its source
+                  // timestamp without replacing catalog metadata with the
+                  // potentially abbreviated match-feed competition label.
+                  previousRecords.set(keyOf("competition", task.p.name, f.competitionProviderId), existing);
+                  await put("competition", f.competitionProviderId, {}, null);
+                }
+                checkedCompetitions.add(f.competitionProviderId);
               }
               for (const [id, name, logoUrl] of [[f.homeProviderId, f.homeName, f.homeLogoUrl], [f.awayProviderId, f.awayName, f.awayLogoUrl]]) await put("team", id!, { providerId: id, name, logoUrl }, f.competitionProviderId);
-              const old = await tx.get("fixture", task.p.name, f.providerId);
+              const old = existingFixtures.get(f.providerId);
               if (old?.data.status === "finished" && (f.status !== "finished" || f.homeScore !== old.data.homeScore || f.awayScore !== old.data.awayScore)) {
                 await tx.issue("final_score_conflict", `${task.p.name}:${f.providerId}: verified final retained; incoming ${f.status} ${f.homeScore}-${f.awayScore}`);
                 run.failures.push(`${task.key}: final score conflict ${f.providerId}`); continue;
               }
-              const otherSources = (await tx.list("fixture")).filter(r => r.provider !== task.p.name
-                && r.data.homeName === f.homeName && r.data.awayName === f.awayName
-                && r.data.scheduledAt === utcKickoff);
-              if (otherSources.length) await tx.issue("cross_source_review", `${task.p.name}:${f.providerId}: possible overlapping coverage; records retained separately, never merged by names`);
+              if (otherSourceMeetings.has(JSON.stringify([f.homeName, f.awayName, utcKickoff]))) await tx.issue("cross_source_review", `${task.p.name}:${f.providerId}: possible overlapping coverage; records retained separately, never merged by names`);
               await put("fixture", f.providerId, { ...f, originalScheduledAt: f.originalScheduledAt ?? f.scheduledAt, scheduledAt: new Date(f.scheduledAt).toISOString() }, f.competitionProviderId);
             }
-            const old = (await tx.list("fixture")).filter(r => r.provider === task.p.name && r.competitionKey === task.competition?.sourceKey && task.range && String(r.data.scheduledAt) >= `${task.range.from}T00:00:00` && String(r.data.scheduledAt) < `${task.range.to}T00:00:00`);
+            const old = fixtureSnapshot.filter(r => r.provider === task.p.name && (!task.competition || r.competitionKey === task.competition.sourceKey) && task.range && String(r.data.scheduledAt) >= `${task.range.from}T00:00:00` && String(r.data.scheduledAt) < `${task.range.to}T00:00:00`);
             if (!nextPage && !page && old.some(f => !seen.has(f.sourceKey))) {
               await tx.issue("fixtures_disappeared", `${task.key}: previously stored fixtures absent; nothing deleted`);
               run.failures.push(`${task.key}: fixtures disappeared`);
@@ -241,6 +285,7 @@ export async function runSync(job: Job, store: SyncStore, transport: SyncTranspo
     }
     if (!tasks.length) {
       run.status = "skipped";
+      run.failures.push("no_supported_work");
       await store.checkpoint(job, { ...state, cursor: null, page: null, pageCount: 0, lastAttemptAt: run.startedAt, error: "no_supported_work" });
       await store.issue("no_supported_work", `${job}: no configured provider/verified catalog/season supports this job`);
     } else run.status = run.failures.length ? (run.inserted + run.updated ? "partial" : "failed") : "success";
