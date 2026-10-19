@@ -10,7 +10,7 @@ import { FootballDataAdapter, BaseAdapter, type DataType, type NormalizedCatalog
 import { runSync, windows, type SyncTransport } from "@/lib/sports-sync/engine";
 import { MemorySyncStore, PgSyncStore } from "@/lib/sports-sync/store";
 import { classification, fixtureErrors, freshness, indexWorthy, makeRecord } from "@/lib/sports-sync/model";
-import { syncedPath } from "@/lib/sports-sync/public";
+import { orderSyncedCompetitions, syncedPath } from "@/lib/sports-sync/public";
 import { SyncNotice, SyncedFixtureList } from "@/components/data/SyncedSports";
 import { emptyCapabilities } from "@/packages/sdl/src";
 import { siteDateKey } from "@/lib/tz";
@@ -75,12 +75,89 @@ test("repeated imports prevent duplicate fixtures/teams and preserve historical 
   const store = new MemorySyncStore(); let fs = [fixture()]; const tr = transport([adapter({ getLiveMatches: async () => ok(fs) })]);
   await seed(store, tr);
   const r1 = await runSync("live", store, tr, options); const r2 = await runSync("live", store, tr, options);
-  assert.equal(r1.fetched, 1); assert.equal(r1.inserted, 3); assert.equal(r2.inserted, 0); assert.equal(r2.updated, 3); assert.equal(r1.entities.fixture?.inserted, 1); assert.equal(r2.entities.fixture?.updated, 1);
+  assert.equal(r1.fetched, 1); assert.equal(r1.inserted, 3); assert.equal(r2.inserted, 0); assert.equal(r2.updated, 4, "fixture, two teams and the observed competition are refreshed"); assert.equal(r1.entities.fixture?.inserted, 1); assert.equal(r2.entities.fixture?.updated, 1);
   fs = [{ ...fixture(), status: "finished", homeScore: 2, awayScore: 1 }]; await runSync("live", store, tr, options);
   fs = [{ ...fixture(), status: "live", homeScore: 0, awayScore: 0 }]; const conflict = await runSync("live", store, tr, options);
   assert.equal((await store.list("fixture"))[0].data.homeScore, 2); assert.equal(conflict.status, "partial");
   fs = []; await runSync("live", store, tr, options); assert.equal((await store.list("fixture")).length, 1);
   assert.equal((await store.list("team")).length, 2);
+});
+
+test("matchday discovers all observed football leagues around Cairo midnight and refreshes Egypt first", async () => {
+  const store = new MemorySyncStore();
+  const now = Date.parse("2026-10-13T21:10:00Z"); // 00:10 on 14 October in Cairo
+  const calls: string[] = [];
+  let updated = false;
+  const p = adapter({
+    name: "sportscore", capabilities: ["fixtures"], supportedSports: ["football"], syncFixturesAreUnscoped: true,
+    getFixtures: async input => {
+      assert.equal(input.sport, "football");
+      assert.equal(input.competitionProviderId, "", "discover the full day, not one hand-picked league");
+      calls.push(input.date ?? "");
+      const egypt = { ...fixture("egypt-match", "2026-10-14T18:00:00Z"), competitionProviderId: "Egyptian Premier League", competitionName: "Egyptian Premier League", seasonProviderId: null,
+        ...(updated ? { status: "finished", homeScore: 1, awayScore: 0 } : {}) };
+      const other = { ...fixture("other-match", "2026-10-14T20:00:00Z"), competitionProviderId: "Brazilian Serie A", competitionName: "Brazilian Serie A", seasonProviderId: null, homeProviderId: "t3", awayProviderId: "t4", homeName: "Third", awayName: "Fourth" };
+      return { ...ok(input.date === "2026-10-14" ? [other, egypt] : []), provider: "sportscore" };
+    },
+  });
+  const tr = transport([p]);
+  const first = await runSync("matchday", store, tr, { now, force: true });
+  assert.equal(first.status, "success");
+  assert.equal(first.tasks, 3);
+  assert.deepEqual(calls, ["2026-10-14", "2026-10-13", "2026-10-15"]);
+  assert.equal((await store.list("fixture")).length, 2);
+  const competitions = await store.list("competition");
+  assert.equal(competitions.length, 2);
+  assert.equal(syncedPath(competitions.find(c => c.sourceKey === "Egyptian Premier League")!), "/competitions/egyptian-league");
+  assert.equal(orderSyncedCompetitions(competitions)[0].sourceKey, "Egyptian Premier League");
+  updated = true;
+  const second = await runSync("matchday", store, tr, { now, force: true });
+  assert.equal(second.status, "success");
+  assert.equal(second.entities.fixture?.inserted, 0);
+  assert.equal((await store.get("fixture", "sportscore", "egypt-match"))!.data.homeScore, 1);
+
+  // A stale cursor from the prior Cairo day must not skip the new day's feed.
+  await store.checkpoint("matchday", { ...await store.state("matchday"), cursor: "sportscore|football||matchday:2020-01-01" });
+  calls.length = 0;
+  await runSync("matchday", store, tr, { now, force: true, maxTasks: 1 });
+  assert.equal(calls[0], "2026-10-14");
+});
+
+test("matchday fails visibly without a day-capable provider and retains data after a feed failure", async () => {
+  const store = new MemorySyncStore();
+  const skipped = await runSync("matchday", store, transport([]), options);
+  assert.equal(skipped.status, "skipped");
+  assert.ok(skipped.failures.includes("no_supported_work"));
+  const data = { ...fixture("egypt", "2026-10-13T18:00:00Z"), competitionProviderId: "Egyptian Premier League", competitionName: "Egyptian Premier League", seasonProviderId: null };
+  let fail = false;
+  const p = adapter({ name: "sportscore", syncFixturesAreUnscoped: true, capabilities: ["fixtures"], supportedSports: ["football"], getFixtures: async () =>
+    fail ? { ok: false, provider: "sportscore", requestKey: "day", fromCache: false, error: { code: "timeout", message: "offline" } } : { ...ok([data]), provider: "sportscore" } });
+  const tr = transport([p]);
+  await runSync("matchday", store, tr, { ...options, maxTasks: 1 });
+  const old = await store.get("fixture", "sportscore", "egypt");
+  assert.ok(old);
+  fail = true;
+  const failed = await runSync("matchday", store, tr, { ...options, maxTasks: 1 });
+  assert.equal(failed.status, "failed");
+  assert.deepEqual(await store.get("fixture", "sportscore", "egypt"), old);
+});
+
+test("discovered competitions do not multiply unscoped upcoming requests per league", async () => {
+  const store = new MemorySyncStore();
+  const inputs: string[] = [];
+  const p = adapter({ name: "sportscore", syncFixturesAreUnscoped: true, capabilities: ["fixtures"], supportedSports: ["football"],
+    getFixtures: async input => { inputs.push(input.competitionProviderId ?? "UNSCOPED"); return { ...ok([]), provider: "sportscore" }; } });
+  await store.put(makeRecord("competition", "sportscore", "Egyptian Premier League", "football", { name: "Egyptian Premier League" }, AT));
+  await store.put(makeRecord("competition", "sportscore", "Brazilian Serie A", "football", { name: "Brazilian Serie A" }, AT));
+  await runSync("upcoming", store, transport([p]), { ...options, maxTasks: 4 });
+  assert.deepEqual(inputs, ["", "", "", ""], "one global day query, not one request for every discovered competition");
+});
+
+test("directory lists newly discovered Egyptian cups ahead of other countries without inventing rows", () => {
+  const brazil = makeRecord("competition", "sportscore", "Brazilian Serie A", "football", { name: "Brazilian Serie A" }, AT);
+  const egyptCup = makeRecord("competition", "sportscore", "Egypt Cup", "football", { name: "Egypt Cup", countryCode: "EG" }, AT);
+  const europe = makeRecord("competition", "football_data", "EL", "football", { name: "Europa League" }, AT);
+  assert.deepEqual(orderSyncedCompetitions([brazil, europe, egyptCup]).map(c => c.sourceKey), ["Egypt Cup", "Brazilian Serie A", "EL"]);
 });
 
 test("empty/error catalog preserves data, shrinking catalog marks unconfirmed without deletion", async () => {
@@ -250,11 +327,13 @@ test("opaque provider IDs are not merged by punctuation, case or similar names",
 test("shared atomic request budget charges failures/retries and stops provider attempts at quota", async () => {
   let calls = 0;
   const fd = new FootballDataAdapter({ retries: 3, fetchImpl: (async () => { calls++; return Response.json({ message: "outage" }, { status: 500 }); }) as typeof fetch });
-  const sdl = new SportsDataLayer({ rateLimits: { football_data: { perSecond: null, perMinute: 2, perHour: null, perDay: null, perMonth: null, concurrency: 2, throttleAt: .85 } } });
+  // A retry can cross a wall-clock minute boundary; pin the same budget in a
+  // longer window so this assertion measures attempt charging, not timing.
+  const sdl = new SportsDataLayer({ rateLimits: { football_data: { perSecond: null, perMinute: 2, perHour: 2, perDay: 2, perMonth: 2, concurrency: 2, throttleAt: .85 } } });
   sdl.register(fd);
   const r = await sdl.fetch({ provider: "football_data", sport: "football", dataType: "competitions", endpoint: "test-quota", params: {}, call: p => p.getCompetitions({ sport: "football" }) });
   assert.equal(r.ok, false); assert.equal(calls, 2);
-  assert.equal((await sdl.rateLimiter.usage("football_data"))[0].used, 2);
+  assert.equal((await sdl.rateLimiter.usage("football_data")).find(u => u.window === "month")?.used, 2);
 });
 
 test("original broadcast/player/source stores/auth and deployment settings remain byte-for-byte unchanged", async () => {

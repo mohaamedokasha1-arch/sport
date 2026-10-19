@@ -1,0 +1,33 @@
+# Durable football-day discovery (all leagues actually returned by providers).
+# GitHub schedules run only from the default branch; configuration is in the
+# repository's Actions Variables/Secrets, never in this workflow or the app.
+name: League refresh
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: league-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh football days and drain background sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      NEMO_SITE_URL: ${{ vars.NEMO_SITE_URL }}
+      NEMO_CRON_SECRET: ${{ secrets.NEMO_CRON_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Refresh leagues (fail on absent DB/providers or partial runs)
+        working-directory: nemo-sports
+        run: node scripts/refresh-leagues.mjs

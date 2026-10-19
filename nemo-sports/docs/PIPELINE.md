@@ -157,14 +157,14 @@ DATABASE_URL='postgres://…' npm run db:setup     # يضيف الجداول ا�
 
 | البيئة | الطريقة | التكرار |
 |---|---|---|
-| Vercel (Hobby) | `vercel.json` → `/api/cron/pipeline/{matches,standings,competitions}` | يومي/أسبوعي (قيود الخطة) |
-| Vercel (Pro) | أضف `*/2 * * * *` لمهمة `matches` و`0 */6 * * *` للترتيب | كل دقيقتين خلال اليوم |
+| Vercel (Hobby) | GitHub Actions `Data maintenance` يستدعي `/api/cron/pipeline/{matches,standings,competitions}` المحمية | يومي/أسبوعي بعد الدمج وضبط السر والرابط؛ `vercel.json` للاستيعاب والأخبار فقط |
+| Vercel (Pro) | يمكن ضبط مجدول أسرع إن لزم، مع مراعاة حدود المصدر | خيار غير مُفعّل في هذا المستودع |
 | أي سيرفر/حاوية | `npm run pipeline:loop` (مجدول داخلي يقرأ الجدولة من الإعداد) | كل ٦٠ ثانية يبحث عن المستحق |
 | cron نظام | `npm run pipeline:tick` كل دقيقة | يشغّل ما استحقّ فقط |
 | DNS/VPS آخر | `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/cron/pipeline/matches` | ما يناسبك |
 | أي مجدول يتحدث GET واحدًا فقط | `curl https://…/api/cron/update-matches` | مسار مفتوح بلا رمز — يشغّل مهمة `matches` فورًا (force) لكل زائر ويعيد `200` مع تفاصيل التشغيل في الجسم |
 
-> الأهم: **التكرار الزائد لا يكلف شيئًا** — المنسّق يرفض ما لم يستحقّ قبل أي اتصال بالمصدر.
+> المنسّق يرفض العمل الذي لم يحن موعده قبل الاتصال بالمصدر؛ ومع ذلك كثرة طلبات المجدول تستهلك وقت التشغيل وحصة المنصة. راجع [دليل تحديث الدوريات](LEAGUE_REFRESH_AR.md) لإعداد Hobby.
 
 > `GET /api/cron/update-matches` مسار **مفتوح بلا أي تحقق من الرمز** (لا `CRON_SECRET`
 > ولا `Bearer` ولا `?token=`): يشغّل مهمة `matches` الحقيقية فورًا (**force**، بلا
@@ -364,8 +364,7 @@ sources:
 
 1. **التقنية:** TypeScript/Node داخل المشروع نفسه (إعادة استخدام SDL و`db/schema.sql` وPostgres).
 2. **النطاق:** الدوري المصري الممتاز + كأس مصر + السوبر المصري في الطور الأول.
-3. **الاستضافة:** Vercel + Vercel Cron، مع جاهزية Docker/VPS بالتوازي (`Dockerfile` +
-   `docker-compose.yml`) بلا إعادة كتابة.
+3. **الاستضافة:** Vercel Hobby؛ مهمتا الاستيعاب والأخبار على Vercel Cron، وبقية مهام التحديث على GitHub Actions بعد الدمج والتهيئة، مع جاهزية Docker/VPS بالتوازي (`Dockerfile` + `docker-compose.yml`) بلا إعادة كتابة.
 
 ### 10.2 ما يحتاج قرارًا من المالك قبل الإقفال
 
@@ -374,7 +373,7 @@ sources:
 | تأكيد نقاط نهاية EPL/EFA/FIFA | توثيق/عقد رسمي أو تأكيد كتابي بالسماح بالقراءة الآلية | حتى تُقلب `verified: true` وتُشغَّل المصادر الثلاثة |
 | كود الدوري المصري على Football-Data.org | تأكيد الكود على الخطة المدفوعة | الهدفان المصريان مضبوطان لكن معطَّلان (`enabled: false`) |
 | مفاتيح المزوّدين | `FOOTBALL_DATA_API_KEY` و`THESPORTSDB_API_KEY` في بيئة النشر | بدونهما يُتخطّى المصدر بسبب واضح |
-| خطة Vercel | Hobby أم Pro | على Pro يمكن جدولة `matches` كل دقيقتين؛ على Hobby نستخدم المجدول الخارجي |
+| متطلبات الإنتاج | تأكيد وجود PostgreSQL وRedis صالحين وضبط رابط الموقع وسر المهام في GitHub/Vercel | دون التخزين الدائم وبيئة التشغيل لن يعمل التحديث التلقائي بصورة موثوقة؛ الخطة المختارة Hobby والمجدول الخارجي مهيأ لكن غير مفعّل قبل الدمج |
 
 ### 10.3 التالي مباشرة
 

@@ -8,7 +8,7 @@ import { t } from "@/lib/i18n/translate";
 import { sportName } from "@/lib/i18n/names";
 
 export { syncedPath } from "@/lib/sports-sync/public";
-import { syncedPath } from "@/lib/sports-sync/public";
+import { orderSyncedCompetitions, syncedPath } from "@/lib/sports-sync/public";
 
 /**
  * `locale` defaults to Arabic so existing callers (and the sports-sync safety
@@ -70,7 +70,7 @@ export async function SyncedCompetitionDirectory({ sport = "", country = "", loc
   const visible = all.filter(c => indexWorthy(c, fixtures));
   const filtered = visible.filter(c => (!sport || c.sport === sport) && (!country || c.data.countryName === country));
   // Existing curated routes remain in their old listing; dynamic additions need no code edits.
-  const additions = filtered.filter(c => syncedPath(c).endsWith(c.slug));
+  const additions = orderSyncedCompetitions(filtered.filter(c => syncedPath(c).endsWith(c.slug)));
   const l = locale ?? DEFAULT_LOCALE;
   return <section className="mx-auto max-w-[1280px] px-4 py-6" aria-labelledby="sync-catalog-title">
     <h2 id="sync-catalog-title" className="text-xl font-extrabold">{tr(l, "sy.catalogTitle")}</h2>

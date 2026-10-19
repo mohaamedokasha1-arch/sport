@@ -562,6 +562,13 @@ export class SportScoreAdapter extends withDefaults("sportscore") {
     if (!Array.isArray(res.data.matches)) {
       return { ok: false, provider: this.name, requestKey: res.requestKey, fromCache: false, error: { code: "bad_response", message: "sportscore: fixtures payload without matches array" } };
     }
+    // The unscoped daily feed discovers leagues. If the API reports more
+    // matches than it returned (e.g. the 200-row limit was hit), treating the
+    // subset as a complete day silently drops entire competitions. Preserve
+    // the last good snapshot and report the gap instead.
+    if (!competition && typeof res.data.count === "number" && res.data.count > res.data.matches.length) {
+      return { ok: false, provider: this.name, requestKey: res.requestKey, fromCache: false, error: { code: "bad_response", message: "sportscore: fixtures day truncated; full league coverage not confirmed" } };
+    }
     return { ok: true, data: res.data.matches, provider: this.name, fetchedAt: res.fetchedAt, requestKey: res.requestKey, fromCache: false };
   }
 

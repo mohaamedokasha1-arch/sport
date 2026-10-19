@@ -1,0 +1,41 @@
+# Non-live cron jobs removed from vercel.json for Vercel Hobby's two-cron cap.
+# The two daily Vercel jobs (ingest and news) stay in vercel.json unchanged.
+name: Data maintenance
+
+on:
+  schedule:
+    - cron: "10 4 * * *"   # matches, standings, fixture coverage
+    - cron: "25 4 * * 1" # competition indexes (weekly)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run the daily or weekly maintenance jobs"
+        type: choice
+        options:
+          - daily
+          - weekly
+        default: daily
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-maintenance
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEMO_SITE_URL: ${{ vars.NEMO_SITE_URL }}
+      NEMO_CRON_SECRET: ${{ secrets.NEMO_CRON_SECRET }}
+      NEMO_MAINTENANCE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (github.event.schedule == '25 4 * * 1' && 'weekly' || 'daily') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run protected maintenance routes, report partial/failure responses
+        working-directory: nemo-sports
+        run: node scripts/refresh-maintenance.mjs
